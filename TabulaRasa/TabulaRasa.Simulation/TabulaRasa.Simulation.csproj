@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TabulaRasa.Abstractions\TabulaRasa.Abstractions.csproj" />
+    <ProjectReference Include="..\TabulaRasa.Agents\TabulaRasa.Agents.csproj" />
+    <ProjectReference Include="..\TabulaRasa.Kernel\TabulaRasa.Kernel.csproj" />
+    <ProjectReference Include="..\TabulaRasa.World\TabulaRasa.World.csproj" />
+  </ItemGroup>
+
+</Project>

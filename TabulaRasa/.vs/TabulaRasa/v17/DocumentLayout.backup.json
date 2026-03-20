@@ -1,0 +1,122 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{0E326645-67E5-4576-BB64-E09E5951C392}|TabulaRasa.Runner\\TabulaRasa.Runner.csproj|c:\\users\\stijn\\desktop\\github\\tabularasa\\tabularasa\\tabularasa.runner\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0E326645-67E5-4576-BB64-E09E5951C392}|TabulaRasa.Runner\\TabulaRasa.Runner.csproj|solutionrelative:tabularasa.runner\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{B535EEFF-7DB9-4B2F-A298-E995FB6811E3}|TabulaRasa.Simulation\\TabulaRasa.Simulation.csproj|c:\\users\\stijn\\desktop\\github\\tabularasa\\tabularasa\\tabularasa.simulation\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{B535EEFF-7DB9-4B2F-A298-E995FB6811E3}|TabulaRasa.Simulation\\TabulaRasa.Simulation.csproj|solutionrelative:tabularasa.simulation\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{482AE6D6-935F-43B4-B813-BFF9D764A897}|TabulaRasa.Abstractions\\TabulaRasa.Abstractions.csproj|c:\\users\\stijn\\desktop\\github\\tabularasa\\tabularasa\\tabularasa.abstractions\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{482AE6D6-935F-43B4-B813-BFF9D764A897}|TabulaRasa.Abstractions\\TabulaRasa.Abstractions.csproj|solutionrelative:tabularasa.abstractions\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{CE650DCB-E80F-4641-9D65-4C8B161F6324}|TabulaRasa.Agents\\TabulaRasa.Agents.csproj|c:\\users\\stijn\\desktop\\github\\tabularasa\\tabularasa\\tabularasa.agents\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{CE650DCB-E80F-4641-9D65-4C8B161F6324}|TabulaRasa.Agents\\TabulaRasa.Agents.csproj|solutionrelative:tabularasa.agents\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{ED4E9A04-F801-4BAE-A792-2CF69DC730FF}|TabulaRasa.World\\TabulaRasa.World.csproj|c:\\users\\stijn\\desktop\\github\\tabularasa\\tabularasa\\tabularasa.world\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{ED4E9A04-F801-4BAE-A792-2CF69DC730FF}|TabulaRasa.World\\TabulaRasa.World.csproj|solutionrelative:tabularasa.world\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1D60180E-C3E9-4958-91D2-AE456B146773}|TabulaRasa.Kernel\\TabulaRasa.Kernel.csproj|c:\\users\\stijn\\desktop\\github\\tabularasa\\tabularasa\\tabularasa.kernel\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1D60180E-C3E9-4958-91D2-AE456B146773}|TabulaRasa.Kernel\\TabulaRasa.Kernel.csproj|solutionrelative:tabularasa.kernel\\class1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 4,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Class1.cs",
+              "DocumentMoniker": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Simulation\\Class1.cs",
+              "RelativeDocumentMoniker": "TabulaRasa.Simulation\\Class1.cs",
+              "ToolTip": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Simulation\\Class1.cs",
+              "RelativeToolTip": "TabulaRasa.Simulation\\Class1.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-20T00:40:04.03Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "Class1.cs",
+              "DocumentMoniker": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Abstractions\\Class1.cs",
+              "RelativeDocumentMoniker": "TabulaRasa.Abstractions\\Class1.cs",
+              "ToolTip": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Abstractions\\Class1.cs",
+              "RelativeToolTip": "TabulaRasa.Abstractions\\Class1.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-20T00:39:15.232Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Class1.cs",
+              "DocumentMoniker": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Agents\\Class1.cs",
+              "RelativeDocumentMoniker": "TabulaRasa.Agents\\Class1.cs",
+              "ToolTip": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Agents\\Class1.cs",
+              "RelativeToolTip": "TabulaRasa.Agents\\Class1.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-20T00:34:31.944Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "Class1.cs",
+              "DocumentMoniker": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.World\\Class1.cs",
+              "RelativeDocumentMoniker": "TabulaRasa.World\\Class1.cs",
+              "ToolTip": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.World\\Class1.cs",
+              "RelativeToolTip": "TabulaRasa.World\\Class1.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-20T00:34:17.486Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Runner\\Program.cs",
+              "RelativeDocumentMoniker": "TabulaRasa.Runner\\Program.cs",
+              "ToolTip": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Runner\\Program.cs",
+              "RelativeToolTip": "TabulaRasa.Runner\\Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-20T00:31:51.411Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "Class1.cs",
+              "DocumentMoniker": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Kernel\\Class1.cs",
+              "RelativeDocumentMoniker": "TabulaRasa.Kernel\\Class1.cs",
+              "ToolTip": "C:\\Users\\stijn\\Desktop\\Github\\TabulaRasa\\TabulaRasa\\TabulaRasa.Kernel\\Class1.cs",
+              "RelativeToolTip": "TabulaRasa.Kernel\\Class1.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-20T00:33:00.389Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

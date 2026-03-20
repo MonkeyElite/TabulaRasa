@@ -1,0 +1,55 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37111.16 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TabulaRasa.Runner", "TabulaRasa.Runner\TabulaRasa.Runner.csproj", "{0E326645-67E5-4576-BB64-E09E5951C392}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TabulaRasa.Kernel", "TabulaRasa.Kernel\TabulaRasa.Kernel.csproj", "{1D60180E-C3E9-4958-91D2-AE456B146773}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TabulaRasa.World", "TabulaRasa.World\TabulaRasa.World.csproj", "{ED4E9A04-F801-4BAE-A792-2CF69DC730FF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TabulaRasa.Agents", "TabulaRasa.Agents\TabulaRasa.Agents.csproj", "{CE650DCB-E80F-4641-9D65-4C8B161F6324}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TabulaRasa.Abstractions", "TabulaRasa.Abstractions\TabulaRasa.Abstractions.csproj", "{482AE6D6-935F-43B4-B813-BFF9D764A897}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TabulaRasa.Simulation", "TabulaRasa.Simulation\TabulaRasa.Simulation.csproj", "{B535EEFF-7DB9-4B2F-A298-E995FB6811E3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0E326645-67E5-4576-BB64-E09E5951C392}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E326645-67E5-4576-BB64-E09E5951C392}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E326645-67E5-4576-BB64-E09E5951C392}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E326645-67E5-4576-BB64-E09E5951C392}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1D60180E-C3E9-4958-91D2-AE456B146773}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1D60180E-C3E9-4958-91D2-AE456B146773}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1D60180E-C3E9-4958-91D2-AE456B146773}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1D60180E-C3E9-4958-91D2-AE456B146773}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ED4E9A04-F801-4BAE-A792-2CF69DC730FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED4E9A04-F801-4BAE-A792-2CF69DC730FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED4E9A04-F801-4BAE-A792-2CF69DC730FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED4E9A04-F801-4BAE-A792-2CF69DC730FF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE650DCB-E80F-4641-9D65-4C8B161F6324}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE650DCB-E80F-4641-9D65-4C8B161F6324}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE650DCB-E80F-4641-9D65-4C8B161F6324}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE650DCB-E80F-4641-9D65-4C8B161F6324}.Release|Any CPU.Build.0 = Release|Any CPU
+		{482AE6D6-935F-43B4-B813-BFF9D764A897}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{482AE6D6-935F-43B4-B813-BFF9D764A897}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{482AE6D6-935F-43B4-B813-BFF9D764A897}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{482AE6D6-935F-43B4-B813-BFF9D764A897}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B535EEFF-7DB9-4B2F-A298-E995FB6811E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B535EEFF-7DB9-4B2F-A298-E995FB6811E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B535EEFF-7DB9-4B2F-A298-E995FB6811E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B535EEFF-7DB9-4B2F-A298-E995FB6811E3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {27D651CF-F383-4034-8872-AE54ECB7A805}
+	EndGlobalSection
+EndGlobal
