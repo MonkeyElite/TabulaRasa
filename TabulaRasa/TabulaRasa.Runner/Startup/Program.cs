@@ -1,3 +1,8 @@
-﻿using TabulaRasa.Simulation;
+﻿using TabulaRasa.Kernel.Engine;
+using TabulaRasa.Simulation.Composition;
 
-Console.WriteLine("Starting simulation!");
+var (world, systems) = MinimalSimulationFactory.Create();
+
+var engine = new SimulationEngine(systems);
+
+engine.Run(world, ticks: 10);
