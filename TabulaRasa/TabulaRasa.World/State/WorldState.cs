@@ -1,4 +1,5 @@
 ﻿using TabulaRasa.Abstractions.World;
+using TabulaRasa.World.Entities;
 
 namespace TabulaRasa.World.State
 {

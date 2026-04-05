@@ -1,5 +1,8 @@
 ﻿using TabulaRasa.Abstractions.Execution;
-using TabulaRasa.Abstractions.World;
+using TabulaRasa.Agents.Models;
+using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.State;
+using TabulaRasa.World.Entities;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.Systems
@@ -7,15 +10,23 @@ namespace TabulaRasa.Simulation.Systems
     public sealed class NeedDecaySystem: ISystem
     {
         public string Name => "Need Decay System";
-        public int Order => 1;
+        public SimulationPhase Phase => SimulationPhase.PreUpdate;
+        public int Priority => 0;
 
-        public void Execute(SimulationContext context)
+        public void Execute(SimulationState state)
         {
-            WorldState world = (WorldState)context.WorldState;
+            WorldState world = state.World;
 
-            foreach (AgentEntity agent in world.Agents)
+            foreach (AgentEntity agentEntity in world.Agents)
             {
-                agent.Hunger += 1;
+                AgentState? agentState = state.GetAgentById(agentEntity.Id);
+
+                if (agentState == null)
+                {
+                    continue;
+                }
+
+                agentState.NeedState.Hunger += 1;
             }
         }
     }

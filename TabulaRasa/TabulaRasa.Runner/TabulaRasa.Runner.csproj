@@ -8,13 +8,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TabulaRasa.Simulation\TabulaRasa.Simulation.csproj" />
+    <Compile Remove="Commands\**" />
+    <Compile Remove="Config\**" />
+    <Compile Remove="Output\**" />
+    <EmbeddedResource Remove="Commands\**" />
+    <EmbeddedResource Remove="Config\**" />
+    <EmbeddedResource Remove="Output\**" />
+    <None Remove="Commands\**" />
+    <None Remove="Config\**" />
+    <None Remove="Output\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Commands\" />
-    <Folder Include="Config\" />
-    <Folder Include="Output\" />
+    <ProjectReference Include="..\TabulaRasa.Simulation\TabulaRasa.Simulation.csproj" />
   </ItemGroup>
 
 </Project>

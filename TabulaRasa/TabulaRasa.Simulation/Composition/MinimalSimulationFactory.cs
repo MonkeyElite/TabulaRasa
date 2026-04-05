@@ -1,40 +1,52 @@
-﻿using TabulaRasa.Abstractions.Execution;
-using TabulaRasa.Simulation.Systems;
-using TabulaRasa.Agents.Minds;
+﻿using TabulaRasa.Simulation.Systems;
 using TabulaRasa.World.State;
+using TabulaRasa.Abstractions.Time;
+using TabulaRasa.World.Construction;
+using TabulaRasa.World.Entities;
+using TabulaRasa.Simulation.State;
+using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Agents.Models;
+using TabulaRasa.Agents.Minds;
 
 namespace TabulaRasa.Simulation.Composition
 {
     public static class MinimalSimulationFactory
     {
-        public static (WorldState World, IReadOnlyList<ISystem> Systems) Create()
+        public static (SimulationState State, IReadOnlyList<ISystem> Systems) Create()
         {
-            var world = new WorldState();
+            List<AgentEntity> agentEntities = new List<AgentEntity>();
+            List<AgentState> agentStates = new List<AgentState>();
+            List<FoodEntity> foods = new List<FoodEntity>();
 
-            world.Agents.Add(new AgentEntity
+            agentEntities.Add(new AgentEntity
             {
                 Id = "agent-1",
                 Position = "A",
-                Hunger = 0,
-                Mind = new DefaultAgentMind()
             });
 
-            world.Foods.Add(new FoodEntity
+            agentStates.Add(new AgentState("agent-1", new AgentNeedState
+            {
+                Hunger = 1
+            }, new DefaultAgentMind()));
+
+            foods.Add(new FoodEntity
             {
                 Id = "food-1",
                 Position = "A",
                 IsConsumed = false
             });
 
+            WorldState world = WorldFactory.Create(agentEntities, foods);
+
             ISystem[] systems =
             [
                 new NeedDecaySystem(),
-            new PlanningSystem(),
-            new ActionExecutionSystem(),
-            new ReportingSystem()
+                new PlanningSystem(),
+                new ActionExecutionSystem(),
+                new ReportingSystem()
             ];
 
-            return (world, systems);
+            return (new SimulationState(world, new SimulationTime(Tick: 0), agentStates), systems);
         }
     }
 }

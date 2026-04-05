@@ -1,6 +1,9 @@
-﻿namespace TabulaRasa.World.State
+﻿using TabulaRasa.World.Entities;
+using TabulaRasa.World.State;
+
+namespace TabulaRasa.World.Queries
 {
-    public static class WorldQueries
+    public static class SpatialQueries
     {
         public static FoodEntity? FindAvailableFoodAt(WorldState world, string position)
         {

@@ -1,4 +1,8 @@
 ﻿using TabulaRasa.Abstractions.Execution;
+using TabulaRasa.Agents.Models;
+using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.State;
+using TabulaRasa.World.Entities;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.Systems
@@ -6,18 +10,26 @@ namespace TabulaRasa.Simulation.Systems
     public class ReportingSystem : ISystem
     {
         public string Name => "Reporting System";
-        public int Order => 4;
+        public SimulationPhase Phase => SimulationPhase.Logging;
+        public int Priority => 0;
 
-        public void Execute(SimulationContext context)
+        public void Execute(SimulationState state)
         {
-            WorldState world = (WorldState)context.WorldState;
+            WorldState world = state.World;
 
-            Console.WriteLine($"Tick {context.SimulationTime.Tick}");
+            Console.WriteLine($"Tick {state.Time.Tick}");
 
-            foreach (var agent in world.Agents)
+            foreach (AgentEntity agentEntity in world.Agents)
             {
+                AgentState? agentState = state.GetAgentById(agentEntity.Id);
+
+                if (agentState == null)
+                {
+                    continue;
+                }
+
                 Console.WriteLine(
-                    $"  Agent {agent.Id} | Pos={agent.Position} | Hunger={agent.Hunger}");
+                    $"  Agent {agentEntity.Id} | Pos={agentEntity.Position} | Hunger={agentState.NeedState.Hunger}");
             }
 
             var remainingFood = world.Foods.Count(f => !f.IsConsumed);

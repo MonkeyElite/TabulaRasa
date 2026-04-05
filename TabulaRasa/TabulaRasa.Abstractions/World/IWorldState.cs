@@ -1,6 +1,4 @@
 ﻿namespace TabulaRasa.Abstractions.World
 {
-    public interface IWorldState
-    {
-    }
+    public interface IWorldState { }
 }

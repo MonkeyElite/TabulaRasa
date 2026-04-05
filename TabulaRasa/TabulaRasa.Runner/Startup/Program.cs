@@ -1,8 +1,16 @@
-﻿using TabulaRasa.Kernel.Engine;
+﻿using System.Diagnostics;
 using TabulaRasa.Simulation.Composition;
+using TabulaRasa.Simulation.Engine;
 
-var (world, systems) = MinimalSimulationFactory.Create();
+var (state, systems) = MinimalSimulationFactory.Create();
 
-var engine = new SimulationEngine(systems);
+Console.WriteLine("Starting simulation...");
 
-engine.Run(world, ticks: 10);
+SimulationEngine engine = new SimulationEngine(systems);
+
+var Timer = Stopwatch.StartNew();
+
+engine.Run(state, maxTicks: 10);
+
+Timer.Stop();
+Console.WriteLine($"Simulation had ended in: {Timer.ElapsedMilliseconds}");

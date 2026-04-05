@@ -9,7 +9,6 @@
   <ItemGroup>
     <ProjectReference Include="..\TabulaRasa.Abstractions\TabulaRasa.Abstractions.csproj" />
     <ProjectReference Include="..\TabulaRasa.Agents\TabulaRasa.Agents.csproj" />
-    <ProjectReference Include="..\TabulaRasa.Kernel\TabulaRasa.Kernel.csproj" />
     <ProjectReference Include="..\TabulaRasa.World\TabulaRasa.World.csproj" />
   </ItemGroup>
 

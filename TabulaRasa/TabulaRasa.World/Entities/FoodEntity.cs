@@ -1,4 +1,4 @@
-﻿namespace TabulaRasa.World.State
+﻿namespace TabulaRasa.World.Entities
 {
     public sealed class FoodEntity
     {

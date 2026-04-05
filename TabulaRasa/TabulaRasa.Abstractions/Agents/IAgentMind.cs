@@ -1,7 +1,9 @@
-﻿namespace TabulaRasa.Abstractions.Agents
+﻿using TabulaRasa.Abstractions.Agents.Actions;
+
+namespace TabulaRasa.Abstractions.Agents
 {
     public interface IAgentMind
     {
-        AgentDecision Decide(AgentPerception perception, AgentSnapshot self);
+        ActionRequest Decide(AgentPerception perception, AgentSnapshot self);
     }
 }

@@ -1,5 +1,10 @@
 ﻿using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Execution;
+using TabulaRasa.Agents.Models;
+using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.State;
+using TabulaRasa.World.Entities;
+using TabulaRasa.World.Queries;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.Systems
@@ -7,20 +12,28 @@ namespace TabulaRasa.Simulation.Systems
     public class PlanningSystem : ISystem
     {
         public string Name => "Planning System";
-        public int Order => 2;
+        public SimulationPhase Phase => SimulationPhase.Evaluation;
+        public int Priority => 0;
 
-        public void Execute(SimulationContext context)
+        public void Execute(SimulationState state)
         {
-            WorldState world = (WorldState)context.WorldState;
+            WorldState world = state.World;
 
-            foreach(AgentEntity agent in world.Agents)
+            foreach(AgentEntity agentEntity in world.Agents)
             {
-                Boolean foodNearby = WorldQueries.IsFoodAt(world, agent.Position);
+                AgentState? agentState = state.GetAgentById(agentEntity.Id);
+
+                if (agentState == null)
+                {
+                    continue;
+                }
+
+                Boolean foodNearby = SpatialQueries.IsFoodAt(world, agentEntity.Position);
                 AgentPerception perception = new AgentPerception(foodNearby);
 
-                AgentSnapshot snapshot = new AgentSnapshot(agent.Id, agent.Hunger, agent.Position);
+                AgentSnapshot snapshot = new AgentSnapshot(agentEntity.Id, agentState.NeedState.Hunger, agentEntity.Position);
 
-                agent.PendingDecision = agent.Mind.Decide(perception, snapshot);
+                agentState.PendingDecision = agentState.Mind.Decide(perception, snapshot);
             }
         }
     }

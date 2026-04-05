@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TabulaRasa.Abstractions\TabulaRasa.Abstractions.csproj" />
+    <ProjectReference Include="..\TabulaRasa.World\TabulaRasa.World.csproj" />
   </ItemGroup>
 
 </Project>
