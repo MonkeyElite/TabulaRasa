@@ -29,7 +29,7 @@ namespace TabulaRasa.Simulation.Systems
                 }
 
                 Console.WriteLine(
-                    $"  Agent {agentEntity.Id} | Pos={agentEntity.Position} | Hunger={agentState.NeedState.Hunger}");
+                    $"  Agent {agentEntity.Id} | Pos= {agentEntity.Position} | Hunger= {agentState.NeedState.Hunger}");
             }
 
             var remainingFood = world.Foods.Count(f => !f.IsConsumed);

@@ -1,8 +1,11 @@
-﻿namespace TabulaRasa.World.Entities
+﻿using TabulaRasa.Abstractions.Entities;
+using TabulaRasa.Abstractions.World;
+
+namespace TabulaRasa.World.Entities
 {
-    public sealed class AgentEntity
+    public sealed class AgentEntity : IBaseEntity
     {
         public required string Id { get; init; }
-        public required string Position { get; set; }
+        public required WorldPosition Position { get; set; }
     }
 }

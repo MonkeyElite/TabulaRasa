@@ -1,4 +1,6 @@
-﻿namespace TabulaRasa.Abstractions.Agents
+﻿using TabulaRasa.Abstractions.World;
+
+namespace TabulaRasa.Abstractions.Agents
 {
-    public sealed record AgentSnapshot(string AgentId, float Hunger, string Position);
+    public sealed record AgentSnapshot(string AgentId, float Hunger, WorldPosition Position);
 }

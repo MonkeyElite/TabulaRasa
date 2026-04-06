@@ -1,6 +1,7 @@
 ﻿using TabulaRasa.Simulation.Systems;
 using TabulaRasa.World.State;
 using TabulaRasa.Abstractions.Time;
+using TabulaRasa.Abstractions.World;
 using TabulaRasa.World.Construction;
 using TabulaRasa.World.Entities;
 using TabulaRasa.Simulation.State;
@@ -21,7 +22,7 @@ namespace TabulaRasa.Simulation.Composition
             agentEntities.Add(new AgentEntity
             {
                 Id = "agent-1",
-                Position = "A",
+                Position = new WorldPosition(1, 1),
             });
 
             agentStates.Add(new AgentState("agent-1", new AgentNeedState
@@ -32,7 +33,7 @@ namespace TabulaRasa.Simulation.Composition
             foods.Add(new FoodEntity
             {
                 Id = "food-1",
-                Position = "A",
+                Position = new WorldPosition(1, 1),
                 IsConsumed = false
             });
 

@@ -1,5 +1,6 @@
 ﻿using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Execution;
+using TabulaRasa.Abstractions.World;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.State;
@@ -77,7 +78,7 @@ namespace TabulaRasa.Simulation.Systems
 
         private static void ExecuteWander(AgentEntity agent)
         {
-            agent.Position = agent.Position == "A" ? "B" : "A";
+            agent.Position = agent.Position == new WorldPosition(1, 1) ? new WorldPosition(1, 2) : new WorldPosition(1, 1);
         }
     }
 }
