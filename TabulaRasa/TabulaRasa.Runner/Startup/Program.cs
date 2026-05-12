@@ -8,9 +8,9 @@ Console.WriteLine("Starting simulation...");
 
 SimulationEngine engine = new SimulationEngine(systems);
 
-var Timer = Stopwatch.StartNew();
+var timer = Stopwatch.StartNew();
 
 engine.Run(state, maxTicks: 10);
 
-Timer.Stop();
-Console.WriteLine($"Simulation had ended in: {Timer.ElapsedMilliseconds}");
+timer.Stop();
+Console.WriteLine($"Simulation completed in: {timer.ElapsedMilliseconds} ms");

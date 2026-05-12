@@ -1,10 +1,9 @@
-﻿using TabulaRasa.Abstractions.Agents;
+using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
-using TabulaRasa.World.Queries;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.Systems
@@ -19,21 +18,22 @@ namespace TabulaRasa.Simulation.Systems
         {
             WorldState world = state.World;
 
-            foreach(AgentEntity agentEntity in world.Agents)
+            foreach (AgentEntity agentEntity in world.Agents)
             {
                 AgentState? agentState = state.GetAgentById(agentEntity.Id);
 
-                if (agentState == null)
+                if (agentState is null)
                 {
                     continue;
                 }
 
-                Boolean foodNearby = SpatialQueries.IsFoodAt(world, agentEntity.Position);
-                AgentPerception perception = new AgentPerception(foodNearby);
+                AgentPerception perception = AgentPerceptionBuilder.Build(world, agentEntity);
+                AgentSnapshot snapshot = new(
+                    agentEntity.Id,
+                    agentState.NeedState.ToSnapshot(),
+                    agentEntity.Position);
 
-                AgentSnapshot snapshot = new AgentSnapshot(agentEntity.Id, agentState.NeedState.Hunger, agentEntity.Position);
-
-                agentState.PendingDecision = agentState.Mind.Decide(perception, snapshot);
+                agentState.PendingIntent = agentState.Mind.Decide(perception, snapshot);
             }
         }
     }

@@ -11,6 +11,11 @@ namespace TabulaRasa.World.Queries
             return world.Foods.FirstOrDefault(f => !f.IsConsumed && f.Position == position);
         }
 
+        public static FoodEntity? FindAvailableFoodAt(WorldState world, WorldPosition position, string foodId)
+        {
+            return world.Foods.FirstOrDefault(f => f.Id == foodId && !f.IsConsumed && f.Position == position);
+        }
+
         public static bool IsFoodAt(WorldState world, WorldPosition position)
         {
             return world.Foods.Any(f => !f.IsConsumed && f.Position == position);

@@ -1,4 +1,4 @@
-﻿using TabulaRasa.Abstractions.Agents;
+using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Agents.Models;
@@ -24,28 +24,23 @@ namespace TabulaRasa.Simulation.Systems
             {
                 AgentState? agentState = state.GetAgentById(agentEntity.Id);
 
-                if (agentState is null)
+                if (agentState?.PendingIntent is null)
                 {
-                    // Log the fact that we have an agent in the world that doesn't have a corresponding agent state in the simulation state. This shouldn't happen, but if it does, we want to know about it.
                     continue;
                 }
 
-                if (agentState.PendingDecision is null)
+                AgentIntent intent = agentState.PendingIntent;
+
+                if (!ValidateIntent(world, agentEntity, intent))
                 {
-                    // Log the fact that the agent doesn't have a pending decision. This could be due to a variety of reasons, such as the agent not having had enough time to think through its next action, or the agent being in a state where it can't make a decision (e.g., it's asleep or incapacitated). For now, we'll just skip executing an action for this agent if it doesn't have a pending decision.
+                    agentState.PendingIntent = null;
                     continue;
                 }
 
-                if (!ValidateAction())
-                {
-                    // Log the fact that the agent's pending action is invalid. This could be due to a variety of reasons, such as the agent not having the necessary resources to perform the action, or the action being outside of the agent's capabilities. For now, we'll just skip executing the action if it's invalid.
-                    continue;
-                }
-
-                switch (agentState.PendingDecision.ActionType)
+                switch (intent.ActionType)
                 {
                     case AgentActionType.Eat:
-                        ExecuteEat(world, agentEntity, agentState);
+                        ExecuteEat(world, agentEntity, agentState, intent.TargetId);
                         break;
 
                     case AgentActionType.Wander:
@@ -53,19 +48,39 @@ namespace TabulaRasa.Simulation.Systems
                         break;
                 }
 
-                agentState.PendingDecision = null;
+                agentState.PendingIntent = null;
             }
         }
 
-        private static bool ValidateAction()
+        private static bool ValidateIntent(WorldState world, AgentEntity agentEntity, AgentIntent intent)
         {
-            // TODO: Add validation to check whether or not agent is allowed and capable of performing action.
-            return true;
+            if (intent.AgentId != agentEntity.Id)
+            {
+                return false;
+            }
+
+            return intent.ActionType switch
+            {
+                AgentActionType.Eat => intent.TargetId is not null
+                    && SpatialQueries.FindAvailableFoodAt(world, agentEntity.Position, intent.TargetId) is not null,
+                AgentActionType.Wander => true,
+                AgentActionType.None => true,
+                _ => false
+            };
         }
 
-        private static void ExecuteEat(WorldState world, AgentEntity agentEntity, AgentState agentState)
+        private static void ExecuteEat(
+            WorldState world,
+            AgentEntity agentEntity,
+            AgentState agentState,
+            string? targetId)
         {
-            var food = SpatialQueries.FindAvailableFoodAt(world, agentEntity.Position);
+            if (targetId is null)
+            {
+                return;
+            }
+
+            FoodEntity? food = SpatialQueries.FindAvailableFoodAt(world, agentEntity.Position, targetId);
 
             if (food is null)
             {

@@ -1,6 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using TabulaRasa.Abstractions.Agents;
-using TabulaRasa.Abstractions.Agents.Actions;
 
 namespace TabulaRasa.Agents.Models
 {
@@ -9,12 +8,12 @@ namespace TabulaRasa.Agents.Models
         public required string Id { get; init; }
         public required AgentNeedState NeedState { get; init; }
         public required IAgentMind Mind { get; init; } = default!;
-        public ActionRequest? PendingDecision { get; set; }
+        public AgentIntent? PendingIntent { get; set; }
 
         [SetsRequiredMembers]
-        public AgentState(string AgentId, AgentNeedState needState, IAgentMind mind)
+        public AgentState(string agentId, AgentNeedState needState, IAgentMind mind)
         {
-            Id = AgentId;
+            Id = agentId;
             NeedState = needState;
             Mind = mind;
         }

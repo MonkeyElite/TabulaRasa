@@ -1,18 +1,19 @@
-﻿using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Agents;
 
 namespace TabulaRasa.Agents.Minds
 {
     public class DefaultAgentMind : IAgentMind
     {
-        public ActionRequest Decide(AgentPerception perception, AgentSnapshot self)
+        public AgentIntent Decide(AgentPerception perception, AgentSnapshot self)
         {
-            if (self.Hunger >= 5 && perception.FoodNearby)
+            InteractionOpportunity? foodOpportunity = perception.FindOpportunity(AgentActionType.Eat);
+
+            if (self.Needs.Hunger >= 5 && foodOpportunity is not null)
             {
-                return new ActionRequest(self.AgentId, AgentActionType.Eat, null);
+                return new AgentIntent(self.AgentId, AgentActionType.Eat, foodOpportunity.TargetId);
             }
 
-            return new ActionRequest(self.AgentId, AgentActionType.Wander, null);
+            return new AgentIntent(self.AgentId, AgentActionType.Wander, null);
         }
     }
 }

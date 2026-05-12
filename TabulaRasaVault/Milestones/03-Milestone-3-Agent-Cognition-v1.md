@@ -100,10 +100,10 @@ Represent the internal condition of an agent.
 Provide a structured, limited view of the world to the agent.
 
 ### Checklist
-- [ ] agents receive a structured perception snapshot
-- [ ] perception is separated from direct world mutation
+- [x] agents receive a structured perception snapshot
+- [x] perception is separated from direct world mutation
 - [ ] nearby/interactable information can be queried
-- [ ] perception can later grow more complex without changing the engine structure
+- [x] perception can later grow more complex without changing the engine structure
 
 ## 3. Needs / Drives
 
@@ -111,7 +111,7 @@ Provide a structured, limited view of the world to the agent.
 Create internal pressures that influence decisions.
 
 ### Checklist
-- [ ] hunger exists as an explicit need
+- [x] hunger exists as an explicit need
 - [ ] at least one additional future need has a clear place in the structure
 - [ ] need evaluation is separated from direct execution
 - [ ] the system can be expanded without rewriting the whole agent model
