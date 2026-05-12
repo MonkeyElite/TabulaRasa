@@ -25,7 +25,7 @@ namespace TabulaRasa.Simulation.Actions.Validation
             return request.ActionType switch
             {
                 AgentActionType.Eat => ValidateEat(state, agentEntity, request),
-                AgentActionType.Wander => ActionValidationResult.Valid,
+                AgentActionType.Wander => ValidateWander(state, agentEntity),
                 AgentActionType.None => ActionValidationResult.Valid,
                 _ => ActionValidationResult.Invalid("Unsupported action type.")
             };
@@ -41,7 +41,7 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 return ActionValidationResult.Invalid("Eat action requires a target.");
             }
 
-            FoodEntity? food = SpatialQueries.FindAvailableFoodAt(
+            FoodEntity? food = SpatialQueries.FindAvailableFoodAtInteractionPoint(
                 state.World,
                 agentEntity.Position,
                 request.TargetId);
@@ -52,6 +52,17 @@ namespace TabulaRasa.Simulation.Actions.Validation
             }
 
             return ActionValidationResult.Valid;
+        }
+
+        private static ActionValidationResult ValidateWander(SimulationState state, AgentEntity agentEntity)
+        {
+            bool hasDestination = state.World.Grid
+                .GetTraversableAdjacentCells(SpatialQueries.GetCurrentCell(state.World, agentEntity.Position))
+                .Any();
+
+            return hasDestination
+                ? ActionValidationResult.Valid
+                : ActionValidationResult.Invalid("Agent has no traversable adjacent cell to wander to.");
         }
     }
 }

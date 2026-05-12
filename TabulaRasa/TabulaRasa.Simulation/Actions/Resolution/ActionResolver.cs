@@ -1,5 +1,6 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
+using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.State;
@@ -31,7 +32,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 return new ActionResult(request.AgentId, request.ActionType, false, "Eat action could not be resolved.");
             }
 
-            FoodEntity? food = SpatialQueries.FindAvailableFoodAt(
+            FoodEntity? food = SpatialQueries.FindAvailableFoodAtInteractionPoint(
                 state.World,
                 agentEntity.Position,
                 request.TargetId);
@@ -60,9 +61,20 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 return new ActionResult(request.AgentId, request.ActionType, false, "Agent does not exist.");
             }
 
-            agentEntity.Position = agentEntity.Position == new WorldPosition(1, 1)
-                ? new WorldPosition(1, 2)
-                : new WorldPosition(1, 1);
+            GridCell currentCell = SpatialQueries.GetCurrentCell(state.World, agentEntity.Position);
+            IReadOnlyList<GridCell> destinations = state.World.Grid.GetTraversableAdjacentCells(currentCell);
+
+            if (destinations.Count == 0)
+            {
+                return new ActionResult(
+                    request.AgentId,
+                    request.ActionType,
+                    false,
+                    "Agent has no traversable adjacent cell to wander to.");
+            }
+
+            GridCell destination = destinations[0];
+            agentEntity.Position = new WorldPosition(destination.X + 0.5f, destination.Y + 0.5f);
 
             return new ActionResult(request.AgentId, request.ActionType, true);
         }

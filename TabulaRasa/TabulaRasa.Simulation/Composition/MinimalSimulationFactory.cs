@@ -22,7 +22,7 @@ namespace TabulaRasa.Simulation.Composition
             agentEntities.Add(new AgentEntity
             {
                 Id = "agent-1",
-                Position = new WorldPosition(1, 1),
+                Position = new WorldPosition(0.5f, 1),
             });
 
             agentStates.Add(new AgentState("agent-1", new AgentNeedState

@@ -17,7 +17,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         [Fact]
         public void PlanningSystem_StoresAgentIntentWithoutMutatingWorld()
         {
-            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(1, 1) };
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 1) };
             var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1, 1) };
             WorldState world = WorldFactory.Create([agent], [food]);
             var agentState = new AgentState(
@@ -54,7 +54,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         [Fact]
         public void ActionExecutionSystem_ConsumesRequestAndAppliesWorldMutation()
         {
-            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(1, 1) };
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 1) };
             var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1, 1) };
             WorldState world = WorldFactory.Create([agent], [food]);
             var agentState = new AgentState(
