@@ -43,6 +43,7 @@ namespace TabulaRasa.Simulation.Composition
             [
                 new NeedDecaySystem(),
                 new PlanningSystem(),
+                new ActionRequestCreationSystem(),
                 new ActionExecutionSystem(),
                 new ReportingSystem()
             ];

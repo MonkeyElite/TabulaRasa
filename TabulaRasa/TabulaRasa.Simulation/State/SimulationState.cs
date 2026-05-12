@@ -1,4 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
+using TabulaRasa.Abstractions.Agents;
+using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.World.State;
@@ -10,6 +12,9 @@ namespace TabulaRasa.Simulation.State
         public required WorldState World { get; set; }
         public required SimulationTime Time { get; set; }
         public List<AgentState> Agents { get; set; } = [];
+        public List<AgentIntent> PendingIntents { get; } = [];
+        public List<ActionRequest> PendingActionRequests { get; } = [];
+        public List<ActionResult> ActionResults { get; } = [];
 
         public bool IsRunning { get; set; } = true;
 

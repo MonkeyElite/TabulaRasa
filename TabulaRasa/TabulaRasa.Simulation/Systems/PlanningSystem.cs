@@ -33,7 +33,7 @@ namespace TabulaRasa.Simulation.Systems
                     agentState.NeedState.ToSnapshot(),
                     agentEntity.Position);
 
-                agentState.PendingIntent = agentState.Mind.Decide(perception, snapshot);
+                state.PendingIntents.Add(agentState.Mind.Decide(perception, snapshot));
             }
         }
     }

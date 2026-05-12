@@ -10,7 +10,10 @@ namespace TabulaRasa.Simulation.Engine
 
         public SimulationEngine(IEnumerable<ISystem> systems)
         {
-            _systems = systems.OrderBy(s => s.Phase).ToList();
+            _systems = systems
+                .OrderBy(s => s.Phase)
+                .ThenBy(s => s.Priority)
+                .ToList();
         }
 
         public void Run(SimulationState state, int maxTicks)
