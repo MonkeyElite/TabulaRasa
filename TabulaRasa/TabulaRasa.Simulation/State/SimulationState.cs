@@ -3,6 +3,7 @@ using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Agents.Models;
+using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.State
@@ -15,6 +16,7 @@ namespace TabulaRasa.Simulation.State
         public List<AgentIntent> PendingIntents { get; } = [];
         public List<ActionRequest> PendingActionRequests { get; } = [];
         public List<ActionResult> ActionResults { get; } = [];
+        public List<ActiveMovement> ActiveMovements { get; } = [];
 
         public bool IsRunning { get; set; } = true;
 

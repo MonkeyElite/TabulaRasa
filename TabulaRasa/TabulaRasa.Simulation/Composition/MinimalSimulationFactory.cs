@@ -8,6 +8,8 @@ using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Agents.Minds;
+using TabulaRasa.Simulation.Movement.Execution;
+using TabulaRasa.Simulation.Movement.Planning;
 
 namespace TabulaRasa.Simulation.Composition
 {
@@ -44,6 +46,8 @@ namespace TabulaRasa.Simulation.Composition
                 new NeedDecaySystem(),
                 new PlanningSystem(),
                 new ActionRequestCreationSystem(),
+                new RoutePlanningSystem(),
+                new MovementExecutionSystem(),
                 new ActionExecutionSystem(),
                 new ReportingSystem()
             ];

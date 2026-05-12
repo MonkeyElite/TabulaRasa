@@ -1,7 +1,5 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
-using TabulaRasa.Abstractions.Spatial.Grid;
-using TabulaRasa.Abstractions.World;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
@@ -54,29 +52,11 @@ namespace TabulaRasa.Simulation.Actions.Resolution
 
         private static ActionResult ResolveWander(SimulationState state, ActionRequest request)
         {
-            AgentEntity? agentEntity = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
-
-            if (agentEntity is null)
-            {
-                return new ActionResult(request.AgentId, request.ActionType, false, "Agent does not exist.");
-            }
-
-            GridCell currentCell = SpatialQueries.GetCurrentCell(state.World, agentEntity.Position);
-            IReadOnlyList<GridCell> destinations = state.World.Grid.GetTraversableAdjacentCells(currentCell);
-
-            if (destinations.Count == 0)
-            {
-                return new ActionResult(
-                    request.AgentId,
-                    request.ActionType,
-                    false,
-                    "Agent has no traversable adjacent cell to wander to.");
-            }
-
-            GridCell destination = destinations[0];
-            agentEntity.Position = new WorldPosition(destination.X + 0.5f, destination.Y + 0.5f);
-
-            return new ActionResult(request.AgentId, request.ActionType, true);
+            return new ActionResult(
+                request.AgentId,
+                request.ActionType,
+                false,
+                "Wander requires route planning before execution.");
         }
     }
 }

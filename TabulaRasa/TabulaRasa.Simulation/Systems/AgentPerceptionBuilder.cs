@@ -20,7 +20,7 @@ namespace TabulaRasa.Simulation.Systems
                 InteractionPoint? interactionPoint = SpatialQueries.FindNearestAvailableInteractionPoint(
                     food,
                     agent.Position,
-                    SpatialQueries.DefaultInteractionTolerance);
+                    maxDistance: float.MaxValue);
 
                 nearbyEntities.Add(new PerceivedEntity(
                     food.Id,

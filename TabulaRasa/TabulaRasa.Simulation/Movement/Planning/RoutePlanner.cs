@@ -1,0 +1,179 @@
+using TabulaRasa.Abstractions.Agents;
+using TabulaRasa.Abstractions.Agents.Actions;
+using TabulaRasa.Abstractions.Spatial.Grid;
+using TabulaRasa.Abstractions.Spatial.Interaction;
+using TabulaRasa.Abstractions.World;
+using TabulaRasa.Simulation.Movement.Execution;
+using TabulaRasa.Simulation.State;
+using TabulaRasa.World.Entities;
+using TabulaRasa.World.Queries;
+using TabulaRasa.World.Spatial.Navigation.Grid;
+
+namespace TabulaRasa.Simulation.Movement.Planning
+{
+    public sealed class RoutePlanner
+    {
+        public const float DefaultSpeedPerTick = 0.25f;
+        public const float DefaultArrivalTolerance = 0.05f;
+
+        private readonly GridPathfinder _pathfinder;
+
+        public RoutePlanner()
+            : this(new GridPathfinder())
+        {
+        }
+
+        public RoutePlanner(GridPathfinder pathfinder)
+        {
+            _pathfinder = pathfinder;
+        }
+
+        public RoutePlanningResult Plan(SimulationState state, ActionRequest request)
+        {
+            return request.ActionType switch
+            {
+                AgentActionType.Eat => PlanEatRoute(state, request),
+                AgentActionType.Wander => PlanWanderRoute(state, request),
+                _ => RoutePlanningResult.NotNeeded()
+            };
+        }
+
+        private RoutePlanningResult PlanEatRoute(SimulationState state, ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return RoutePlanningResult.Failure("Eat action requires a target.");
+            }
+
+            AgentEntity? agent = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
+            FoodEntity? food = state.World.Foods.FirstOrDefault(f => f.Id == request.TargetId && !f.IsConsumed);
+
+            if (agent is null)
+            {
+                return RoutePlanningResult.Failure("Agent does not exist.");
+            }
+
+            if (food is null)
+            {
+                return RoutePlanningResult.Failure("Target food is unavailable.");
+            }
+
+            InteractionPoint? currentAnchor = SpatialQueries.FindNearestAvailableInteractionPoint(
+                food,
+                agent.Position,
+                SpatialQueries.DefaultInteractionTolerance);
+
+            if (currentAnchor is not null)
+            {
+                return RoutePlanningResult.NotNeeded();
+            }
+
+            RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, food);
+
+            return candidate is null
+                ? RoutePlanningResult.Failure("Target food is unreachable.")
+                : RoutePlanningResult.Success(CreateMovement(
+                    request,
+                    candidate.Route,
+                    DefaultSpeedPerTick,
+                    DefaultArrivalTolerance));
+        }
+
+        private RoutePlanningResult PlanWanderRoute(SimulationState state, ActionRequest request)
+        {
+            AgentEntity? agent = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
+
+            if (agent is null)
+            {
+                return RoutePlanningResult.Failure("Agent does not exist.");
+            }
+
+            GridCell currentCell = SpatialQueries.GetCurrentCell(state.World, agent.Position);
+            IReadOnlyList<GridCell> destinations = state.World.Grid.GetTraversableAdjacentCells(currentCell);
+
+            if (destinations.Count == 0)
+            {
+                return RoutePlanningResult.Failure("Agent has no traversable adjacent cell to wander to.");
+            }
+
+            GridCell destination = destinations[0];
+            MovementRoute route = CreateRoute(
+                new GridPath([currentCell, destination]),
+                GetCellCenter(destination));
+
+            return RoutePlanningResult.Success(CreateMovement(
+                request,
+                route,
+                DefaultSpeedPerTick,
+                DefaultArrivalTolerance));
+        }
+
+        private RouteCandidate? FindBestRouteToInteractionPoint(
+            SimulationState state,
+            AgentEntity agent,
+            FoodEntity food)
+        {
+            GridCell startCell = SpatialQueries.GetCurrentCell(state.World, agent.Position);
+            List<RouteCandidate> candidates = [];
+
+            foreach (InteractionPoint point in food.InteractionPoints.Where(point => !point.IsReserved))
+            {
+                GridCell destinationCell = point.StandPosition.ToGridCell();
+                PathResult result = _pathfinder.FindPath(
+                    state.World.Grid,
+                    new PathRequest(startCell, destinationCell));
+
+                if (!result.Succeeded || result.Path is null)
+                {
+                    continue;
+                }
+
+                candidates.Add(new RouteCandidate(
+                    CreateRoute(result.Path, point.StandPosition),
+                    result.Path.Cells.Count,
+                    agent.Position.DistanceTo(point.StandPosition)));
+            }
+
+            return candidates
+                .OrderBy(candidate => candidate.CellCount)
+                .ThenBy(candidate => candidate.Distance)
+                .FirstOrDefault();
+        }
+
+        private static ActiveMovement CreateMovement(
+            ActionRequest request,
+            MovementRoute route,
+            float speedPerTick,
+            float arrivalTolerance)
+        {
+            return new ActiveMovement(
+                request.AgentId,
+                request.ActionType,
+                request.TargetId,
+                route,
+                speedPerTick,
+                arrivalTolerance);
+        }
+
+        private static MovementRoute CreateRoute(GridPath path, WorldPosition exactDestination)
+        {
+            List<WorldPosition> waypoints = [];
+
+            foreach (GridCell cell in path.Cells.Skip(1).SkipLast(1))
+            {
+                waypoints.Add(GetCellCenter(cell));
+            }
+
+            waypoints.Add(exactDestination);
+
+            return new MovementRoute(waypoints);
+        }
+
+        private static WorldPosition GetCellCenter(GridCell cell)
+        {
+            return new WorldPosition(cell.X + 0.5f, cell.Y + 0.5f);
+        }
+
+        private sealed record RouteCandidate(MovementRoute Route, int CellCount, float Distance);
+    }
+}
