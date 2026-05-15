@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Milestones/06-Milestone-6-Navigation-and-Movement.md",
+                "file": "Milestones/07-Milestone-7-Tasks-and-Jobs.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "06-Milestone-6-Navigation-and-Movement"
+              "title": "07-Milestone-7-Tasks-and-Jobs"
             }
           }
         ]
@@ -185,8 +185,8 @@
   },
   "active": "21442a988a80c59d",
   "lastOpenFiles": [
-    "Milestones/05-Milestone-5-Spatial-Model-v2.md",
     "Milestones/06-Milestone-6-Navigation-and-Movement.md",
+    "Milestones/05-Milestone-5-Spatial-Model-v2.md",
     "Milestones/04-Milestone-4-Action-Pipeline-v1.md",
     "Milestones/03-Milestone-3-Agent-Cognition-v1.md",
     "Milestones/02-Milestone-2-World-State-v1.md",

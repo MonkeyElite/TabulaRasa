@@ -10,6 +10,8 @@ using TabulaRasa.Agents.Models;
 using TabulaRasa.Agents.Minds;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Movement.Planning;
+using TabulaRasa.Simulation.Tasks.Assignment;
+using TabulaRasa.Simulation.Tasks.Execution;
 
 namespace TabulaRasa.Simulation.Composition
 {
@@ -47,7 +49,10 @@ namespace TabulaRasa.Simulation.Composition
                 new PlanningSystem(),
                 new ActionRequestCreationSystem(),
                 new RoutePlanningSystem(),
+                new JobActivationSystem(),
+                new TaskAssignmentSystem(),
                 new MovementExecutionSystem(),
+                new TaskExecutionSystem(),
                 new ActionExecutionSystem(),
                 new ReportingSystem()
             ];

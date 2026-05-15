@@ -4,6 +4,8 @@ using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Movement.Execution;
+using TabulaRasa.Simulation.Tasks.Jobs;
+using TabulaRasa.Simulation.Tasks.Reservations;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.State
@@ -17,6 +19,9 @@ namespace TabulaRasa.Simulation.State
         public List<ActionRequest> PendingActionRequests { get; } = [];
         public List<ActionResult> ActionResults { get; } = [];
         public List<ActiveMovement> ActiveMovements { get; } = [];
+        public List<JobInstance> PendingJobs { get; } = [];
+        public List<JobInstance> ActiveJobs { get; } = [];
+        public ReservationRegistry Reservations { get; } = new();
 
         public bool IsRunning { get; set; } = true;
 
