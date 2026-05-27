@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TabulaRasa.Abstractions\TabulaRasa.Abstractions.csproj" />
     <ProjectReference Include="..\TabulaRasa.Agents\TabulaRasa.Agents.csproj" />
+    <ProjectReference Include="..\TabulaRasa.Api\TabulaRasa.Api.csproj" />
     <ProjectReference Include="..\TabulaRasa.Simulation\TabulaRasa.Simulation.csproj" />
     <ProjectReference Include="..\TabulaRasa.World\TabulaRasa.World.csproj" />
   </ItemGroup>

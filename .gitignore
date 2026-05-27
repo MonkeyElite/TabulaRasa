@@ -10,6 +10,23 @@ obj/
 /node_modules
 /wwwroot/node_modules
 
+# TabulaRasa web app generated output
+TabulaRasa/TabulaRasa.Web/node_modules/
+TabulaRasa/TabulaRasa.Web/.next/
+TabulaRasa/TabulaRasa.Web/out/
+TabulaRasa/TabulaRasa.Web/dist/
+TabulaRasa/TabulaRasa.Web/.turbo/
+TabulaRasa/TabulaRasa.Web/.vercel/
+TabulaRasa/TabulaRasa.Web/*.tsbuildinfo
+TabulaRasa/TabulaRasa.Web/coverage/
+TabulaRasa/TabulaRasa.Web/.env*.local
+
+# TabulaRasa API local runtime output
+TabulaRasa/TabulaRasa.Api/appsettings.*.local.json
+TabulaRasa/TabulaRasa.Api/*.db
+TabulaRasa/TabulaRasa.Api/*.db-shm
+TabulaRasa/TabulaRasa.Api/*.db-wal
+
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json

@@ -20,13 +20,18 @@ namespace TabulaRasa.Simulation.Engine
         {
             for (int tick = 0; tick < maxTicks; tick++)
             {
-                foreach (var system in _systems)
-                {
-                    system.Execute(state);
-                }
-
-                state.Time = new SimulationTime(state.Time.Tick + 1);
+                ExecuteTick(state);
             }
+        }
+
+        public void ExecuteTick(SimulationState state)
+        {
+            foreach (var system in _systems)
+            {
+                system.Execute(state);
+            }
+
+            state.Time = new SimulationTime(state.Time.Tick + 1);
         }
     }
 }

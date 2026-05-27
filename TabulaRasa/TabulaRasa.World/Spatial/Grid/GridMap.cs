@@ -25,6 +25,7 @@ namespace TabulaRasa.World.Spatial.Grid
 
         public int Width { get; }
         public int Height { get; }
+        public IReadOnlyCollection<GridCell> BlockedCells => blockedCells;
 
         public bool Contains(GridCell cell)
         {

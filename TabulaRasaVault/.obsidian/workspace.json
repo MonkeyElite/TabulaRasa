@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Milestones/07-Milestone-7-Tasks-and-Jobs.md",
+                "file": "Milestones/08-Milestone-8-Life-Simulation-Budgets.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "07-Milestone-7-Tasks-and-Jobs"
+              "title": "08-Milestone-8-Life-Simulation-Budgets"
             }
           }
         ]
@@ -185,6 +185,10 @@
   },
   "active": "21442a988a80c59d",
   "lastOpenFiles": [
+    "Milestones/09-Supporting-Subsystems.md",
+    "Milestones/08-Milestone-8-Life-Simulation-Budgets.md",
+    "Milestones/10-Implementation-Order.md",
+    "Milestones/07-Milestone-7-Tasks-and-Jobs.md",
     "Milestones/06-Milestone-6-Navigation-and-Movement.md",
     "Milestones/05-Milestone-5-Spatial-Model-v2.md",
     "Milestones/04-Milestone-4-Action-Pipeline-v1.md",
@@ -192,10 +196,6 @@
     "Milestones/02-Milestone-2-World-State-v1.md",
     "00-General-Guide.md",
     "Milestones/01-Milestone-1-Stable-Engine-Foundation.md",
-    "Milestones/10-Implementation-Order.md",
-    "Milestones/09-Supporting-Subsystems.md",
-    "Milestones/08-Milestone-8-Life-Simulation-Budgets.md",
-    "Milestones/07-Milestone-7-Tasks-and-Jobs.md",
     "Milestones",
     "Naamloos.md",
     "Welkom.md"
