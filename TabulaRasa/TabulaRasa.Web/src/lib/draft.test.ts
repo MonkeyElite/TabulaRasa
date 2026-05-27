@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { toggleBlockedCell, updateAgentDraft, updateFoodDraft } from "./draft";
+import {
+  addAgentDraft,
+  addFoodDraft,
+  removeAgentDraft,
+  removeFoodDraft,
+  toggleBlockedCell,
+  updateAgentDraft,
+  updateFoodDraft
+} from "./draft";
 import { getValue, setValue } from "./objectPath";
 import type { SimulationDraft } from "@/types/simulation";
 
@@ -41,5 +49,17 @@ describe("draft helpers", () => {
 
     expect(getValue(next, "agents.0.needs.hunger")).toBe(9);
     expect(draft.agents[0].needs.hunger).toBe(1);
+  });
+
+  it("adds and removes draft entities", () => {
+    const withAgent = addAgentDraft(draft);
+    const withFood = addFoodDraft(withAgent);
+    const removedAgent = removeAgentDraft(withFood, "agent-2");
+    const removedFood = removeFoodDraft(removedAgent, "food-2");
+
+    expect(withAgent.agents.map((agent) => agent.id)).toContain("agent-2");
+    expect(withFood.food.map((food) => food.id)).toContain("food-2");
+    expect(removedAgent.agents.map((agent) => agent.id)).not.toContain("agent-2");
+    expect(removedFood.food.map((food) => food.id)).not.toContain("food-2");
   });
 });

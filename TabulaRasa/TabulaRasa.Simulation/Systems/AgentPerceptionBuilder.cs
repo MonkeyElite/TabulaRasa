@@ -8,7 +8,7 @@ namespace TabulaRasa.Simulation.Systems
 {
     internal static class AgentPerceptionBuilder
     {
-        private const float PerceptionRadius = 2f;
+        private const float PerceptionRadius = 20f;
 
         public static AgentPerception Build(WorldState world, AgentEntity agent)
         {

@@ -54,6 +54,12 @@ button:disabled {
   opacity: 0.45;
 }
 
+button.danger {
+  border-color: rgba(224, 103, 103, 0.65);
+  color: #ffb8b8;
+  margin-top: 12px;
+}
+
 button.icon {
   justify-content: center;
   min-width: 36px;
@@ -266,6 +272,10 @@ select {
 .entity-list {
   display: grid;
   gap: 6px;
+}
+
+.entity-actions {
+  margin-bottom: 10px;
 }
 
 .entity-row {

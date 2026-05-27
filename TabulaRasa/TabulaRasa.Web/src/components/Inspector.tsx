@@ -1,7 +1,7 @@
 "use client";
 
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
-import { updateAgentDraft, updateFoodDraft } from "@/lib/draft";
+import { addAgentDraft, addFoodDraft, removeAgentDraft, removeFoodDraft, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
 import { getValue, setValue } from "@/lib/objectPath";
 import type { EditableField, SimulationDraftSchema } from "@/types/simulation";
 
@@ -18,6 +18,8 @@ type Props = {
 
 export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange }: Props) {
   const editable = editing && canEdit && draft;
+  const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
+  const listedFood = editable ? draft.food : snapshot?.food ?? [];
   const agent =
     selection?.type === "agent"
       ? (editable ? draft.agents : snapshot?.agents)?.find((candidate) => candidate.id === selection.id)
@@ -73,8 +75,36 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
 
       <section className="section">
         <h3>Entities</h3>
+        {editable && (
+          <div className="row entity-actions">
+            <button
+              onClick={() => {
+                const nextDraft = addAgentDraft(draft);
+                const nextAgent = nextDraft.agents.at(-1);
+                onDraftChange(nextDraft);
+                if (nextAgent) {
+                  onSelect({ type: "agent", id: nextAgent.id });
+                }
+              }}
+            >
+              Add agent
+            </button>
+            <button
+              onClick={() => {
+                const nextDraft = addFoodDraft(draft);
+                const nextFood = nextDraft.food.at(-1);
+                onDraftChange(nextDraft);
+                if (nextFood) {
+                  onSelect({ type: "food", id: nextFood.id });
+                }
+              }}
+            >
+              Add food
+            </button>
+          </div>
+        )}
         <div className="entity-list">
-          {(snapshot?.agents ?? []).map((item) => (
+          {listedAgents.map((item) => (
             <button
               key={`agent:${item.id}`}
               className={selection?.type === "agent" && selection.id === item.id ? "entity-row selected" : "entity-row"}
@@ -84,12 +114,12 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               <span>
                 <strong>{item.id}</strong>
                 <small>
-                  AgentEntity · cell {item.cell.x}, {item.cell.y}
+                  AgentEntity · cell {Math.floor(item.position.x)}, {Math.floor(item.position.y)}
                 </small>
               </span>
             </button>
           ))}
-          {(snapshot?.food ?? []).map((item) => (
+          {listedFood.map((item) => (
             <button
               key={`food:${item.id}`}
               className={selection?.type === "food" && selection.id === item.id ? "entity-row selected" : "entity-row"}
@@ -132,6 +162,17 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               )
             }
           />
+          {editable && (
+            <button
+              className="danger"
+              onClick={() => {
+                onDraftChange(removeAgentDraft(draft, agent.id));
+                onSelect(null);
+              }}
+            >
+              Remove agent
+            </button>
+          )}
         </section>
       )}
 
@@ -156,6 +197,17 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               onDraftChange(updateFoodDraft(draft, food.id, nextEntity as Partial<SimulationDraft["food"][number]>))
             }
           />
+          {editable && (
+            <button
+              className="danger"
+              onClick={() => {
+                onDraftChange(removeFoodDraft(draft, food.id));
+                onSelect(null);
+              }}
+            >
+              Remove food
+            </button>
+          )}
         </section>
       )}
 
