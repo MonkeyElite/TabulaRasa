@@ -66,6 +66,46 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
         }
 
         [Fact]
+        public void MovementExecutionSystem_WhenRouteBecomesOccupied_ReportsFailure()
+        {
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
+            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            WorldState world = WorldFactory.Create([agent], [food]);
+            var state = new SimulationState(world, new SimulationTime(0), []);
+            state.ActiveMovements.Add(new ActiveMovement(
+                agent.Id,
+                AgentActionType.Wander,
+                targetId: null,
+                new MovementRoute([food.Position]),
+                speedPerTick: 1f,
+                arrivalTolerance: 0.05f));
+
+            new MovementExecutionSystem().Execute(state);
+
+            Assert.Equal(new WorldPosition(0.5f, 0.5f), agent.Position);
+            Assert.Empty(state.ActiveMovements);
+            ActionResult result = Assert.Single(state.ActionResults);
+            Assert.False(result.Succeeded);
+            Assert.Equal("Route became occupied.", result.Reason);
+        }
+
+        [Fact]
+        public void RoutePlanner_WanderAvoidsOccupiedAdjacentCells()
+        {
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
+            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            WorldState world = WorldFactory.Create([agent], [food]);
+            var state = new SimulationState(world, new SimulationTime(0), []);
+            var request = new ActionRequest(agent.Id, AgentActionType.Wander, TargetId: null);
+
+            RoutePlanningResult result = new RoutePlanner().Plan(state, request);
+
+            Assert.True(result.Succeeded);
+            Assert.NotNull(result.Movement);
+            Assert.Equal(new WorldPosition(0.5f, 1.5f), result.Movement.Route.Destination);
+        }
+
+        [Fact]
         public void MovementExecutionSystem_WhenAgentCannotProgress_ReportsStuckFailure()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };

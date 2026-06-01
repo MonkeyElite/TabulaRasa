@@ -7,12 +7,12 @@ namespace TabulaRasa.World.Spatial.Navigation.Grid
     {
         public PathResult FindPath(GridMap grid, PathRequest request)
         {
-            if (!grid.IsTraversable(request.Start))
+            if (!IsPassable(grid, request, request.Start))
             {
                 return PathResult.Failure("Start cell is not traversable.");
             }
 
-            if (!grid.IsTraversable(request.Destination))
+            if (!IsPassable(grid, request, request.Destination))
             {
                 return PathResult.Failure("Destination cell is not traversable.");
             }
@@ -37,7 +37,7 @@ namespace TabulaRasa.World.Spatial.Navigation.Grid
                     return PathResult.Success(BuildPath(request.Start, request.Destination, cameFrom));
                 }
 
-                foreach (GridCell next in grid.GetTraversableAdjacentCells(current))
+                foreach (GridCell next in grid.GetAdjacentCells(current).Where(cell => IsPassable(grid, request, cell)))
                 {
                     if (cameFrom.ContainsKey(next))
                     {
@@ -50,6 +50,11 @@ namespace TabulaRasa.World.Spatial.Navigation.Grid
             }
 
             return PathResult.Failure("Destination is unreachable.");
+        }
+
+        private static bool IsPassable(GridMap grid, PathRequest request, GridCell cell)
+        {
+            return grid.IsTraversable(cell) && (request.CanEnter?.Invoke(cell) ?? true);
         }
 
         private static GridPath BuildPath(

@@ -5,12 +5,24 @@ using TabulaRasa.Abstractions.World;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Mutation;
 
 namespace TabulaRasa.Simulation.Movement.Execution
 {
     public sealed class MovementExecutionSystem : ISystem
     {
         private const string SourceSystem = "Movement Execution System";
+        private readonly WorldMutationService _mutations;
+
+        public MovementExecutionSystem()
+            : this(new WorldMutationService())
+        {
+        }
+
+        public MovementExecutionSystem(WorldMutationService mutations)
+        {
+            _mutations = mutations;
+        }
 
         public string Name => "Movement Execution System";
         public SimulationPhase Phase => SimulationPhase.Execution;
@@ -43,11 +55,31 @@ namespace TabulaRasa.Simulation.Movement.Execution
                 }
 
                 WorldPosition previousPosition = agent.Position;
-                agent.Position = MoveToward(agent.Position, waypoint, movement.SpeedPerTick);
+                WorldPosition nextPosition = MoveToward(agent.Position, waypoint, movement.SpeedPerTick);
+                WorldMutationResult moveResult = _mutations.TryMoveEntity(
+                    state.World,
+                    agent.Id,
+                    nextPosition);
+
+                if (!moveResult.Succeeded)
+                {
+                    FailMovement(state, movement, ToMovementFailureReason(moveResult));
+                    continue;
+                }
 
                 if (agent.Position.DistanceTo(waypoint) <= movement.ArrivalTolerance)
                 {
-                    agent.Position = waypoint;
+                    WorldMutationResult snapResult = _mutations.TryMoveEntity(
+                        state.World,
+                        agent.Id,
+                        waypoint);
+
+                    if (!snapResult.Succeeded)
+                    {
+                        FailMovement(state, movement, ToMovementFailureReason(snapResult));
+                        continue;
+                    }
+
                     movement.CurrentWaypointIndex++;
                     movement.StuckTicks = 0;
                 }
@@ -71,6 +103,17 @@ namespace TabulaRasa.Simulation.Movement.Execution
                     CompleteMovement(state, movement);
                 }
             }
+        }
+
+        private static string ToMovementFailureReason(WorldMutationResult result)
+        {
+            return result.FailureKind switch
+            {
+                WorldMutationFailureKind.BlockedCell => "Route became blocked.",
+                WorldMutationFailureKind.OccupiedCell => "Route became occupied.",
+                WorldMutationFailureKind.OutOfBounds => "Route left the world bounds.",
+                _ => result.Reason ?? "Movement mutation failed."
+            };
         }
 
         private static WorldPosition MoveToward(WorldPosition current, WorldPosition destination, float maxDistance)

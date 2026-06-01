@@ -70,13 +70,24 @@ namespace TabulaRasa.Api.Contracts
     public sealed record GridDto(
         int Width,
         int Height,
-        IReadOnlyList<GridCellDto> BlockedCells);
+        IReadOnlyList<GridCellDto> BlockedCells,
+        IReadOnlyList<OccupiedCellDto> OccupiedCells);
 
     public sealed record GridCellDto(int X, int Y);
+
+    public sealed record OccupiedCellDto(
+        GridCellDto Cell,
+        string EntityId,
+        string EntityType);
 
     public sealed record PositionDto(float X, float Y);
 
     public sealed record FootprintDto(float Width, float Height);
+
+    public sealed record EntityHealthDto(
+        float Current,
+        float Maximum,
+        bool IsDepleted);
 
     public sealed record AgentSnapshotDto(
         string Id,
@@ -84,6 +95,9 @@ namespace TabulaRasa.Api.Contracts
         PositionDto Position,
         GridCellDto Cell,
         FootprintDto Footprint,
+        IReadOnlyList<GridCellDto> OccupiedCells,
+        bool OccupiesSpace,
+        EntityHealthDto? Health,
         AgentNeedsDto Needs,
         MovementSnapshotDto? Movement);
 
@@ -95,6 +109,9 @@ namespace TabulaRasa.Api.Contracts
         PositionDto Position,
         GridCellDto Cell,
         FootprintDto Footprint,
+        IReadOnlyList<GridCellDto> OccupiedCells,
+        bool OccupiesSpace,
+        EntityHealthDto? Health,
         bool IsConsumed);
 
     public sealed record MovementSnapshotDto(

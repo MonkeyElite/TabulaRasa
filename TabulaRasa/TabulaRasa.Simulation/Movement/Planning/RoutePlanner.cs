@@ -89,11 +89,13 @@ namespace TabulaRasa.Simulation.Movement.Planning
             }
 
             GridCell currentCell = SpatialQueries.GetCurrentCell(state.World, agent.Position);
-            IReadOnlyList<GridCell> destinations = state.World.Grid.GetTraversableAdjacentCells(currentCell);
+            IReadOnlyList<GridCell> destinations = state.World.Grid.GetAdjacentCells(currentCell)
+                .Where(cell => CanAgentEnterCell(state, agent, cell))
+                .ToList();
 
             if (destinations.Count == 0)
             {
-                return RoutePlanningResult.Failure("Agent has no traversable adjacent cell to wander to.");
+                return RoutePlanningResult.Failure("Agent has no available adjacent cell to wander to.");
             }
 
             GridCell destination = destinations[0];
@@ -121,7 +123,10 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 GridCell destinationCell = point.StandPosition.ToGridCell();
                 PathResult result = _pathfinder.FindPath(
                     state.World.Grid,
-                    new PathRequest(startCell, destinationCell));
+                    new PathRequest(
+                        startCell,
+                        destinationCell,
+                        cell => CanAgentEnterCell(state, agent, cell)));
 
                 if (!result.Succeeded || result.Path is null)
                 {
@@ -172,6 +177,15 @@ namespace TabulaRasa.Simulation.Movement.Planning
         private static WorldPosition GetCellCenter(GridCell cell)
         {
             return new WorldPosition(cell.X + 0.5f, cell.Y + 0.5f);
+        }
+
+        private static bool CanAgentEnterCell(
+            SimulationState state,
+            AgentEntity agent,
+            GridCell cell)
+        {
+            return state.World.Grid.IsTraversable(cell)
+                && !SpatialQueries.IsCellOccupied(state.World, cell, agent.Id);
         }
 
         private sealed record RouteCandidate(MovementRoute Route, int CellCount, float Distance);

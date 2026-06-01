@@ -1,3 +1,4 @@
+using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Spatial.Grid;
@@ -19,5 +20,14 @@ namespace TabulaRasa.World.State
         public GridMap Grid { get; }
         public List<AgentEntity> Agents { get; } = [];
         public List<FoodEntity> Foods { get; } = [];
+
+        public IEnumerable<ISpatialEntity> SpatialEntities => Agents
+            .Cast<ISpatialEntity>()
+            .Concat(Foods);
+
+        public ISpatialEntity? GetSpatialEntityById(string entityId)
+        {
+            return SpatialEntities.FirstOrDefault(entity => entity.Id == entityId);
+        }
     }
 }

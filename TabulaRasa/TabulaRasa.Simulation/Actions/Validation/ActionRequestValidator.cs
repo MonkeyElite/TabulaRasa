@@ -57,12 +57,14 @@ namespace TabulaRasa.Simulation.Actions.Validation
         private static ActionValidationResult ValidateWander(SimulationState state, AgentEntity agentEntity)
         {
             bool hasDestination = state.World.Grid
-                .GetTraversableAdjacentCells(SpatialQueries.GetCurrentCell(state.World, agentEntity.Position))
+                .GetAdjacentCells(SpatialQueries.GetCurrentCell(state.World, agentEntity.Position))
+                .Where(cell => state.World.Grid.IsTraversable(cell))
+                .Where(cell => !SpatialQueries.IsCellOccupied(state.World, cell, agentEntity.Id))
                 .Any();
 
             return hasDestination
                 ? ActionValidationResult.Valid
-                : ActionValidationResult.Invalid("Agent has no traversable adjacent cell to wander to.");
+                : ActionValidationResult.Invalid("Agent has no available adjacent cell to wander to.");
         }
     }
 }

@@ -1,9 +1,9 @@
 "use client";
 
+import type { EditableField, GridCell, SimulationDraftSchema } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
 import { addAgentDraft, addFoodDraft, removeAgentDraft, removeFoodDraft, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
 import { getValue, setValue } from "@/lib/objectPath";
-import type { EditableField, SimulationDraftSchema } from "@/types/simulation";
 
 type Props = {
   snapshot: SimulationSnapshot | null;
@@ -28,6 +28,10 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
     selection?.type === "food"
       ? (editable ? draft.food : snapshot?.food)?.find((candidate) => candidate.id === selection.id)
       : null;
+  const selectedCell = selection?.type === "cell" ? selection.cell : null;
+  const blockedCells = (editable ? draft.grid.blockedCells : snapshot?.grid.blockedCells) ?? [];
+  const cellIsBlocked = selectedCell ? blockedCells.some((cell) => sameCell(cell, selectedCell)) : false;
+  const cellOccupants = selectedCell ? getCellOccupants(snapshot, draft, Boolean(editable), selectedCell) : [];
 
   return (
     <aside className="inspector">
@@ -114,7 +118,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               <span>
                 <strong>{item.id}</strong>
                 <small>
-                  AgentEntity · cell {Math.floor(item.position.x)}, {Math.floor(item.position.y)}
+                  AgentEntity - cell {Math.floor(item.position.x)}, {Math.floor(item.position.y)}
                 </small>
               </span>
             </button>
@@ -128,9 +132,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               <span className="entity-dot food" />
               <span>
                 <strong>{item.id}</strong>
-                <small>
-                  FoodEntity · {item.isConsumed ? "consumed" : "available"}
-                </small>
+                <small>FoodEntity - {item.isConsumed ? "consumed" : "available"}</small>
               </span>
             </button>
           ))}
@@ -139,13 +141,16 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
 
       {agent && (
         <section className="section">
-          <h3>Agent · {agent.id}</h3>
+          <h3>Agent - {agent.id}</h3>
           <EntitySummary
             rows={[
               ["Cell", `${Math.floor(agent.position.x)}, ${Math.floor(agent.position.y)}`],
               ["Position", `${formatNumber(agent.position.x)}, ${formatNumber(agent.position.y)}`],
               ["Type", entityType(agent, "AgentEntity")],
               ["Footprint", footprint(agent, "0.8 x 0.8")],
+              ["Occupies", occupiesSpace(agent, true)],
+              ["Occupied cells", occupiedCells(agent)],
+              ["Health", health(agent)],
               ["Needs", `H ${formatNumber(agent.needs.hunger)} / T ${formatNumber(agent.needs.thirst)} / E ${formatNumber(agent.needs.energy)}`],
               ["Movement", snapshot?.agents.find((item) => item.id === agent.id)?.movement?.status ?? "idle"],
               ["Route target", snapshot?.agents.find((item) => item.id === agent.id)?.movement?.targetId ?? "none"]
@@ -178,13 +183,16 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
 
       {food && (
         <section className="section">
-          <h3>Food · {food.id}</h3>
+          <h3>Food - {food.id}</h3>
           <EntitySummary
             rows={[
               ["Cell", `${Math.floor(food.position.x)}, ${Math.floor(food.position.y)}`],
               ["Position", `${formatNumber(food.position.x)}, ${formatNumber(food.position.y)}`],
               ["Type", entityType(food, "FoodEntity")],
               ["Footprint", footprint(food, "0.5 x 0.5")],
+              ["Occupies", occupiesSpace(food, !food.isConsumed)],
+              ["Occupied cells", occupiedCells(food)],
+              ["Health", health(food)],
               ["Consumed", food.isConsumed ? "yes" : "no"]
             ]}
           />
@@ -214,10 +222,14 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
       {selection?.type === "cell" && (
         <section className="section">
           <h3>Cell</h3>
-          <div className="field-grid">
-            <ReadonlyField label="X" value={selection.cell.x.toString()} />
-            <ReadonlyField label="Y" value={selection.cell.y.toString()} />
-          </div>
+          <EntitySummary
+            rows={[
+              ["X", selection.cell.x.toString()],
+              ["Y", selection.cell.y.toString()],
+              ["Blocked", cellIsBlocked ? "yes" : "no"],
+              ["Occupancy", cellOccupants.length === 0 ? "unoccupied" : cellOccupants.map((occupant) => `${occupant.entityId} (${occupant.entityType})`).join(", ")]
+            ]}
+          />
         </section>
       )}
 
@@ -345,6 +357,95 @@ function footprint(entity: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function occupiesSpace(entity: unknown, fallback: boolean) {
+  if (entity && typeof entity === "object" && "occupiesSpace" in entity && typeof entity.occupiesSpace === "boolean") {
+    return entity.occupiesSpace ? "yes" : "no";
+  }
+
+  return fallback ? "yes" : "no";
+}
+
+function occupiedCells(entity: unknown) {
+  if (entity && typeof entity === "object" && "isConsumed" in entity && entity.isConsumed === true) {
+    return "none";
+  }
+
+  if (
+    entity
+    && typeof entity === "object"
+    && "occupiedCells" in entity
+    && Array.isArray(entity.occupiedCells)
+  ) {
+    return entity.occupiedCells.length === 0
+      ? "none"
+      : entity.occupiedCells.map((cell) => `${cell.x}, ${cell.y}`).join("; ");
+  }
+
+  if (
+    entity
+    && typeof entity === "object"
+    && "position" in entity
+    && entity.position
+    && typeof entity.position === "object"
+    && "x" in entity.position
+    && "y" in entity.position
+    && typeof entity.position.x === "number"
+    && typeof entity.position.y === "number"
+  ) {
+    return `${Math.floor(entity.position.x)}, ${Math.floor(entity.position.y)}`;
+  }
+
+  return "none";
+}
+
+function health(entity: unknown) {
+  if (
+    entity
+    && typeof entity === "object"
+    && "health" in entity
+    && entity.health
+    && typeof entity.health === "object"
+    && "current" in entity.health
+    && "maximum" in entity.health
+    && typeof entity.health.current === "number"
+    && typeof entity.health.maximum === "number"
+  ) {
+    return `${formatNumber(entity.health.current)} / ${formatNumber(entity.health.maximum)}`;
+  }
+
+  return "n/a";
+}
+
+function getCellOccupants(
+  snapshot: SimulationSnapshot | null,
+  draft: SimulationDraft | null,
+  editing: boolean,
+  cell: GridCell
+) {
+  if (editing && draft) {
+    return [
+      ...draft.agents.map((agent) => ({
+        cell: { x: Math.floor(agent.position.x), y: Math.floor(agent.position.y) },
+        entityId: agent.id,
+        entityType: "AgentEntity"
+      })),
+      ...draft.food
+        .filter((food) => !food.isConsumed)
+        .map((food) => ({
+          cell: { x: Math.floor(food.position.x), y: Math.floor(food.position.y) },
+          entityId: food.id,
+          entityType: "FoodEntity"
+        }))
+    ].filter((occupant) => sameCell(occupant.cell, cell));
+  }
+
+  return snapshot?.grid.occupiedCells.filter((occupant) => sameCell(occupant.cell, cell)) ?? [];
+}
+
+function sameCell(left: GridCell, right: GridCell) {
+  return left.x === right.x && left.y === right.y;
 }
 
 function ReadonlyField({ label, value, wide }: { label: string; value: string; wide?: boolean }) {

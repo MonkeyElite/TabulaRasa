@@ -1,3 +1,4 @@
+using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Abstractions.Agents.Actions;
@@ -11,6 +12,7 @@ using TabulaRasa.Simulation.Tasks.Definitions;
 using TabulaRasa.Simulation.Tasks.Jobs;
 using TabulaRasa.Simulation.Tasks.Reservations;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Queries;
 using TaskStatus = TabulaRasa.Simulation.Tasks.Definitions.TaskStatus;
 
 namespace TabulaRasa.Api.Services
@@ -81,7 +83,8 @@ namespace TabulaRasa.Api.Services
             return new GridDto(
                 state.World.Grid.Width,
                 state.World.Grid.Height,
-                state.World.Grid.BlockedCells.Select(ToGridCell).ToList());
+                state.World.Grid.BlockedCells.Select(ToGridCell).ToList(),
+                SpatialQueries.GetOccupiedCells(state.World).Select(ToOccupiedCell).ToList());
         }
 
         private static AgentSnapshotDto ToAgent(
@@ -97,6 +100,9 @@ namespace TabulaRasa.Api.Services
                 ToPosition(agent.Position),
                 ToGridCell(agent.Position.ToGridCell()),
                 new FootprintDto(agent.Footprint.Width, agent.Footprint.Height),
+                SpatialQueries.GetOccupiedCellsForEntity(agent).Select(ToGridCell).ToList(),
+                SpatialQueries.OccupiesSpace(agent),
+                ToHealth(agent),
                 ToNeeds(state.GetAgentById(agent.Id)?.NeedState),
                 movement is null ? null : ToMovement(movement));
         }
@@ -109,6 +115,9 @@ namespace TabulaRasa.Api.Services
                 ToPosition(food.Position),
                 ToGridCell(food.Position.ToGridCell()),
                 new FootprintDto(food.Footprint.Width, food.Footprint.Height),
+                SpatialQueries.GetOccupiedCellsForEntity(food).Select(ToGridCell).ToList(),
+                SpatialQueries.OccupiesSpace(food),
+                ToHealth(food),
                 food.IsConsumed);
         }
 
@@ -217,6 +226,24 @@ namespace TabulaRasa.Api.Services
         private static GridCellDto ToGridCell(GridCell cell)
         {
             return new GridCellDto(cell.X, cell.Y);
+        }
+
+        private static OccupiedCellDto ToOccupiedCell(OccupiedCell occupiedCell)
+        {
+            return new OccupiedCellDto(
+                ToGridCell(occupiedCell.Cell),
+                occupiedCell.EntityId,
+                occupiedCell.EntityType);
+        }
+
+        private static EntityHealthDto? ToHealth(IDamageableEntity? entity)
+        {
+            return entity is null
+                ? null
+                : new EntityHealthDto(
+                    entity.Health.Current,
+                    entity.Health.Maximum,
+                    entity.Health.IsDepleted);
         }
     }
 }

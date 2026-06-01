@@ -40,6 +40,18 @@ export type Footprint = {
   height: number;
 };
 
+export type EntityHealth = {
+  current: number;
+  maximum: number;
+  isDepleted: boolean;
+};
+
+export type OccupiedCell = {
+  cell: GridCell;
+  entityId: string;
+  entityType: string;
+};
+
 export type AgentNeeds = {
   hunger: number;
   thirst: number;
@@ -52,6 +64,7 @@ export type SimulationSnapshot = {
     width: number;
     height: number;
     blockedCells: GridCell[];
+    occupiedCells: OccupiedCell[];
   };
   agents: AgentSnapshot[];
   food: FoodSnapshot[];
@@ -99,6 +112,9 @@ export type AgentSnapshot = {
   position: Position;
   cell: GridCell;
   footprint: Footprint;
+  occupiedCells: GridCell[];
+  occupiesSpace: boolean;
+  health: EntityHealth | null;
   needs: AgentNeeds;
   movement: MovementSnapshot | null;
 };
@@ -109,6 +125,9 @@ export type FoodSnapshot = {
   position: Position;
   cell: GridCell;
   footprint: Footprint;
+  occupiedCells: GridCell[];
+  occupiesSpace: boolean;
+  health: EntityHealth | null;
   isConsumed: boolean;
 };
 

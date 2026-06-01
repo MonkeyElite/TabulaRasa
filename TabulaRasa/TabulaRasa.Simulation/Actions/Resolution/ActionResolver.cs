@@ -3,12 +3,25 @@ using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Mutation;
 using TabulaRasa.World.Queries;
 
 namespace TabulaRasa.Simulation.Actions.Resolution
 {
     public sealed class ActionResolver
     {
+        private readonly WorldMutationService _mutations;
+
+        public ActionResolver()
+            : this(new WorldMutationService())
+        {
+        }
+
+        public ActionResolver(WorldMutationService mutations)
+        {
+            _mutations = mutations;
+        }
+
         public ActionResult Resolve(SimulationState state, ActionRequest request)
         {
             return request.ActionType switch
@@ -20,7 +33,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
             };
         }
 
-        private static ActionResult ResolveEat(SimulationState state, ActionRequest request)
+        private ActionResult ResolveEat(SimulationState state, ActionRequest request)
         {
             AgentEntity? agentEntity = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
             AgentState? agentState = state.GetAgentById(request.AgentId);
@@ -44,7 +57,17 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                     "Target food became unavailable before resolution.");
             }
 
-            food.IsConsumed = true;
+            WorldMutationResult mutation = _mutations.TryConsumeFood(state.World, food.Id);
+
+            if (!mutation.Succeeded)
+            {
+                return new ActionResult(
+                    request.AgentId,
+                    request.ActionType,
+                    false,
+                    mutation.Reason ?? "Target food could not be consumed.");
+            }
+
             agentState.NeedState.Hunger = Math.Max(0, agentState.NeedState.Hunger - 5);
 
             return new ActionResult(request.AgentId, request.ActionType, true);

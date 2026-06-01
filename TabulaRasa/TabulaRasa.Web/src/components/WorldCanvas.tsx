@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import * as PIXI from "pixi.js";
-import type { GridCell, HoverInfo, Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
+import type { GridCell, HoverInfo, OccupiedCell, Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
 
 type Props = {
   snapshot: SimulationSnapshot | null;
@@ -155,14 +155,22 @@ export function WorldCanvas({
 
     const blocked = new Set(snapshot.grid.blockedCells.map((cell) => `${cell.x}:${cell.y}`));
     const draftBlocked = new Set(draft?.grid.blockedCells.map((cell) => `${cell.x}:${cell.y}`));
+    const occupiedCells = editing && draft ? draftOccupiedCells(draft) : snapshot.grid.occupiedCells;
+    const occupiedByCell = new Map<string, OccupiedCell[]>();
+
+    for (const occupied of occupiedCells) {
+      const key = `${occupied.cell.x}:${occupied.cell.y}`;
+      occupiedByCell.set(key, [...(occupiedByCell.get(key) ?? []), occupied]);
+    }
 
     for (let y = 0; y < snapshot.grid.height; y++) {
       for (let x = 0; x < snapshot.grid.width; x++) {
         const isBlocked = editing && draft ? draftBlocked.has(`${x}:${y}`) : blocked.has(`${x}:${y}`);
+        const occupants = occupiedByCell.get(`${x}:${y}`) ?? [];
         const cell = new PIXI.Graphics();
         cell.rect(x * cellSize, y * cellSize, cellSize - 1, cellSize - 1);
-        cell.fill(isBlocked ? 0x17191d : (x + y) % 2 === 0 ? 0x20262b : 0x243225);
-        cell.stroke({ color: 0x3a414d, width: 1 });
+        cell.fill(isBlocked ? 0x17191d : occupants.length > 0 ? 0x24394a : (x + y) % 2 === 0 ? 0x20262b : 0x243225);
+        cell.stroke({ color: occupants.length > 0 ? 0x6aa8ff : 0x3a414d, width: occupants.length > 0 ? 2 : 1 });
         cell.eventMode = "static";
         cell.cursor = editing && canEdit ? "pointer" : "default";
         cell.on("pointertap", () => {
@@ -173,6 +181,23 @@ export function WorldCanvas({
           }
           onSelect({ type: "cell", cell: selectedCell });
         });
+        cell.on("pointerover", (event) =>
+          onHover({
+            label: `Cell ${x}, ${y}`,
+            detail: cellDetail(isBlocked, occupants),
+            x: event.global.x,
+            y: event.global.y
+          })
+        );
+        cell.on("pointermove", (event) =>
+          onHover({
+            label: `Cell ${x}, ${y}`,
+            detail: cellDetail(isBlocked, occupants),
+            x: event.global.x,
+            y: event.global.y
+          })
+        );
+        cell.on("pointerout", () => onHover(null));
         world.addChild(cell);
       }
     }
@@ -307,4 +332,30 @@ export function WorldCanvas({
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
+function draftOccupiedCells(draft: SimulationDraft): OccupiedCell[] {
+  return [
+    ...draft.agents.map((agent) => ({
+      cell: { x: Math.floor(agent.position.x), y: Math.floor(agent.position.y) },
+      entityId: agent.id,
+      entityType: "AgentEntity"
+    })),
+    ...draft.food
+      .filter((food) => !food.isConsumed)
+      .map((food) => ({
+        cell: { x: Math.floor(food.position.x), y: Math.floor(food.position.y) },
+        entityId: food.id,
+        entityType: "FoodEntity"
+      }))
+  ];
+}
+
+function cellDetail(isBlocked: boolean, occupants: OccupiedCell[]) {
+  const state = isBlocked ? "blocked" : "open";
+  const occupied = occupants.length === 0
+    ? "unoccupied"
+    : `occupied by ${occupants.map((occupant) => occupant.entityId).join(", ")}`;
+
+  return `${state} - ${occupied}`;
 }
