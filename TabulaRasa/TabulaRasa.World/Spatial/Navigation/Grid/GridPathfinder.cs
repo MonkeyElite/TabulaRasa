@@ -30,6 +30,11 @@ namespace TabulaRasa.World.Spatial.Navigation.Grid
 
             while (frontier.Count > 0)
             {
+                if (cameFrom.Count >= request.MaxVisitedCells)
+                {
+                    return PathResult.Failure("Path search visited the configured maximum number of cells.");
+                }
+
                 GridCell current = frontier.Dequeue();
 
                 if (current == request.Destination)
@@ -37,7 +42,9 @@ namespace TabulaRasa.World.Spatial.Navigation.Grid
                     return PathResult.Success(BuildPath(request.Start, request.Destination, cameFrom));
                 }
 
-                foreach (GridCell next in grid.GetAdjacentCells(current).Where(cell => IsPassable(grid, request, cell)))
+                foreach (GridCell next in grid
+                    .GetAdjacentCells(current, request.AllowDiagonalMovement)
+                    .Where(cell => IsPassable(grid, request, cell)))
                 {
                     if (cameFrom.ContainsKey(next))
                     {

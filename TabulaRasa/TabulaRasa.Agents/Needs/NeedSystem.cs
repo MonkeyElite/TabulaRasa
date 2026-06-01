@@ -4,11 +4,15 @@ namespace TabulaRasa.Agents.Needs
 {
     public class NeedSystem
     {
-        public static AgentNeedState ApplyNeedDecay(AgentNeedState needState)
+        public static AgentNeedState ApplyNeedDecay(
+            AgentNeedState needState,
+            float hungerDelta = 1,
+            float thirstDelta = 1,
+            float energyDelta = -1)
         {
-            needState.Hunger += 1;
-            needState.Thirst += 1;
-            needState.Energy -= 1;
+            needState.Hunger += hungerDelta;
+            needState.Thirst += thirstDelta;
+            needState.Energy += energyDelta;
 
             return needState;
         }

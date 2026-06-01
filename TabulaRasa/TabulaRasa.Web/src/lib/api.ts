@@ -1,4 +1,12 @@
-import type { SimulationConfig, SimulationDraft, SimulationDraftSchema, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
+import type {
+  SimulationConfig,
+  SimulationDraft,
+  SimulationDraftSchema,
+  SimulationResourceLimits,
+  SimulationSnapshot,
+  SimulationStatus,
+  SimulationSummary
+} from "@/types/simulation";
 
 const defaultBaseUrl = "/api";
 
@@ -19,30 +27,53 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(detail || `Request failed with ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
 export const simulationApi = {
-  status: () => request<SimulationStatus>("/simulation/status"),
-  current: () => request<SimulationSnapshot>("/simulation/current"),
-  tick: (tick: number) => request<SimulationSnapshot>(`/simulation/ticks/${tick}`),
-  step: () => request<SimulationSnapshot>("/simulation/step", { method: "POST" }),
-  run: (intervalMilliseconds: number) =>
-    request<SimulationStatus>("/simulation/run", {
+  list: () => request<SimulationSummary[]>("/simulations"),
+  resourceLimits: () => request<SimulationResourceLimits>("/simulations/resource-limits"),
+  create: (requestBody: { name?: string; config?: SimulationConfig }) =>
+    request<SimulationSummary>("/simulations", {
+      method: "POST",
+      body: JSON.stringify(requestBody)
+    }),
+  clone: (simulationId: string, requestBody: { name?: string; sourceTick?: number } = {}) =>
+    request<SimulationSummary>(`/simulations/${simulationId}/clone`, {
+      method: "POST",
+      body: JSON.stringify(requestBody)
+    }),
+  delete: (simulationId: string) =>
+    request<void>(`/simulations/${simulationId}`, { method: "DELETE" }),
+  status: (simulationId: string) => request<SimulationStatus>(`/simulations/${simulationId}/status`),
+  current: (simulationId: string) => request<SimulationSnapshot>(`/simulations/${simulationId}/current`),
+  tick: (simulationId: string, tick: number) => request<SimulationSnapshot>(`/simulations/${simulationId}/ticks/${tick}`),
+  step: (simulationId: string) => request<SimulationSnapshot>(`/simulations/${simulationId}/step`, { method: "POST" }),
+  run: (simulationId: string, intervalMilliseconds: number) =>
+    request<SimulationStatus>(`/simulations/${simulationId}/run`, {
       method: "POST",
       body: JSON.stringify({ intervalMilliseconds })
     }),
-  pause: () => request<SimulationStatus>("/simulation/pause", { method: "POST" }),
-  stop: () => request<SimulationStatus>("/simulation/stop", { method: "POST" }),
-  reset: (config?: SimulationConfig) =>
-    request<SimulationSnapshot>("/simulation/reset", {
+  pause: (simulationId: string) => request<SimulationStatus>(`/simulations/${simulationId}/pause`, { method: "POST" }),
+  stop: (simulationId: string) => request<SimulationStatus>(`/simulations/${simulationId}/stop`, { method: "POST" }),
+  reset: (simulationId: string, config?: SimulationConfig) =>
+    request<SimulationSnapshot>(`/simulations/${simulationId}/reset`, {
       method: "POST",
       body: JSON.stringify({ config })
     }),
-  draft: () => request<SimulationDraft>("/simulation/draft"),
-  draftSchema: () => request<SimulationDraftSchema>("/simulation/draft-schema"),
-  restartFromDraft: (draft: SimulationDraft) =>
-    request<SimulationSnapshot>("/simulation/restart-from-draft", {
+  updateConfig: (simulationId: string, config: SimulationConfig) =>
+    request<SimulationStatus>(`/simulations/${simulationId}/config`, {
+      method: "POST",
+      body: JSON.stringify({ config })
+    }),
+  draft: (simulationId: string) => request<SimulationDraft>(`/simulations/${simulationId}/draft`),
+  draftSchema: (simulationId: string) => request<SimulationDraftSchema>(`/simulations/${simulationId}/draft-schema`),
+  restartFromDraft: (simulationId: string, draft: SimulationDraft) =>
+    request<SimulationSnapshot>(`/simulations/${simulationId}/restart-from-draft`, {
       method: "POST",
       body: JSON.stringify(draft)
     })

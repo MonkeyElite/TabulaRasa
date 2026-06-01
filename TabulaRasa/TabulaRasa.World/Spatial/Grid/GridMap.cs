@@ -58,9 +58,9 @@ namespace TabulaRasa.World.Spatial.Grid
             blockedCells.Add(cell);
         }
 
-        public IReadOnlyList<GridCell> GetAdjacentCells(GridCell cell)
+        public IReadOnlyList<GridCell> GetAdjacentCells(GridCell cell, bool includeDiagonals = false)
         {
-            GridCell[] candidates =
+            List<GridCell> candidates =
             [
                 new(cell.X, cell.Y - 1),
                 new(cell.X + 1, cell.Y),
@@ -68,12 +68,23 @@ namespace TabulaRasa.World.Spatial.Grid
                 new(cell.X - 1, cell.Y)
             ];
 
+            if (includeDiagonals)
+            {
+                candidates.AddRange(
+                [
+                    new(cell.X + 1, cell.Y - 1),
+                    new(cell.X + 1, cell.Y + 1),
+                    new(cell.X - 1, cell.Y + 1),
+                    new(cell.X - 1, cell.Y - 1)
+                ]);
+            }
+
             return candidates.Where(Contains).ToList();
         }
 
-        public IReadOnlyList<GridCell> GetTraversableAdjacentCells(GridCell cell)
+        public IReadOnlyList<GridCell> GetTraversableAdjacentCells(GridCell cell, bool includeDiagonals = false)
         {
-            return GetAdjacentCells(cell).Where(IsTraversable).ToList();
+            return GetAdjacentCells(cell, includeDiagonals).Where(IsTraversable).ToList();
         }
     }
 }

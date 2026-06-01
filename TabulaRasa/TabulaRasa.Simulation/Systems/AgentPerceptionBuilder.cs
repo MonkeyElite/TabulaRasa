@@ -8,14 +8,12 @@ namespace TabulaRasa.Simulation.Systems
 {
     internal static class AgentPerceptionBuilder
     {
-        private const float PerceptionRadius = 20f;
-
-        public static AgentPerception Build(WorldState world, AgentEntity agent)
+        public static AgentPerception Build(WorldState world, AgentEntity agent, float perceptionRadius)
         {
             List<PerceivedEntity> nearbyEntities = [];
             List<InteractionOpportunity> opportunities = [];
 
-            foreach (FoodEntity food in SpatialQueries.GetAvailableFoodsWithinRadius(world, agent.Position, PerceptionRadius))
+            foreach (FoodEntity food in SpatialQueries.GetAvailableFoodsWithinRadius(world, agent.Position, perceptionRadius))
             {
                 InteractionPoint? interactionPoint = SpatialQueries.FindNearestAvailableInteractionPoint(
                     food,

@@ -27,7 +27,10 @@ namespace TabulaRasa.Simulation.Systems
                     continue;
                 }
 
-                AgentPerception perception = AgentPerceptionBuilder.Build(world, agentEntity);
+                AgentPerception perception = AgentPerceptionBuilder.Build(
+                    world,
+                    agentEntity,
+                    state.Config.PerceptionRadius);
                 AgentSnapshot snapshot = new(
                     agentEntity.Id,
                     agentState.NeedState.ToSnapshot(),

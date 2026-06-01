@@ -1,13 +1,56 @@
 namespace TabulaRasa.Api.Contracts
 {
+    public sealed record CreateSimulationRequestDto(string? Name = null, SimulationConfigDto? Config = null);
+
+    public sealed record CloneSimulationRequestDto(string? Name = null, long? SourceTick = null);
+
     public sealed record RunSimulationRequestDto(int? IntervalMilliseconds, SimulationConfigDto? Config = null);
 
     public sealed record ResetSimulationRequestDto(SimulationConfigDto? Config = null);
 
+    public sealed record UpdateSimulationConfigRequestDto(SimulationConfigDto Config);
+
+    public sealed record SimulationResourceLimitsDto(
+        int MaxConcurrentRunningSimulations,
+        int MaxTicksPerSecond,
+        int MaxAgents,
+        int MaxRetainedSnapshots);
+
+    public sealed record NeedDecayConfigDto(
+        float HungerDelta,
+        float ThirstDelta,
+        float EnergyDelta);
+
+    public sealed record PathfindingConfigDto(
+        bool AllowDiagonalMovement,
+        int MaxVisitedCells);
+
     public sealed record SimulationConfigDto(
         int Seed,
+        int WorldWidth,
+        int WorldHeight,
+        int TickIntervalMilliseconds,
+        int InitialAgentCount,
+        int InitialFoodCount,
         int EventHistoryLimit,
-        int TickIntervalMilliseconds);
+        int SnapshotHistoryLimit,
+        NeedDecayConfigDto NeedDecay,
+        float PerceptionRadius,
+        float MovementSpeedPerTick,
+        PathfindingConfigDto Pathfinding,
+        IReadOnlyList<string> EnabledSystems);
+
+    public sealed record SimulationSummaryDto(
+        string SimulationId,
+        string Name,
+        string Status,
+        long CurrentTick,
+        int GridWidth,
+        int GridHeight,
+        int AgentCount,
+        int FoodCount,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt);
 
     public sealed record SimulationTickSummaryDto(
         long Tick,

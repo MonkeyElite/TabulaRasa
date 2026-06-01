@@ -57,7 +57,6 @@ button:disabled {
 button.danger {
   border-color: rgba(224, 103, 103, 0.65);
   color: #ffb8b8;
-  margin-top: 12px;
 }
 
 button.icon {
@@ -119,8 +118,80 @@ select {
 
 .main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 430px;
+  grid-template-columns: 260px minmax(0, 1fr) 430px;
   min-height: 0;
+}
+
+.simulation-sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  min-height: 0;
+  padding: 12px;
+}
+
+.sidebar-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.sidebar-header h2 {
+  font-size: 13px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.simulation-list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.simulation-row {
+  align-items: center;
+  background: transparent;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 54px;
+  text-align: left;
+  width: 100%;
+}
+
+.simulation-row.selected {
+  border-color: var(--blue);
+}
+
+.simulation-row strong,
+.simulation-row small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulation-row small {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.sidebar-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.limit-list {
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  gap: 5px;
+  grid-template-columns: 1fr 1fr;
 }
 
 .viewport {
@@ -157,7 +228,7 @@ select {
   background: var(--panel);
   border-left: 1px solid var(--line);
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto minmax(180px, 28vh);
+  grid-template-rows: minmax(0, 1fr) auto minmax(220px, 30vh) minmax(180px, 24vh);
   min-height: 0;
 }
 
@@ -184,7 +255,8 @@ select {
   gap: 5px;
 }
 
-.field label {
+.field label,
+.field > span {
   color: var(--muted);
   font-size: 12px;
 }
@@ -237,6 +309,45 @@ select {
 
 .compact-fields input {
   min-width: 0;
+}
+
+.settings-panel,
+.settings-panel .config-grid {
+  min-height: 0;
+}
+
+.config-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: auto;
+}
+
+.checkbox-field {
+  align-content: start;
+}
+
+.checkbox-field input {
+  min-height: 18px;
+  width: 18px;
+}
+
+.system-toggles {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.system-toggles label {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.system-toggles input {
+  min-height: 16px;
+  width: 16px;
 }
 
 .compact-controls {
@@ -386,6 +497,35 @@ select {
   padding: 4px 8px;
 }
 
+.modal-backdrop {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.58);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 18px;
+  position: fixed;
+  z-index: 20;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.46);
+  display: grid;
+  gap: 12px;
+  max-height: min(760px, 92vh);
+  max-width: 720px;
+  overflow: auto;
+  padding: 14px;
+  width: min(720px, 96vw);
+}
+
+.modal-actions {
+  justify-content: flex-end;
+}
+
 .entity-list {
   display: grid;
   gap: 6px;
@@ -451,13 +591,19 @@ select {
 
   .main {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(380px, 1fr) minmax(520px, 48vh);
+    grid-template-rows: auto minmax(380px, 1fr) minmax(620px, 56vh);
+  }
+
+  .simulation-sidebar {
+    border-bottom: 1px solid var(--line);
+    border-right: 0;
+    grid-template-rows: auto minmax(90px, 20vh) auto auto;
   }
 
   .right-rail {
     border-left: 0;
     border-top: 1px solid var(--line);
-    grid-template-rows: minmax(0, 1fr) auto minmax(180px, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto minmax(220px, auto) minmax(180px, 1fr);
   }
 
   .inspector {

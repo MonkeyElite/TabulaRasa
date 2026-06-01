@@ -17,7 +17,7 @@ using TabulaRasa.World.State;
 
 namespace TabulaRasa.Api.Services
 {
-    public sealed class SimulationSessionService : IDisposable
+    public sealed class SimulationSession : IDisposable
     {
         private readonly object _sync = new();
         private readonly SortedDictionary<long, SimulationSnapshotDto> _snapshots = [];
@@ -26,15 +26,56 @@ namespace TabulaRasa.Api.Services
         private IReadOnlyList<ISystem> _systems;
         private SimulationEngine _engine;
         private Timer? _timer;
-        private SimulationConfig _config = new();
+        private SimulationConfig _config;
         private SimulationLifecycleState _lifecycle = SimulationLifecycleState.Idle;
+        private bool _disposed;
 
-        public SimulationSessionService()
+        public SimulationSession(string simulationId, string name, SimulationConfig? config = null)
         {
+            SimulationId = simulationId;
+            Name = string.IsNullOrWhiteSpace(name) ? simulationId : name.Trim();
+            CreatedAt = DateTimeOffset.UtcNow;
+            UpdatedAt = CreatedAt;
+            _config = config ?? new SimulationConfig();
             (_state, _systems) = MinimalSimulationFactory.Create(_config);
+            _config = _state.Config;
             _engine = new SimulationEngine(_systems);
             RecordLifecycleEvent(_lifecycle);
             StoreCurrentSnapshot();
+        }
+
+        public string SimulationId { get; }
+        public string Name { get; private set; }
+        public DateTimeOffset CreatedAt { get; }
+        public DateTimeOffset UpdatedAt { get; private set; }
+
+        public bool IsRunning
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _lifecycle == SimulationLifecycleState.Running;
+                }
+            }
+        }
+
+        public SimulationSummaryDto GetSummary()
+        {
+            lock (_sync)
+            {
+                return new SimulationSummaryDto(
+                    SimulationId,
+                    Name,
+                    _lifecycle.ToString(),
+                    _state.Time.Tick,
+                    _state.World.Grid.Width,
+                    _state.World.Grid.Height,
+                    _state.World.Agents.Count,
+                    _state.World.Foods.Count,
+                    CreatedAt,
+                    UpdatedAt);
+            }
         }
 
         public SimulationStatusDto GetStatus()
@@ -77,13 +118,13 @@ namespace TabulaRasa.Api.Services
                 EnsureCanRun();
                 if (config is not null)
                 {
-                    _config = SimulationSnapshotMapper.ToConfig(config, _config);
-                    _state.ApplyConfig(_config);
+                    ApplyPausedConfig(config);
                 }
 
                 int safeInterval = Math.Clamp(intervalMilliseconds, 50, 60_000);
                 _config = _config with { TickIntervalMilliseconds = safeInterval };
                 _state.ApplyConfig(_config);
+                _config = _state.Config;
 
                 _timer?.Dispose();
                 _timer = new Timer(_ => StepFromTimer(), null, safeInterval, safeInterval);
@@ -102,8 +143,7 @@ namespace TabulaRasa.Api.Services
                     throw new InvalidOperationException("Only a running simulation can be paused.");
                 }
 
-                _timer?.Dispose();
-                _timer = null;
+                StopTimer();
                 SetLifecycle(SimulationLifecycleState.Paused);
 
                 return ToStatus();
@@ -126,6 +166,20 @@ namespace TabulaRasa.Api.Services
             }
         }
 
+        public SimulationStatusDto UpdateConfig(SimulationConfigDto config)
+        {
+            lock (_sync)
+            {
+                if (_lifecycle == SimulationLifecycleState.Running)
+                {
+                    throw new InvalidOperationException("Configuration can only be updated while paused, idle, or stopped.");
+                }
+
+                ApplyPausedConfig(config);
+                return ToStatus();
+            }
+        }
+
         public SimulationSnapshotDto Reset(SimulationConfigDto? config = null)
         {
             lock (_sync)
@@ -133,6 +187,7 @@ namespace TabulaRasa.Api.Services
                 StopTimer();
                 _config = SimulationSnapshotMapper.ToConfig(config, _config);
                 (_state, _systems) = MinimalSimulationFactory.Create(_config);
+                _config = _state.Config;
                 _engine = new SimulationEngine(_systems);
                 _snapshots.Clear();
                 _lifecycle = SimulationLifecycleState.Idle;
@@ -147,6 +202,17 @@ namespace TabulaRasa.Api.Services
             lock (_sync)
             {
                 return SimulationSnapshotMapper.ToDraft(_state);
+            }
+        }
+
+        public SimulationDraftDto? GetDraft(long tick)
+        {
+            lock (_sync)
+            {
+                SimulationSnapshotDto? snapshot = _snapshots.GetValueOrDefault(tick);
+                return snapshot is null
+                    ? null
+                    : SimulationSnapshotMapper.ToDraft(snapshot, SimulationSnapshotMapper.ToConfig(_config));
             }
         }
 
@@ -170,7 +236,8 @@ namespace TabulaRasa.Api.Services
 
                 _config = SimulationSnapshotMapper.ToConfig(draft.Config, _config);
                 _state = BuildStateFromDraft(draft, _config);
-                (_, _systems) = MinimalSimulationFactory.Create(_config);
+                _config = _state.Config;
+                _systems = MinimalSimulationFactory.BuildSystems(_config);
                 _engine = new SimulationEngine(_systems);
                 _snapshots.Clear();
                 _lifecycle = SimulationLifecycleState.Idle;
@@ -182,13 +249,49 @@ namespace TabulaRasa.Api.Services
 
         public void Dispose()
         {
-            StopTimer();
+            lock (_sync)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+                StopTimer();
+            }
+        }
+
+        private void ApplyPausedConfig(SimulationConfigDto dto)
+        {
+            SimulationConfig requested = SimulationSnapshotMapper.ToConfig(dto, _config);
+            if (_state.Time.Tick > 0 && RequiresRebuild(_config, requested))
+            {
+                throw new InvalidOperationException("Seed, world size, and initial entity counts require reset, create, or clone.");
+            }
+
+            _config = requested;
+            _state.ApplyConfig(_config);
+            _config = _state.Config;
+            _systems = MinimalSimulationFactory.BuildSystems(_config);
+            _engine = new SimulationEngine(_systems);
+            StoreCurrentSnapshot();
+        }
+
+        private static bool RequiresRebuild(SimulationConfig current, SimulationConfig requested)
+        {
+            return current.Seed != requested.Seed
+                || current.WorldWidth != requested.WorldWidth
+                || current.WorldHeight != requested.WorldHeight
+                || current.InitialAgentCount != requested.InitialAgentCount
+                || current.InitialFoodCount != requested.InitialFoodCount;
         }
 
         private SimulationSnapshotDto StoreCurrentSnapshot()
         {
             SimulationSnapshotDto snapshot = SimulationSnapshotMapper.ToSnapshot(_state);
             _snapshots[_state.Time.Tick] = snapshot;
+            TrimSnapshots();
+            UpdatedAt = DateTimeOffset.UtcNow;
 
             return snapshot;
         }
@@ -201,12 +304,21 @@ namespace TabulaRasa.Api.Services
 
         private void StepFromTimer()
         {
-            lock (_sync)
+            if (!Monitor.TryEnter(_sync))
+            {
+                return;
+            }
+
+            try
             {
                 if (_lifecycle == SimulationLifecycleState.Running)
                 {
                     ExecuteAndStoreTick();
                 }
+            }
+            finally
+            {
+                Monitor.Exit(_sync);
             }
         }
 
@@ -248,7 +360,7 @@ namespace TabulaRasa.Api.Services
             _state.RecordEvent(
                 _state.Time.Tick,
                 "lifecycle.changed",
-                nameof(SimulationSessionService),
+                nameof(SimulationSession),
                 $"Simulation lifecycle changed to {lifecycle}.",
                 metadata: new Dictionary<string, string>
                 {
@@ -292,6 +404,14 @@ namespace TabulaRasa.Api.Services
                 diagnostics.EventCount);
         }
 
+        private void TrimSnapshots()
+        {
+            while (_snapshots.Count > _config.SnapshotHistoryLimit)
+            {
+                _snapshots.Remove(_snapshots.Keys.First());
+            }
+        }
+
         private static SimulationState BuildStateFromDraft(SimulationDraftDto draft, SimulationConfig config)
         {
             GridMap grid = new(draft.Grid.Width, draft.Grid.Height);
@@ -325,11 +445,18 @@ namespace TabulaRasa.Api.Services
             }).ToList();
 
             WorldState world = WorldFactory.Create(agents, foods, grid);
+            SimulationConfig draftConfig = config with
+            {
+                WorldWidth = draft.Grid.Width,
+                WorldHeight = draft.Grid.Height,
+                InitialAgentCount = agents.Count,
+                InitialFoodCount = foods.Count
+            };
 
-            return new SimulationState(world, new SimulationTime((int)draft.Tick), agentStates, config);
+            return new SimulationState(world, new SimulationTime((int)draft.Tick), agentStates, draftConfig);
         }
 
-        private static Dictionary<string, string[]> ValidateDraft(SimulationDraftDto? draft)
+        public static Dictionary<string, string[]> ValidateDraft(SimulationDraftDto? draft)
         {
             Dictionary<string, List<string>> errors = [];
 

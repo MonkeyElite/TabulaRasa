@@ -17,6 +17,7 @@ namespace TabulaRasa.Simulation.Systems
         public void Execute(SimulationState state)
         {
             WorldState world = state.World;
+            var decay = state.Config.EffectiveNeedDecay;
 
             foreach (AgentEntity agentEntity in world.Agents)
             {
@@ -27,7 +28,11 @@ namespace TabulaRasa.Simulation.Systems
                     continue;
                 }
 
-                NeedSystem.ApplyNeedDecay(agentState.NeedState);
+                NeedSystem.ApplyNeedDecay(
+                    agentState.NeedState,
+                    decay.HungerDelta,
+                    decay.ThirstDelta,
+                    decay.EnergyDelta);
             }
         }
     }

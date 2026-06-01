@@ -64,8 +64,23 @@ namespace TabulaRasa.Api.Services
         {
             return new SimulationConfigDto(
                 config.Seed,
+                config.WorldWidth,
+                config.WorldHeight,
+                config.TickIntervalMilliseconds,
+                config.InitialAgentCount,
+                config.InitialFoodCount,
                 config.EventHistoryLimit,
-                config.TickIntervalMilliseconds);
+                config.SnapshotHistoryLimit,
+                new NeedDecayConfigDto(
+                    config.EffectiveNeedDecay.HungerDelta,
+                    config.EffectiveNeedDecay.ThirstDelta,
+                    config.EffectiveNeedDecay.EnergyDelta),
+                config.PerceptionRadius,
+                config.MovementSpeedPerTick,
+                new PathfindingConfigDto(
+                    config.EffectivePathfinding.AllowDiagonalMovement,
+                    config.EffectivePathfinding.MaxVisitedCells),
+                config.EffectiveEnabledSystems.ToList());
         }
 
         public static SimulationConfig ToConfig(SimulationConfigDto? dto, SimulationConfig fallback)
@@ -74,8 +89,42 @@ namespace TabulaRasa.Api.Services
                 ? fallback
                 : new SimulationConfig(
                     dto.Seed,
+                    dto.WorldWidth,
+                    dto.WorldHeight,
+                    dto.TickIntervalMilliseconds,
+                    dto.InitialAgentCount,
+                    dto.InitialFoodCount,
                     dto.EventHistoryLimit,
-                    dto.TickIntervalMilliseconds);
+                    dto.SnapshotHistoryLimit,
+                    new NeedDecayConfig(
+                        dto.NeedDecay.HungerDelta,
+                        dto.NeedDecay.ThirstDelta,
+                        dto.NeedDecay.EnergyDelta),
+                    dto.PerceptionRadius,
+                    dto.MovementSpeedPerTick,
+                    new PathfindingConfig(
+                        dto.Pathfinding.AllowDiagonalMovement,
+                        dto.Pathfinding.MaxVisitedCells),
+                    dto.EnabledSystems);
+        }
+
+        public static SimulationDraftDto ToDraft(SimulationSnapshotDto snapshot, SimulationConfigDto config)
+        {
+            return new SimulationDraftDto(
+                snapshot.Tick,
+                new EditableGridDto(
+                    snapshot.Grid.Width,
+                    snapshot.Grid.Height,
+                    snapshot.Grid.BlockedCells),
+                snapshot.Agents.Select(agent => new EditableAgentDto(
+                    agent.Id,
+                    agent.Position,
+                    agent.Needs)).ToList(),
+                snapshot.Food.Select(food => new EditableFoodDto(
+                    food.Id,
+                    food.Position,
+                    food.IsConsumed)).ToList(),
+                config);
         }
 
         private static GridDto ToGrid(SimulationState state)

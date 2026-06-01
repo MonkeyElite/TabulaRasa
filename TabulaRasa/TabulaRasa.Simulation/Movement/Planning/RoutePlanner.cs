@@ -13,7 +13,6 @@ namespace TabulaRasa.Simulation.Movement.Planning
 {
     public sealed class RoutePlanner
     {
-        public const float DefaultSpeedPerTick = 0.25f;
         public const float DefaultArrivalTolerance = 0.05f;
 
         private readonly GridPathfinder _pathfinder;
@@ -75,7 +74,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 : RoutePlanningResult.Success(CreateMovement(
                     request,
                     candidate.Route,
-                    DefaultSpeedPerTick,
+                    state.Config.MovementSpeedPerTick,
                     DefaultArrivalTolerance));
         }
 
@@ -89,7 +88,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
             }
 
             GridCell currentCell = SpatialQueries.GetCurrentCell(state.World, agent.Position);
-            IReadOnlyList<GridCell> destinations = state.World.Grid.GetAdjacentCells(currentCell)
+            IReadOnlyList<GridCell> destinations = state.World.Grid.GetAdjacentCells(
+                    currentCell,
+                    state.Config.EffectivePathfinding.AllowDiagonalMovement)
                 .Where(cell => CanAgentEnterCell(state, agent, cell))
                 .ToList();
 
@@ -106,7 +107,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
             return RoutePlanningResult.Success(CreateMovement(
                 request,
                 route,
-                DefaultSpeedPerTick,
+                state.Config.MovementSpeedPerTick,
                 DefaultArrivalTolerance));
         }
 
@@ -126,7 +127,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                     new PathRequest(
                         startCell,
                         destinationCell,
-                        cell => CanAgentEnterCell(state, agent, cell)));
+                        cell => CanAgentEnterCell(state, agent, cell),
+                        state.Config.EffectivePathfinding.AllowDiagonalMovement,
+                        state.Config.EffectivePathfinding.MaxVisitedCells));
 
                 if (!result.Succeeded || result.Path is null)
                 {

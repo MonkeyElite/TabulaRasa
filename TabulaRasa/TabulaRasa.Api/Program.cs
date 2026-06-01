@@ -11,7 +11,7 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod());
 });
 builder.Services.AddControllers();
-builder.Services.AddSingleton<SimulationSessionService>();
+builder.Services.AddSingleton<SimulationRegistry>();
 
 WebApplication app = builder.Build();
 

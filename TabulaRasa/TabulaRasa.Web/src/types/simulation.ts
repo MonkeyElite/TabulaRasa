@@ -1,3 +1,23 @@
+export type SimulationSummary = {
+  simulationId: string;
+  name: string;
+  status: "Idle" | "Running" | "Paused" | "Stopped" | string;
+  currentTick: number;
+  gridWidth: number;
+  gridHeight: number;
+  agentCount: number;
+  foodCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SimulationResourceLimits = {
+  maxConcurrentRunningSimulations: number;
+  maxTicksPerSecond: number;
+  maxAgents: number;
+  maxRetainedSnapshots: number;
+};
+
 export type SimulationStatus = {
   currentTick: number;
   status: "Idle" | "Running" | "Paused" | "Stopped" | string;
@@ -15,8 +35,25 @@ export type SimulationStatus = {
 
 export type SimulationConfig = {
   seed: number;
-  eventHistoryLimit: number;
+  worldWidth: number;
+  worldHeight: number;
   tickIntervalMilliseconds: number;
+  initialAgentCount: number;
+  initialFoodCount: number;
+  eventHistoryLimit: number;
+  snapshotHistoryLimit: number;
+  needDecay: {
+    hungerDelta: number;
+    thirstDelta: number;
+    energyDelta: number;
+  };
+  perceptionRadius: number;
+  movementSpeedPerTick: number;
+  pathfinding: {
+    allowDiagonalMovement: boolean;
+    maxVisitedCells: number;
+  };
+  enabledSystems: string[];
 };
 
 export type SimulationTickSummary = {

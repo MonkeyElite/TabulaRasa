@@ -139,21 +139,60 @@ namespace TabulaRasa.Simulation.State
             return _eventsByTick.Values.SelectMany(events => events).ToList();
         }
 
-        public void ApplyConfig(SimulationConfig config)
+        public void ApplyConfig(SimulationConfig config, bool reseedRandom = false)
         {
             Config = NormalizeConfig(config);
-            Random = new Random(Config.Seed);
+            if (reseedRandom)
+            {
+                Random = new Random(Config.Seed);
+            }
+
             TrimHistory(_eventsByTick, Config.EventHistoryLimit);
             TrimHistory(_diagnosticsByTick, Config.EventHistoryLimit);
         }
 
         private static SimulationConfig NormalizeConfig(SimulationConfig config)
         {
+            NeedDecayConfig needDecay = config.EffectiveNeedDecay;
+            PathfindingConfig pathfinding = config.EffectivePathfinding;
+            IReadOnlyList<string> enabledSystems = config.EffectiveEnabledSystems
+                .Where(systemId => !string.IsNullOrWhiteSpace(systemId))
+                .Select(systemId => systemId.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             return config with
             {
+                WorldWidth = Math.Clamp(config.WorldWidth, 1, 500),
+                WorldHeight = Math.Clamp(config.WorldHeight, 1, 500),
+                InitialAgentCount = Math.Clamp(config.InitialAgentCount, 0, 10_000),
+                InitialFoodCount = Math.Clamp(config.InitialFoodCount, 0, 10_000),
                 EventHistoryLimit = Math.Clamp(config.EventHistoryLimit, 1, 10_000),
-                TickIntervalMilliseconds = Math.Clamp(config.TickIntervalMilliseconds, 50, 60_000)
+                SnapshotHistoryLimit = Math.Clamp(config.SnapshotHistoryLimit, 1, 10_000),
+                TickIntervalMilliseconds = Math.Clamp(config.TickIntervalMilliseconds, 50, 60_000),
+                NeedDecay = new NeedDecayConfig(
+                    ClampFinite(needDecay.HungerDelta, -100, 100),
+                    ClampFinite(needDecay.ThirstDelta, -100, 100),
+                    ClampFinite(needDecay.EnergyDelta, -100, 100)),
+                PerceptionRadius = ClampFinite(config.PerceptionRadius, 0, 1_000),
+                MovementSpeedPerTick = ClampFinite(config.MovementSpeedPerTick, 0.01f, 100),
+                Pathfinding = new PathfindingConfig(
+                    pathfinding.AllowDiagonalMovement,
+                    Math.Clamp(pathfinding.MaxVisitedCells, 1, 1_000_000)),
+                EnabledSystems = enabledSystems.Count == 0
+                    ? SimulationConfig.DefaultEnabledSystems
+                    : enabledSystems
             };
+        }
+
+        private static float ClampFinite(float value, float min, float max)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+            {
+                return min;
+            }
+
+            return Math.Clamp(value, min, max);
         }
 
         private static void TrimHistory<T>(SortedDictionary<long, T> history, int limit)

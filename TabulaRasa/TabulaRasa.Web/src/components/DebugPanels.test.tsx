@@ -51,8 +51,25 @@ const status: SimulationStatus = {
   foodCount: 1,
   config: {
     seed: 12345,
+    worldWidth: 10,
+    worldHeight: 10,
+    tickIntervalMilliseconds: 500,
+    initialAgentCount: 1,
+    initialFoodCount: 1,
     eventHistoryLimit: 100,
-    tickIntervalMilliseconds: 500
+    snapshotHistoryLimit: 100,
+    needDecay: {
+      hungerDelta: 1,
+      thirstDelta: 1,
+      energyDelta: -1
+    },
+    perceptionRadius: 20,
+    movementSpeedPerTick: 0.25,
+    pathfinding: {
+      allowDiagonalMovement: false,
+      maxVisitedCells: 1000
+    },
+    enabledSystems: ["need-decay", "planning"]
   },
   latestTickSummary: {
     tick: 1,
@@ -68,7 +85,8 @@ const snapshot: SimulationSnapshot = {
   grid: {
     width: 10,
     height: 10,
-    blockedCells: []
+    blockedCells: [],
+    occupiedCells: []
   },
   agents: [],
   food: [],
