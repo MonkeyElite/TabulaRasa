@@ -1,6 +1,18 @@
 namespace TabulaRasa.Api.Contracts
 {
-    public sealed record RunSimulationRequestDto(int? IntervalMilliseconds);
+    public sealed record RunSimulationRequestDto(int? IntervalMilliseconds, SimulationConfigDto? Config = null);
+
+    public sealed record ResetSimulationRequestDto(SimulationConfigDto? Config = null);
+
+    public sealed record SimulationConfigDto(
+        int Seed,
+        int EventHistoryLimit,
+        int TickIntervalMilliseconds);
+
+    public sealed record SimulationTickSummaryDto(
+        long Tick,
+        double DurationMilliseconds,
+        int EventCount);
 
     public sealed record SimulationStatusDto(
         long CurrentTick,
@@ -10,7 +22,11 @@ namespace TabulaRasa.Api.Contracts
         int GridWidth,
         int GridHeight,
         int AgentCount,
-        int FoodCount);
+        int FoodCount,
+        SimulationConfigDto Config,
+        SimulationTickSummaryDto? LatestTickSummary,
+        long? EventHistoryMinimumTick,
+        long? EventHistoryMaximumTick);
 
     public sealed record SimulationSnapshotDto(
         long Tick,
@@ -22,7 +38,34 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<ReservationSnapshotDto> Reservations,
         IReadOnlyList<ActionResultSnapshotDto> RecentActionResults,
         int PendingIntentCount,
-        int PendingActionRequestCount);
+        int PendingActionRequestCount,
+        IReadOnlyList<SimulationEventDto> Events,
+        IReadOnlyList<SimulationEventDto> RecentEvents,
+        SimulationTickDiagnosticsDto? Diagnostics);
+
+    public sealed record SimulationEventDto(
+        long Tick,
+        long Sequence,
+        string Type,
+        string SourceSystem,
+        string Message,
+        string? EntityId,
+        IReadOnlyDictionary<string, string> Metadata);
+
+    public sealed record SimulationTickDiagnosticsDto(
+        long Tick,
+        DateTimeOffset StartedAt,
+        DateTimeOffset CompletedAt,
+        double DurationMilliseconds,
+        int EventCount,
+        IReadOnlyList<SystemExecutionDiagnosticDto> Systems);
+
+    public sealed record SystemExecutionDiagnosticDto(
+        string Phase,
+        string SystemName,
+        int Priority,
+        double DurationMilliseconds,
+        int EmittedEventCount);
 
     public sealed record GridDto(
         int Width,
@@ -97,7 +140,8 @@ namespace TabulaRasa.Api.Contracts
         long Tick,
         EditableGridDto Grid,
         IReadOnlyList<EditableAgentDto> Agents,
-        IReadOnlyList<EditableFoodDto> Food);
+        IReadOnlyList<EditableFoodDto> Food,
+        SimulationConfigDto? Config = null);
 
     public sealed record SimulationDraftSchemaDto(
         IReadOnlyList<EditableFieldDto> StateFields,

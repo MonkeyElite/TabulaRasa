@@ -3,7 +3,9 @@ using TabulaRasa.Abstractions.World;
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
+using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.Movement.Execution;
+using TabulaRasa.Simulation.Observability;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Definitions;
 using TabulaRasa.Simulation.Tasks.Jobs;
@@ -31,7 +33,10 @@ namespace TabulaRasa.Api.Services
                 state.Reservations.Reservations.Select(ToReservation).ToList(),
                 state.ActionResults.TakeLast(10).Select(ToActionResult).ToList(),
                 state.PendingIntents.Count,
-                state.PendingActionRequests.Count);
+                state.PendingActionRequests.Count,
+                state.GetEventsForTick(state.Time.Tick).Select(ToEvent).ToList(),
+                state.GetRecentEvents().Select(ToEvent).ToList(),
+                ToDiagnostics(state.GetDiagnosticsForTick(state.Time.Tick)));
         }
 
         public static SimulationDraftDto ToDraft(SimulationState state)
@@ -49,7 +54,26 @@ namespace TabulaRasa.Api.Services
                 state.World.Foods.Select(food => new EditableFoodDto(
                     food.Id,
                     ToPosition(food.Position),
-                    food.IsConsumed)).ToList());
+                    food.IsConsumed)).ToList(),
+                ToConfig(state.Config));
+        }
+
+        public static SimulationConfigDto ToConfig(SimulationConfig config)
+        {
+            return new SimulationConfigDto(
+                config.Seed,
+                config.EventHistoryLimit,
+                config.TickIntervalMilliseconds);
+        }
+
+        public static SimulationConfig ToConfig(SimulationConfigDto? dto, SimulationConfig fallback)
+        {
+            return dto is null
+                ? fallback
+                : new SimulationConfig(
+                    dto.Seed,
+                    dto.EventHistoryLimit,
+                    dto.TickIntervalMilliseconds);
         }
 
         private static GridDto ToGrid(SimulationState state)
@@ -137,6 +161,44 @@ namespace TabulaRasa.Api.Services
                 result.ActionType.ToString(),
                 result.Succeeded,
                 result.Reason);
+        }
+
+        private static SimulationEventDto ToEvent(SimulationEvent simulationEvent)
+        {
+            return new SimulationEventDto(
+                simulationEvent.Tick,
+                simulationEvent.Sequence,
+                simulationEvent.Type,
+                simulationEvent.SourceSystem,
+                simulationEvent.Message,
+                simulationEvent.EntityId,
+                simulationEvent.Metadata);
+        }
+
+        private static SimulationTickDiagnosticsDto? ToDiagnostics(SimulationTickDiagnostics? diagnostics)
+        {
+            if (diagnostics is null)
+            {
+                return null;
+            }
+
+            return new SimulationTickDiagnosticsDto(
+                diagnostics.Tick,
+                diagnostics.StartedAt,
+                diagnostics.CompletedAt,
+                diagnostics.DurationMilliseconds,
+                diagnostics.EventCount,
+                diagnostics.Systems.Select(ToSystemDiagnostic).ToList());
+        }
+
+        private static SystemExecutionDiagnosticDto ToSystemDiagnostic(SystemExecutionDiagnostic diagnostic)
+        {
+            return new SystemExecutionDiagnosticDto(
+                diagnostic.Phase.ToString(),
+                diagnostic.SystemName,
+                diagnostic.Priority,
+                diagnostic.DurationMilliseconds,
+                diagnostic.EmittedEventCount);
         }
 
         private static AgentNeedsDto ToNeeds(AgentNeedState? needs)

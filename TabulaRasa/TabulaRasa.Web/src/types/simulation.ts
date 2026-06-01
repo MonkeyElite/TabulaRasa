@@ -1,12 +1,28 @@
 export type SimulationStatus = {
   currentTick: number;
-  status: "Idle" | "Running" | "Paused" | string;
+  status: "Idle" | "Running" | "Paused" | "Stopped" | string;
   minimumTick: number;
   maximumTick: number;
   gridWidth: number;
   gridHeight: number;
   agentCount: number;
   foodCount: number;
+  config: SimulationConfig;
+  latestTickSummary: SimulationTickSummary | null;
+  eventHistoryMinimumTick: number | null;
+  eventHistoryMaximumTick: number | null;
+};
+
+export type SimulationConfig = {
+  seed: number;
+  eventHistoryLimit: number;
+  tickIntervalMilliseconds: number;
+};
+
+export type SimulationTickSummary = {
+  tick: number;
+  durationMilliseconds: number;
+  eventCount: number;
 };
 
 export type GridCell = {
@@ -45,6 +61,36 @@ export type SimulationSnapshot = {
   recentActionResults: ActionResultSnapshot[];
   pendingIntentCount: number;
   pendingActionRequestCount: number;
+  events: SimulationEvent[];
+  recentEvents: SimulationEvent[];
+  diagnostics: SimulationTickDiagnostics | null;
+};
+
+export type SimulationEvent = {
+  tick: number;
+  sequence: number;
+  type: string;
+  sourceSystem: string;
+  message: string;
+  entityId: string | null;
+  metadata: Record<string, string>;
+};
+
+export type SimulationTickDiagnostics = {
+  tick: number;
+  startedAt: string;
+  completedAt: string;
+  durationMilliseconds: number;
+  eventCount: number;
+  systems: SystemExecutionDiagnostic[];
+};
+
+export type SystemExecutionDiagnostic = {
+  phase: string;
+  systemName: string;
+  priority: number;
+  durationMilliseconds: number;
+  emittedEventCount: number;
 };
 
 export type AgentSnapshot = {
@@ -118,6 +164,7 @@ export type SimulationDraft = {
   };
   agents: EditableAgent[];
   food: EditableFood[];
+  config: SimulationConfig | null;
 };
 
 export type SimulationDraftSchema = {

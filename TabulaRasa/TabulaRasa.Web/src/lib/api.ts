@@ -1,4 +1,4 @@
-import type { SimulationDraft, SimulationDraftSchema, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
+import type { SimulationConfig, SimulationDraft, SimulationDraftSchema, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
 
 const defaultBaseUrl = "/api";
 
@@ -33,7 +33,12 @@ export const simulationApi = {
       body: JSON.stringify({ intervalMilliseconds })
     }),
   pause: () => request<SimulationStatus>("/simulation/pause", { method: "POST" }),
-  reset: () => request<SimulationSnapshot>("/simulation/reset", { method: "POST" }),
+  stop: () => request<SimulationStatus>("/simulation/stop", { method: "POST" }),
+  reset: (config?: SimulationConfig) =>
+    request<SimulationSnapshot>("/simulation/reset", {
+      method: "POST",
+      body: JSON.stringify({ config })
+    }),
   draft: () => request<SimulationDraft>("/simulation/draft"),
   draftSchema: () => request<SimulationDraftSchema>("/simulation/draft-schema"),
   restartFromDraft: (draft: SimulationDraft) =>

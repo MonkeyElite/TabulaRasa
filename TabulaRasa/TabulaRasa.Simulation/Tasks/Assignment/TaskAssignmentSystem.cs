@@ -9,6 +9,8 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
 {
     public sealed class TaskAssignmentSystem : ISystem
     {
+        private const string SourceSystem = "Task Assignment System";
+
         public string Name => "Task Assignment System";
         public SimulationPhase Phase => SimulationPhase.Evaluation;
         public int Priority => 4;
@@ -44,6 +46,16 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
                     }
 
                     task.AssignTo(agentId);
+                    state.EmitEvent(
+                        "task.assigned",
+                        SourceSystem,
+                        $"{task.Id} assigned to {agentId}.",
+                        task.Id,
+                        new Dictionary<string, string>
+                        {
+                            ["agentId"] = agentId,
+                            ["taskDefinitionId"] = task.Definition.Id
+                        });
                 }
             }
         }
@@ -75,6 +87,15 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
                 {
                     task.Fail(result.FailureReason ?? "Task precondition failed.");
                     state.Reservations.ReleaseByOwner(task.Id);
+                    state.EmitEvent(
+                        "task.failed",
+                        SourceSystem,
+                        $"{task.Id} failed preconditions: {task.FailureReason}",
+                        task.Id,
+                        new Dictionary<string, string>
+                        {
+                            ["reason"] = task.FailureReason ?? ""
+                        });
                     return false;
                 }
             }
@@ -94,6 +115,17 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
                     state.Reservations.ReleaseByOwner(task.Id);
                     return false;
                 }
+
+                state.EmitEvent(
+                    "reservation.created",
+                    SourceSystem,
+                    $"{task.Id} reserved {requirement.TargetType}:{requirement.TargetId}.",
+                    task.Id,
+                    new Dictionary<string, string>
+                    {
+                        ["targetType"] = requirement.TargetType.ToString(),
+                        ["targetId"] = requirement.TargetId
+                    });
             }
 
             return true;

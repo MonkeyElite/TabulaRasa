@@ -30,6 +30,46 @@ namespace TabulaRasa.UnitTests.Api
         }
 
         [Fact]
+        public void RunPauseStepStop_TransitionsConsistently()
+        {
+            using SimulationSessionService service = new();
+
+            Assert.Equal("Idle", service.GetStatus().Status);
+
+            SimulationStatusDto running = service.Run(60_000);
+            Assert.Equal("Running", running.Status);
+
+            SimulationStatusDto paused = service.Pause();
+            Assert.Equal("Paused", paused.Status);
+
+            SimulationSnapshotDto stepped = service.Step();
+            Assert.Equal(1, stepped.Tick);
+            Assert.Equal("Paused", service.GetStatus().Status);
+
+            SimulationStatusDto stopped = service.Stop();
+            Assert.Equal("Stopped", stopped.Status);
+            Assert.Throws<InvalidOperationException>(() => service.Step());
+            Assert.Throws<InvalidOperationException>(() => service.Run(60_000));
+
+            SimulationSnapshotDto reset = service.Reset();
+            Assert.Equal(0, reset.Tick);
+            Assert.Equal("Idle", service.GetStatus().Status);
+        }
+
+        [Fact]
+        public void Reset_AppliesDeterministicConfig()
+        {
+            using SimulationSessionService service = new();
+            SimulationConfigDto config = new(Seed: 42, EventHistoryLimit: 2, TickIntervalMilliseconds: 250);
+
+            SimulationSnapshotDto snapshot = service.Reset(config);
+            SimulationStatusDto status = service.GetStatus();
+
+            Assert.Equal(0, snapshot.Tick);
+            Assert.Equal(config, status.Config);
+        }
+
+        [Fact]
         public void HistoricalSnapshots_AreAvailableAfterLaterTicks()
         {
             using SimulationSessionService service = new();
@@ -65,7 +105,8 @@ namespace TabulaRasa.UnitTests.Api
                 Food =
                 [
                     new EditableFoodDto("food-custom", new PositionDto(1, 1), true)
-                ]
+                ],
+                Config = new SimulationConfigDto(Seed: 7, EventHistoryLimit: 3, TickIntervalMilliseconds: 100)
             };
 
             RestartFromDraftResult result = service.RestartFromDraft(draft);
@@ -84,6 +125,7 @@ namespace TabulaRasa.UnitTests.Api
             Assert.Empty(result.Snapshot.ActiveMovements);
             Assert.Empty(result.Snapshot.Jobs);
             Assert.Empty(result.Snapshot.Reservations);
+            Assert.Equal(7, service.GetStatus().Config.Seed);
         }
 
         [Fact]

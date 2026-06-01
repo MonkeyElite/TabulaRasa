@@ -12,12 +12,13 @@ using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Movement.Planning;
 using TabulaRasa.Simulation.Tasks.Assignment;
 using TabulaRasa.Simulation.Tasks.Execution;
+using TabulaRasa.Simulation.Configuration;
 
 namespace TabulaRasa.Simulation.Composition
 {
     public static class MinimalSimulationFactory
     {
-        public static (SimulationState State, IReadOnlyList<ISystem> Systems) Create()
+        public static (SimulationState State, IReadOnlyList<ISystem> Systems) Create(SimulationConfig? config = null)
         {
             List<AgentEntity> agentEntities = new List<AgentEntity>();
             List<AgentState> agentStates = new List<AgentState>();
@@ -57,7 +58,7 @@ namespace TabulaRasa.Simulation.Composition
                 new ReportingSystem()
             ];
 
-            return (new SimulationState(world, new SimulationTime(Tick: 0), agentStates), systems);
+            return (new SimulationState(world, new SimulationTime(Tick: 0), agentStates, config), systems);
         }
     }
 }

@@ -10,6 +10,8 @@ namespace TabulaRasa.Simulation.Movement.Execution
 {
     public sealed class MovementExecutionSystem : ISystem
     {
+        private const string SourceSystem = "Movement Execution System";
+
         public string Name => "Movement Execution System";
         public SimulationPhase Phase => SimulationPhase.Execution;
         public int Priority => -10;
@@ -90,13 +92,34 @@ namespace TabulaRasa.Simulation.Movement.Execution
         {
             movement.Status = MovementStatus.Arrived;
             state.ActiveMovements.Remove(movement);
+            state.EmitEvent(
+                "movement.completed",
+                SourceSystem,
+                $"{movement.AgentId} arrived for {movement.RequestedAction}.",
+                movement.AgentId,
+                new Dictionary<string, string>
+                {
+                    ["actionType"] = movement.RequestedAction.ToString(),
+                    ["targetId"] = movement.TargetId ?? ""
+                });
 
             if (movement.RequestedAction == AgentActionType.Wander)
             {
-                state.ActionResults.Add(new ActionResult(
+                ActionResult result = new(
                     movement.AgentId,
                     movement.RequestedAction,
-                    true));
+                    true);
+                state.ActionResults.Add(result);
+                state.EmitEvent(
+                    "action.result",
+                    SourceSystem,
+                    $"{result.AgentId} {result.ActionType} succeeded.",
+                    result.AgentId,
+                    new Dictionary<string, string>
+                    {
+                        ["actionType"] = result.ActionType.ToString(),
+                        ["succeeded"] = result.Succeeded.ToString()
+                    });
             }
         }
 
@@ -105,11 +128,34 @@ namespace TabulaRasa.Simulation.Movement.Execution
             movement.Status = MovementStatus.Failed;
             movement.FailureReason = reason;
             state.ActiveMovements.Remove(movement);
-            state.ActionResults.Add(new ActionResult(
+            state.EmitEvent(
+                "movement.failed",
+                SourceSystem,
+                $"{movement.AgentId} movement failed: {reason}",
+                movement.AgentId,
+                new Dictionary<string, string>
+                {
+                    ["actionType"] = movement.RequestedAction.ToString(),
+                    ["targetId"] = movement.TargetId ?? "",
+                    ["reason"] = reason
+                });
+            ActionResult result = new(
                 movement.AgentId,
                 movement.RequestedAction,
                 false,
-                reason));
+                reason);
+            state.ActionResults.Add(result);
+            state.EmitEvent(
+                "action.result",
+                SourceSystem,
+                $"{result.AgentId} {result.ActionType} failed: {reason}",
+                result.AgentId,
+                new Dictionary<string, string>
+                {
+                    ["actionType"] = result.ActionType.ToString(),
+                    ["succeeded"] = result.Succeeded.ToString(),
+                    ["reason"] = reason
+                });
         }
     }
 }

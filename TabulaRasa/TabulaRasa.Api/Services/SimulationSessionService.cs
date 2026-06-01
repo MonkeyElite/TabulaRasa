@@ -5,8 +5,10 @@ using TabulaRasa.Agents.Minds;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Simulation.Composition;
+using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.Engine;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Lifecycle;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Construction;
 using TabulaRasa.World.Entities;
@@ -24,12 +26,14 @@ namespace TabulaRasa.Api.Services
         private IReadOnlyList<ISystem> _systems;
         private SimulationEngine _engine;
         private Timer? _timer;
-        private string _status = "Idle";
+        private SimulationConfig _config = new();
+        private SimulationLifecycleState _lifecycle = SimulationLifecycleState.Idle;
 
         public SimulationSessionService()
         {
-            (_state, _systems) = MinimalSimulationFactory.Create();
+            (_state, _systems) = MinimalSimulationFactory.Create(_config);
             _engine = new SimulationEngine(_systems);
+            RecordLifecycleEvent(_lifecycle);
             StoreCurrentSnapshot();
         }
 
@@ -61,20 +65,29 @@ namespace TabulaRasa.Api.Services
         {
             lock (_sync)
             {
-                _engine.ExecuteTick(_state);
-                return StoreCurrentSnapshot();
+                EnsureCanStep();
+                return ExecuteAndStoreTick();
             }
         }
 
-        public SimulationStatusDto Run(int intervalMilliseconds)
+        public SimulationStatusDto Run(int intervalMilliseconds, SimulationConfigDto? config = null)
         {
             lock (_sync)
             {
+                EnsureCanRun();
+                if (config is not null)
+                {
+                    _config = SimulationSnapshotMapper.ToConfig(config, _config);
+                    _state.ApplyConfig(_config);
+                }
+
                 int safeInterval = Math.Clamp(intervalMilliseconds, 50, 60_000);
+                _config = _config with { TickIntervalMilliseconds = safeInterval };
+                _state.ApplyConfig(_config);
 
                 _timer?.Dispose();
-                _timer = new Timer(_ => Step(), null, safeInterval, safeInterval);
-                _status = "Running";
+                _timer = new Timer(_ => StepFromTimer(), null, safeInterval, safeInterval);
+                SetLifecycle(SimulationLifecycleState.Running);
 
                 return ToStatus();
             }
@@ -84,23 +97,46 @@ namespace TabulaRasa.Api.Services
         {
             lock (_sync)
             {
+                if (_lifecycle != SimulationLifecycleState.Running)
+                {
+                    throw new InvalidOperationException("Only a running simulation can be paused.");
+                }
+
                 _timer?.Dispose();
                 _timer = null;
-                _status = "Paused";
+                SetLifecycle(SimulationLifecycleState.Paused);
 
                 return ToStatus();
             }
         }
 
-        public SimulationSnapshotDto Reset()
+        public SimulationStatusDto Stop()
+        {
+            lock (_sync)
+            {
+                if (_lifecycle == SimulationLifecycleState.Stopped)
+                {
+                    return ToStatus();
+                }
+
+                StopTimer();
+                SetLifecycle(SimulationLifecycleState.Stopped);
+
+                return ToStatus();
+            }
+        }
+
+        public SimulationSnapshotDto Reset(SimulationConfigDto? config = null)
         {
             lock (_sync)
             {
                 StopTimer();
-                (_state, _systems) = MinimalSimulationFactory.Create();
+                _config = SimulationSnapshotMapper.ToConfig(config, _config);
+                (_state, _systems) = MinimalSimulationFactory.Create(_config);
                 _engine = new SimulationEngine(_systems);
                 _snapshots.Clear();
-                _status = "Idle";
+                _lifecycle = SimulationLifecycleState.Idle;
+                RecordLifecycleEvent(_lifecycle);
 
                 return StoreCurrentSnapshot();
             }
@@ -132,11 +168,13 @@ namespace TabulaRasa.Api.Services
             {
                 StopTimer();
 
-                _state = BuildStateFromDraft(draft);
-                (_, _systems) = MinimalSimulationFactory.Create();
+                _config = SimulationSnapshotMapper.ToConfig(draft.Config, _config);
+                _state = BuildStateFromDraft(draft, _config);
+                (_, _systems) = MinimalSimulationFactory.Create(_config);
                 _engine = new SimulationEngine(_systems);
                 _snapshots.Clear();
-                _status = "Idle";
+                _lifecycle = SimulationLifecycleState.Idle;
+                RecordLifecycleEvent(_lifecycle);
 
                 return RestartFromDraftResult.Success(StoreCurrentSnapshot());
             }
@@ -155,6 +193,23 @@ namespace TabulaRasa.Api.Services
             return snapshot;
         }
 
+        private SimulationSnapshotDto ExecuteAndStoreTick()
+        {
+            _engine.ExecuteTick(_state);
+            return StoreCurrentSnapshot();
+        }
+
+        private void StepFromTimer()
+        {
+            lock (_sync)
+            {
+                if (_lifecycle == SimulationLifecycleState.Running)
+                {
+                    ExecuteAndStoreTick();
+                }
+            }
+        }
+
         private SimulationStatusDto ToStatus()
         {
             long minimumTick = _snapshots.Count == 0 ? _state.Time.Tick : _snapshots.Keys.First();
@@ -162,13 +217,17 @@ namespace TabulaRasa.Api.Services
 
             return new SimulationStatusDto(
                 _state.Time.Tick,
-                _status,
+                _lifecycle.ToString(),
                 minimumTick,
                 maximumTick,
                 _state.World.Grid.Width,
                 _state.World.Grid.Height,
                 _state.World.Agents.Count,
-                _state.World.Foods.Count);
+                _state.World.Foods.Count,
+                SimulationSnapshotMapper.ToConfig(_config),
+                ToLatestTickSummary(),
+                _state.EventHistory.Count == 0 ? null : _state.EventHistory.Keys.First(),
+                _state.EventHistory.Count == 0 ? null : _state.EventHistory.Keys.Last());
         }
 
         private void StopTimer()
@@ -177,7 +236,63 @@ namespace TabulaRasa.Api.Services
             _timer = null;
         }
 
-        private static SimulationState BuildStateFromDraft(SimulationDraftDto draft)
+        private void SetLifecycle(SimulationLifecycleState lifecycle)
+        {
+            _lifecycle = lifecycle;
+            RecordLifecycleEvent(lifecycle);
+            StoreCurrentSnapshot();
+        }
+
+        private void RecordLifecycleEvent(SimulationLifecycleState lifecycle)
+        {
+            _state.RecordEvent(
+                _state.Time.Tick,
+                "lifecycle.changed",
+                nameof(SimulationSessionService),
+                $"Simulation lifecycle changed to {lifecycle}.",
+                metadata: new Dictionary<string, string>
+                {
+                    ["state"] = lifecycle.ToString()
+                });
+        }
+
+        private void EnsureCanRun()
+        {
+            if (_lifecycle is not SimulationLifecycleState.Idle and not SimulationLifecycleState.Paused)
+            {
+                throw new InvalidOperationException("Simulation can only run from idle or paused.");
+            }
+        }
+
+        private void EnsureCanStep()
+        {
+            if (_lifecycle == SimulationLifecycleState.Stopped)
+            {
+                throw new InvalidOperationException("Stopped simulations cannot be stepped. Reset or restart from draft first.");
+            }
+
+            if (_lifecycle == SimulationLifecycleState.Running)
+            {
+                throw new InvalidOperationException("Running simulations cannot be manually stepped. Pause first.");
+            }
+        }
+
+        private SimulationTickSummaryDto? ToLatestTickSummary()
+        {
+            if (_state.DiagnosticsHistory.Count == 0)
+            {
+                return null;
+            }
+
+            var diagnostics = _state.DiagnosticsHistory.Values.Last();
+
+            return new SimulationTickSummaryDto(
+                diagnostics.Tick,
+                diagnostics.DurationMilliseconds,
+                diagnostics.EventCount);
+        }
+
+        private static SimulationState BuildStateFromDraft(SimulationDraftDto draft, SimulationConfig config)
         {
             GridMap grid = new(draft.Grid.Width, draft.Grid.Height);
 
@@ -211,7 +326,7 @@ namespace TabulaRasa.Api.Services
 
             WorldState world = WorldFactory.Create(agents, foods, grid);
 
-            return new SimulationState(world, new SimulationTime((int)draft.Tick), agentStates);
+            return new SimulationState(world, new SimulationTime((int)draft.Tick), agentStates, config);
         }
 
         private static Dictionary<string, string[]> ValidateDraft(SimulationDraftDto? draft)

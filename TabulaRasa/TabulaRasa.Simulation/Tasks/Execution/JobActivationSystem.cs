@@ -20,6 +20,16 @@ namespace TabulaRasa.Simulation.Tasks.Execution
                 state.PendingJobs.Remove(job);
                 job.Activate();
                 state.ActiveJobs.Add(job);
+                state.EmitEvent(
+                    "job.activated",
+                    Name,
+                    $"{job.Id} activated.",
+                    job.Id,
+                    new Dictionary<string, string>
+                    {
+                        ["definitionId"] = job.Definition.Id,
+                        ["name"] = job.Definition.Name
+                    });
             }
         }
     }

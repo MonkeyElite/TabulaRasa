@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, RotateCcw, Save, SkipBack, SkipForward, StepForward } from "lucide-react";
+import { Pause, Play, RotateCcw, Save, SkipBack, SkipForward, Square, StepForward } from "lucide-react";
+import { EventLogPanel, RuntimePanel } from "@/components/DebugPanels";
 import { Inspector } from "@/components/Inspector";
 import { WorldCanvas } from "@/components/WorldCanvas";
 import { simulationApi } from "@/lib/api";
@@ -25,6 +26,9 @@ export default function Home() {
   const [viewedTick, setViewedTick] = useState(0);
   const [sliderTick, setSliderTick] = useState(0);
   const [speed, setSpeed] = useState(500);
+  const [configDraft, setConfigDraft] = useState<SimulationStatus["config"] | null>(null);
+  const [eventScope, setEventScope] = useState<"recent" | "current">("recent");
+  const [eventType, setEventType] = useState("all");
   const [editing, setEditing] = useState(false);
   const [hover, setHover] = useState<HoverInfo>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +36,7 @@ export default function Home() {
 
   const canEdit = Boolean(status && snapshot && snapshot.tick === status.currentTick);
   const isRunning = status?.status === "Running";
+  const isStopped = status?.status === "Stopped";
 
   const loadStatus = useCallback(async () => {
     const nextStatus = await simulationApi.status();
@@ -42,6 +47,7 @@ export default function Home() {
   const loadCurrent = useCallback(async () => {
     const [nextStatus, current] = await Promise.all([simulationApi.status(), simulationApi.current()]);
     setStatus(nextStatus);
+    setConfigDraft((currentConfig) => currentConfig ?? nextStatus.config);
     setSnapshot(current);
     setViewedTick(current.tick);
     setSliderTick(current.tick);
@@ -76,6 +82,12 @@ export default function Home() {
       .catch((reason: unknown) => setError(toMessage(reason)));
   }, [editing]);
 
+  useEffect(() => {
+    if (status && !configDraft) {
+      setConfigDraft(status.config);
+    }
+  }, [configDraft, status]);
+
   const selectedTickLabel = useMemo(() => {
     if (!status) {
       return "-";
@@ -83,6 +95,17 @@ export default function Home() {
 
     return `${viewedTick} / ${status.maximumTick}`;
   }, [status, viewedTick]);
+
+  const visibleEvents = useMemo(() => {
+    const events = eventScope === "current" ? snapshot?.events ?? [] : snapshot?.recentEvents ?? [];
+
+    return eventType === "all" ? events : events.filter((event) => event.type === eventType);
+  }, [eventScope, eventType, snapshot]);
+
+  const eventTypes = useMemo(() => {
+    const events = snapshot?.recentEvents ?? [];
+    return Array.from(new Set(events.map((event) => event.type))).sort();
+  }, [snapshot]);
 
   async function handleStep() {
     setError(null);
@@ -98,12 +121,21 @@ export default function Home() {
     setError(null);
     const nextStatus = isRunning ? await simulationApi.pause() : await simulationApi.run(speed);
     setStatus(nextStatus);
+    setConfigDraft(nextStatus.config);
+  }
+
+  async function handleStop() {
+    setError(null);
+    const nextStatus = await simulationApi.stop();
+    setStatus(nextStatus);
+    setConfigDraft(nextStatus.config);
   }
 
   async function handleReset() {
     setError(null);
-    const next = await simulationApi.reset();
+    const next = await simulationApi.reset(configDraft ?? status?.config);
     const nextStatus = await loadStatus();
+    setConfigDraft(nextStatus.config);
     setDraft(null);
     setEditing(false);
     setSelection(null);
@@ -118,9 +150,13 @@ export default function Home() {
     }
 
     setError(null);
-    const next = await simulationApi.restartFromDraft(draft);
+    const next = await simulationApi.restartFromDraft({
+      ...draft,
+      config: configDraft ?? draft.config
+    });
     const nextStatus = await loadStatus();
     setStatus(nextStatus);
+    setConfigDraft(nextStatus.config);
     setSnapshot(next);
     setViewedTick(next.tick);
     setSliderTick(next.tick);
@@ -174,11 +210,14 @@ export default function Home() {
     <main className="app-shell">
       <header className="toolbar">
         <div className="brand">TabulaRasa</div>
-        <button className="icon" onClick={handleRunPause} title={isRunning ? "Pause" : "Run"}>
+        <button className="icon" onClick={handleRunPause} title={isRunning ? "Pause" : "Run"} disabled={isStopped}>
           {isRunning ? <Pause size={18} /> : <Play size={18} />}
         </button>
-        <button className="icon" onClick={handleStep} title="Step" disabled={isRunning}>
+        <button className="icon" onClick={handleStep} title="Step" disabled={isRunning || isStopped}>
           <StepForward size={18} />
+        </button>
+        <button className="icon" onClick={handleStop} title="Stop" disabled={isStopped}>
+          <Square size={16} />
         </button>
         <button className="icon" onClick={handleReset} title="Reset">
           <RotateCcw size={18} />
@@ -226,16 +265,32 @@ export default function Home() {
             </div>
           )}
         </div>
-        <Inspector
-          snapshot={snapshot}
-          draft={draft}
-          schema={schema}
-          selection={selection}
-          onSelect={setSelection}
-          editing={editing}
-          canEdit={canEdit}
-          onDraftChange={setDraft}
-        />
+        <aside className="right-rail">
+          <Inspector
+            snapshot={snapshot}
+            draft={draft}
+            schema={schema}
+            selection={selection}
+            onSelect={setSelection}
+            editing={editing}
+            canEdit={canEdit}
+            onDraftChange={setDraft}
+          />
+          <RuntimePanel
+            status={status}
+            snapshot={snapshot}
+            configDraft={configDraft}
+            onConfigDraftChange={setConfigDraft}
+          />
+          <EventLogPanel
+            events={visibleEvents}
+            eventTypes={eventTypes}
+            eventScope={eventScope}
+            eventType={eventType}
+            onEventScopeChange={setEventScope}
+            onEventTypeChange={setEventType}
+          />
+        </aside>
       </section>
 
       <footer className="timeline">

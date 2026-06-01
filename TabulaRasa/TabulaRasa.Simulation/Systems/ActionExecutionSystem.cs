@@ -38,17 +38,36 @@ namespace TabulaRasa.Simulation.Systems
 
                 if (!validation.IsValid)
                 {
-                    state.ActionResults.Add(new ActionResult(
+                    ActionResult result = new(
                         request.AgentId,
                         request.ActionType,
                         false,
-                        validation.FailureReason));
+                        validation.FailureReason);
+                    state.ActionResults.Add(result);
+                    EmitActionResultEvent(state, result);
 
                     continue;
                 }
 
-                state.ActionResults.Add(_resolver.Resolve(state, request));
+                ActionResult resolved = _resolver.Resolve(state, request);
+                state.ActionResults.Add(resolved);
+                EmitActionResultEvent(state, resolved);
             }
+        }
+
+        private void EmitActionResultEvent(SimulationState state, ActionResult result)
+        {
+            string outcome = result.Succeeded ? "succeeded" : $"failed: {result.Reason ?? "unknown"}";
+            state.EmitEvent(
+                "action.result",
+                Name,
+                $"{result.AgentId} {result.ActionType} {outcome}.",
+                result.AgentId,
+                new Dictionary<string, string>
+                {
+                    ["actionType"] = result.ActionType.ToString(),
+                    ["succeeded"] = result.Succeeded.ToString()
+                });
         }
     }
 }

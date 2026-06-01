@@ -40,25 +40,52 @@ namespace TabulaRasa.Api.Controllers
         [HttpPost("step")]
         public ActionResult<SimulationSnapshotDto> Step()
         {
-            return _session.Step();
+            try
+            {
+                return _session.Step();
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(exception.Message);
+            }
         }
 
         [HttpPost("run")]
         public ActionResult<SimulationStatusDto> Run([FromBody] RunSimulationRequestDto? request)
         {
-            return _session.Run(request?.IntervalMilliseconds ?? 500);
+            try
+            {
+                return _session.Run(request?.IntervalMilliseconds ?? 500, request?.Config);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(exception.Message);
+            }
         }
 
         [HttpPost("pause")]
         public ActionResult<SimulationStatusDto> Pause()
         {
-            return _session.Pause();
+            try
+            {
+                return _session.Pause();
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(exception.Message);
+            }
+        }
+
+        [HttpPost("stop")]
+        public ActionResult<SimulationStatusDto> Stop()
+        {
+            return _session.Stop();
         }
 
         [HttpPost("reset")]
-        public ActionResult<SimulationSnapshotDto> Reset()
+        public ActionResult<SimulationSnapshotDto> Reset([FromBody] ResetSimulationRequestDto? request)
         {
-            return _session.Reset();
+            return _session.Reset(request?.Config);
         }
 
         [HttpGet("draft")]
