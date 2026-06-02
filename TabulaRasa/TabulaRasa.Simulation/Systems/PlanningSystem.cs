@@ -41,7 +41,10 @@ namespace TabulaRasa.Simulation.Systems
                 AgentSnapshot snapshot = new(
                     agentEntity.Id,
                     agentState.NeedState.ToSnapshot(),
-                    agentEntity.Position);
+                    agentEntity.Position,
+                    agentEntity.Inventory.Stacks
+                        .GroupBy(stack => stack.ResourceId, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(group => group.Key, group => group.Sum(stack => stack.Quantity), StringComparer.OrdinalIgnoreCase));
 
                 state.PendingIntents.Add(agentState.Mind.Decide(
                     enrichedPerception,

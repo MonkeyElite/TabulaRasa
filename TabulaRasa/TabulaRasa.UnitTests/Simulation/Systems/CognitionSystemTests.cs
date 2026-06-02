@@ -10,6 +10,7 @@ using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Systems;
 using TabulaRasa.World.Construction;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.UnitTests.Simulation.Systems
@@ -20,7 +21,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         public void PlanningSystem_StoresAgentIntentWithoutMutatingWorld()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 1) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1, 1) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1, 1));
             WorldState world = WorldFactory.Create([agent], [food]);
             var agentState = new AgentState(
                 "agent-1",
@@ -35,7 +36,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
             Assert.Equal(AgentActionType.Eat, intent.ActionType);
             Assert.Equal("food-1", intent.TargetId);
             Assert.Empty(state.PendingActionRequests);
-            Assert.False(food.IsConsumed);
+            Assert.Equal(1, food.Inventory.GetQuantity(ResourceDefinition.FoodId));
         }
 
         [Fact]
@@ -43,8 +44,8 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
             var otherAgent = new AgentEntity { Id = "agent-2", Position = new WorldPosition(1.5f, 0.5f) };
-            var nearbyFood = new FoodEntity { Id = "food-near", Position = new WorldPosition(0.5f, 1.0f) };
-            var farFood = new FoodEntity { Id = "food-far", Position = new WorldPosition(5.5f, 5.5f) };
+            var nearbyFood = TestResourceFactory.FoodContainer("food-near", new WorldPosition(0.5f, 1.0f));
+            var farFood = TestResourceFactory.FoodContainer("food-far", new WorldPosition(5.5f, 5.5f));
             WorldState world = WorldFactory.Create([agent, otherAgent], [nearbyFood, farFood]);
             var agentState = new AgentState(
                 "agent-1",
@@ -72,16 +73,11 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         }
 
         [Fact]
-        public void PlanningSystem_IgnoresConsumedFoodAndDoesNotCreateOpportunity()
+        public void PlanningSystem_IgnoresEmptyResourceContainersAndDoesNotCreateOpportunity()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var consumedFood = new FoodEntity
-            {
-                Id = "food-1",
-                Position = new WorldPosition(0.5f, 1.0f),
-                IsConsumed = true
-            };
-            WorldState world = WorldFactory.Create([agent], [consumedFood]);
+            var emptyContainer = TestResourceFactory.FoodContainer("food-1", new WorldPosition(0.5f, 1.0f), quantity: 0);
+            WorldState world = WorldFactory.Create([agent], [emptyContainer]);
             var agentState = new AgentState(
                 "agent-1",
                 new AgentNeedState { Hunger = 8, Energy = 10 },
@@ -99,14 +95,14 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
             Assert.Empty(perception.Opportunities);
             AgentIntent intent = Assert.Single(state.PendingIntents);
             Assert.Equal(AgentActionType.Wander, intent.ActionType);
-            Assert.True(consumedFood.IsConsumed);
+            Assert.True(emptyContainer.IsEmpty);
         }
 
         [Fact]
         public void PlanningSystem_DoesNotMutateWorldWhileBuildingPerception()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(0.5f, 1.0f) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(0.5f, 1.0f));
             WorldState world = WorldFactory.Create([agent], [food]);
             var agentState = new AgentState(
                 "agent-1",
@@ -122,16 +118,16 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
 
             Assert.Equal(new WorldPosition(0.5f, 0.5f), agent.Position);
             Assert.Equal(new WorldPosition(0.5f, 1.0f), food.Position);
-            Assert.False(food.IsConsumed);
+            Assert.Equal(1, food.Inventory.GetQuantity(ResourceDefinition.FoodId));
             Assert.Single(world.Agents);
-            Assert.Single(world.Foods);
+            Assert.Single(world.ResourceContainers);
         }
 
         [Fact]
         public void PlanningSystem_HungryAgentIgnoresFoodOutsidePerception()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(4.5f, 4.5f) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(4.5f, 4.5f));
             WorldState world = WorldFactory.Create([agent], [food]);
             var agentState = new AgentState(
                 "agent-1",
@@ -170,7 +166,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         public void ActionExecutionSystem_ConsumesRequestAndAppliesWorldMutation()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 1) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1, 1) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1, 1));
             WorldState world = WorldFactory.Create([agent], [food]);
             var agentState = new AgentState(
                 "agent-1",
@@ -181,7 +177,8 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
 
             new ActionExecutionSystem().Execute(state);
 
-            Assert.True(food.IsConsumed);
+            Assert.DoesNotContain(food, world.ResourceContainers);
+            Assert.Equal(0, agent.Inventory.GetQuantity(ResourceDefinition.FoodId));
             Assert.Equal(2, agentState.NeedState.Hunger);
             Assert.Empty(state.PendingActionRequests);
             ActionResult result = Assert.Single(state.ActionResults);
@@ -229,7 +226,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
             ActionResult result = Assert.Single(state.ActionResults);
             Assert.False(result.Succeeded);
             Assert.Equal(AgentActionType.Eat, result.ActionType);
-            Assert.Equal("Target food is unavailable or out of reach.", result.Reason);
+            Assert.Equal("Target resource container is unavailable or out of reach.", result.Reason);
         }
 
         [Fact]

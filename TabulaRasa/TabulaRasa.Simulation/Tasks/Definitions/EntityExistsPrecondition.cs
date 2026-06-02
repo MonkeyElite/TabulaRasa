@@ -14,7 +14,7 @@ namespace TabulaRasa.Simulation.Tasks.Definitions
         public TaskPreconditionResult Evaluate(SimulationState state, TaskInstance task)
         {
             bool exists = state.World.Agents.Any(a => a.Id == _entityId)
-                || state.World.Foods.Any(f => f.Id == _entityId);
+                || state.World.ResourceContainers.Any(container => container.Id == _entityId);
 
             return exists
                 ? TaskPreconditionResult.Success

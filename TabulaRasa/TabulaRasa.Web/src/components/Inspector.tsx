@@ -3,7 +3,7 @@
 import React from "react";
 import type { AgentMemoryRecordSnapshot, AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
-import { addAgentDraft, addFoodDraft, removeAgentDraft, removeFoodDraft, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
+import { addAgentDraft, addResourceContainerDraft, addResourceDefinitionDraft, removeAgentDraft, removeResourceContainerDraft, updateAgentDraft, updateResourceContainerDraft, updateResourceDefinitionDraft } from "@/lib/draft";
 import { getValue, setValue } from "@/lib/objectPath";
 
 type Props = {
@@ -23,7 +23,8 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
   const [agentTab, setAgentTab] = React.useState<"overview" | "perception" | "memory" | "learning">("overview");
   const editable = editing && canEdit && draft;
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
-  const listedFood = editable ? draft.food : snapshot?.food ?? [];
+  const listedResourceContainers = editable ? draft.resourceContainers : snapshot?.resourceContainers ?? [];
+  const listedResourceDefinitions = editable ? draft.resourceDefinitions : snapshot?.resourceDefinitions ?? [];
   const agent =
     selection?.type === "agent"
       ? (editable ? draft.agents : snapshot?.agents)?.find((candidate) => candidate.id === selection.id)
@@ -32,9 +33,13 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
     selection?.type === "agent"
       ? snapshot?.agents.find((candidate) => candidate.id === selection.id) ?? null
       : null;
-  const food =
-    selection?.type === "food"
-      ? (editable ? draft.food : snapshot?.food)?.find((candidate) => candidate.id === selection.id)
+  const resourceContainer =
+    selection?.type === "resourceContainer"
+      ? (editable ? draft.resourceContainers : snapshot?.resourceContainers)?.find((candidate) => candidate.id === selection.id)
+      : null;
+  const resourceDefinition =
+    selection?.type === "resourceDefinition"
+      ? (editable ? draft.resourceDefinitions : snapshot?.resourceDefinitions)?.find((candidate) => candidate.id === selection.id)
       : null;
   const selectedCell = selection?.type === "cell" ? selection.cell : null;
   const blockedCells = (editable ? draft.grid.blockedCells : snapshot?.grid.blockedCells) ?? [];
@@ -66,7 +71,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             <span className="pill">{snapshot?.populationCount ?? snapshot?.agents.length ?? 0} population</span>
             <span className="pill">{snapshot?.aliveAgentCount ?? snapshot?.agents.filter((item) => !item.isDead).length ?? 0} alive</span>
             <span className="pill">{snapshot?.deadAgentCount ?? snapshot?.agents.filter((item) => item.isDead).length ?? 0} dead</span>
-            <span className="pill">{snapshot?.food.length ?? 0} food</span>
+            <span className="pill">{snapshot?.resourceContainers.length ?? 0} containers</span>
           </div>
           {editing && draft && schema && (
             <div className="field-grid">
@@ -115,15 +120,27 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             </button>
             <button
               onClick={() => {
-                const nextDraft = addFoodDraft(draft);
-                const nextFood = nextDraft.food.at(-1);
+                const nextDraft = addResourceContainerDraft(draft);
+                const nextContainer = nextDraft.resourceContainers.at(-1);
                 onDraftChange(nextDraft);
-                if (nextFood) {
-                  onSelect({ type: "food", id: nextFood.id });
+                if (nextContainer) {
+                  onSelect({ type: "resourceContainer", id: nextContainer.id });
                 }
               }}
             >
-              Add food
+              Add container
+            </button>
+            <button
+              onClick={() => {
+                const nextDraft = addResourceDefinitionDraft(draft);
+                const nextDefinition = nextDraft.resourceDefinitions.at(-1);
+                onDraftChange(nextDraft);
+                if (nextDefinition) {
+                  onSelect({ type: "resourceDefinition", id: nextDefinition.id });
+                }
+              }}
+            >
+              Add resource
             </button>
           </div>
         )}
@@ -143,16 +160,29 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               </span>
             </button>
           ))}
-          {listedFood.map((item) => (
+          {listedResourceContainers.map((item) => (
             <button
-              key={`food:${item.id}`}
-              className={selection?.type === "food" && selection.id === item.id ? "entity-row selected" : "entity-row"}
-              onClick={() => onSelect({ type: "food", id: item.id })}
+              key={`resource-container:${item.id}`}
+              className={selection?.type === "resourceContainer" && selection.id === item.id ? "entity-row selected" : "entity-row"}
+              onClick={() => onSelect({ type: "resourceContainer", id: item.id })}
             >
               <span className="entity-dot food" />
               <span>
                 <strong>{item.id}</strong>
-                <small>FoodEntity - {item.isConsumed ? "consumed" : "available"}</small>
+                <small>Container - {inventoryQuantity(item.inventory)} resources</small>
+              </span>
+            </button>
+          ))}
+          {listedResourceDefinitions.map((item) => (
+            <button
+              key={`resource-definition:${item.id}`}
+              className={selection?.type === "resourceDefinition" && selection.id === item.id ? "entity-row selected" : "entity-row"}
+              onClick={() => onSelect({ type: "resourceDefinition", id: item.id })}
+            >
+              <span className="entity-dot food" />
+              <span>
+                <strong>{item.displayName}</strong>
+                <small>{item.id} - {item.isConsumable ? "consumable" : "resource"}</small>
               </span>
             </button>
           ))}
@@ -204,6 +234,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             );
           })()}
           <AgentVitals needs={agent.needs} health={selectedSnapshotAgent?.health ?? healthValue(agent)} isDead={isDeadAgent(agent)} />
+          {"inventory" in agent && agent.inventory && <InventoryDetails inventory={agent.inventory} />}
           <GenericEntityEditor
             fields={schema?.agentFields}
             entity={agent}
@@ -234,41 +265,66 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
         </section>
       )}
 
-      {food && (
+      {resourceContainer && (
         <section className="section">
-          <h3>Food - {food.id}</h3>
+          <h3>Container - {resourceContainer.id}</h3>
           <EntitySummary
             rows={[
-              ["Cell", `${Math.floor(food.position.x)}, ${Math.floor(food.position.y)}`],
-              ["Position", `${formatNumber(food.position.x)}, ${formatNumber(food.position.y)}`],
-              ["Type", entityType(food, "FoodEntity")],
-              ["Footprint", footprint(food, "0.5 x 0.5")],
-              ["Occupies", occupiesSpace(food, !food.isConsumed)],
-              ["Occupied cells", occupiedCells(food)],
-              ["Health", health(food)],
-              ["Consumed", food.isConsumed ? "yes" : "no"]
+              ["Cell", `${Math.floor(resourceContainer.position.x)}, ${Math.floor(resourceContainer.position.y)}`],
+              ["Position", `${formatNumber(resourceContainer.position.x)}, ${formatNumber(resourceContainer.position.y)}`],
+              ["Type", entityType(resourceContainer, "ResourceContainerEntity")],
+              ["Footprint", footprint(resourceContainer, "0.5 x 0.5")],
+              ["Occupies", occupiesSpace(resourceContainer, inventoryQuantity(resourceContainer.inventory) > 0)],
+              ["Occupied cells", occupiedCells(resourceContainer)],
+              ["Health", health(resourceContainer)]
             ]}
           />
+          <InventoryDetails inventory={resourceContainer.inventory} />
           <GenericEntityEditor
-            fields={schema?.foodFields}
-            entity={food}
+            fields={schema?.resourceContainerFields}
+            entity={resourceContainer}
             disabled={!editable}
             onChange={(nextEntity) =>
               draft &&
-              onDraftChange(updateFoodDraft(draft, food.id, nextEntity as Partial<SimulationDraft["food"][number]>))
+              onDraftChange(updateResourceContainerDraft(draft, resourceContainer.id, nextEntity as Partial<SimulationDraft["resourceContainers"][number]>))
             }
           />
           {editable && (
             <button
               className="danger"
               onClick={() => {
-                onDraftChange(removeFoodDraft(draft, food.id));
+                onDraftChange(removeResourceContainerDraft(draft, resourceContainer.id));
                 onSelect(null);
               }}
             >
-              Remove food
+              Remove container
             </button>
           )}
+        </section>
+      )}
+
+      {resourceDefinition && (
+        <section className="section">
+          <h3>Resource - {resourceDefinition.displayName}</h3>
+          <EntitySummary
+            rows={[
+              ["Id", resourceDefinition.id],
+              ["Icon", resourceDefinition.iconKey],
+              ["Unit weight", formatNumber(resourceDefinition.unitWeight)],
+              ["Stack max", resourceDefinition.maxStackQuantity.toString()],
+              ["Consumable", resourceDefinition.isConsumable ? "yes" : "no"],
+              ["Need effects", `H ${formatNumber(resourceDefinition.needEffects.hungerDelta)} / T ${formatNumber(resourceDefinition.needEffects.thirstDelta)} / E ${formatNumber(resourceDefinition.needEffects.energyDelta)} / F ${formatNumber(resourceDefinition.needEffects.fatigueDelta)}`]
+            ]}
+          />
+          <GenericEntityEditor
+            fields={schema?.resourceDefinitionFields}
+            entity={resourceDefinition}
+            disabled={!editable || resourceDefinition.id === "food"}
+            onChange={(nextEntity) =>
+              draft &&
+              onDraftChange(updateResourceDefinitionDraft(draft, resourceDefinition.id, nextEntity as Partial<SimulationDraft["resourceDefinitions"][number]>))
+            }
+          />
         </section>
       )}
 
@@ -300,7 +356,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
         </section>
       )}
 
-      {!agent && !food && selection?.type !== "cell" && (
+      {!agent && !resourceContainer && !resourceDefinition && selection?.type !== "cell" && (
         <section className="section">
           <h3>Selection</h3>
           <span className="empty-state">No entity or cell selected.</span>
@@ -309,6 +365,43 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
       </>
       )}
     </aside>
+  );
+}
+
+type InventoryLike = {
+  maxSlots: number;
+  maxWeight: number;
+  usedSlots?: number;
+  usedWeight?: number;
+  stacks: Array<{ stackId: string; resourceId: string; quantity: number }>;
+};
+
+function InventoryDetails({ inventory }: { inventory: InventoryLike }) {
+  const usedSlots = inventory.usedSlots ?? inventory.stacks.length;
+  const usedWeight = inventory.usedWeight ?? 0;
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Inventory</div>
+      <EntitySummary
+        rows={[
+          ["Slots", `${usedSlots} / ${inventory.maxSlots}`],
+          ["Weight", `${formatNumber(usedWeight)} / ${formatNumber(inventory.maxWeight)}`]
+        ]}
+      />
+      {inventory.stacks.length === 0 ? (
+        <span className="empty-state">No resources.</span>
+      ) : (
+        <div className="perception-list">
+          {inventory.stacks.map((stack) => (
+            <div className="perception-row" key={stack.stackId}>
+              <strong>{stack.resourceId}</strong>
+              <small>{stack.quantity} in {stack.stackId}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -619,7 +712,16 @@ function occupiesSpace(entity: unknown, fallback: boolean) {
 }
 
 function occupiedCells(entity: unknown) {
-  if (entity && typeof entity === "object" && "isConsumed" in entity && entity.isConsumed === true) {
+  if (
+    entity
+    && typeof entity === "object"
+    && "inventory" in entity
+    && entity.inventory
+    && typeof entity.inventory === "object"
+    && "stacks" in entity.inventory
+    && Array.isArray(entity.inventory.stacks)
+    && entity.inventory.stacks.length === 0
+  ) {
     return "none";
   }
 
@@ -704,12 +806,12 @@ function getCellOccupants(
         entityId: agent.id,
         entityType: "AgentEntity"
       })),
-      ...draft.food
-        .filter((food) => !food.isConsumed)
-        .map((food) => ({
-          cell: { x: Math.floor(food.position.x), y: Math.floor(food.position.y) },
-          entityId: food.id,
-          entityType: "FoodEntity"
+      ...draft.resourceContainers
+        .filter((container) => container.inventory.stacks.length > 0)
+        .map((container) => ({
+          cell: { x: Math.floor(container.position.x), y: Math.floor(container.position.y) },
+          entityId: container.id,
+          entityType: "ResourceContainerEntity"
         }))
     ].filter((occupant) => sameCell(occupant.cell, cell));
   }
@@ -759,6 +861,10 @@ function terrainProfile(terrainType: string) {
 
 function sameCell(left: GridCell, right: GridCell) {
   return left.x === right.x && left.y === right.y;
+}
+
+function inventoryQuantity(inventory: InventoryLike) {
+  return inventory.stacks.reduce((sum, stack) => sum + stack.quantity, 0);
 }
 
 function ReadonlyField({ label, value, wide }: { label: string; value: string; wide?: boolean }) {

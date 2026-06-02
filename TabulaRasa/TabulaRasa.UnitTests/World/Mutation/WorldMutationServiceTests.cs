@@ -9,6 +9,7 @@ using TabulaRasa.World.Construction;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Mutation;
 using TabulaRasa.World.Queries;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.Spatial.Grid;
 using TabulaRasa.World.State;
 
@@ -20,7 +21,7 @@ namespace TabulaRasa.UnitTests.World.Mutation
         public void TryMoveEntity_RejectsMissingBlockedOutOfBoundsAndOccupiedDestinations()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var blocker = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            var blocker = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1.5f, 0.5f));
             WorldState world = WorldFactory.Create([agent], [blocker], new GridMap(width: 3, height: 3));
             world.Grid.SetTraversable(new GridCell(0, 1), isTraversable: false);
             var mutations = new WorldMutationService();
@@ -41,7 +42,7 @@ namespace TabulaRasa.UnitTests.World.Mutation
         public void TryMoveEntity_AllowsOccupiedDestinationWhenExplicitlyAllowed()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1.5f, 0.5f));
             WorldState world = WorldFactory.Create([agent], [food], new GridMap(width: 3, height: 3));
             var mutations = new WorldMutationService();
 
@@ -64,17 +65,17 @@ namespace TabulaRasa.UnitTests.World.Mutation
 
             WorldMutationResult duplicate = mutations.TrySpawnEntity(
                 world,
-                new FoodEntity { Id = agent.Id, Position = new WorldPosition(1.5f, 0.5f) });
+                TestResourceFactory.FoodContainer(agent.Id, new WorldPosition(1.5f, 0.5f)));
             WorldMutationResult spawn = mutations.TrySpawnEntity(
                 world,
-                new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) });
+                TestResourceFactory.FoodContainer("food-1", new WorldPosition(1.5f, 0.5f)));
             WorldMutationResult delete = mutations.TryDeleteEntity(world, agent.Id);
 
             Assert.Equal(WorldMutationFailureKind.DuplicateEntityId, duplicate.FailureKind);
             Assert.True(spawn.Succeeded);
             Assert.True(delete.Succeeded);
             Assert.Null(EntityQueries.GetSpatialEntity(world, agent.Id));
-            Assert.NotNull(EntityQueries.GetFoodEntity(world, "food-1"));
+            Assert.NotNull(EntityQueries.GetResourceContainer(world, "food-1"));
         }
 
         [Fact]
@@ -94,26 +95,74 @@ namespace TabulaRasa.UnitTests.World.Mutation
         }
 
         [Fact]
-        public void Occupancy_IgnoresConsumedFood()
+        public void TransferAndConsume_RemoveResourcesAndEmptyWorldContainers()
         {
-            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 1.5f) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1, 1.5f));
             WorldState world = WorldFactory.Create([agent], [food], new GridMap(width: 3, height: 3));
             var mutations = new WorldMutationService();
 
-            Assert.True(SpatialQueries.IsCellOccupied(world, new GridCell(1, 0)));
+            WorldMutationResult pickup = mutations.TryPickUpResource(world, agent.Id, food.Id, ResourceDefinition.FoodId, 1);
+            WorldMutationResult consume = mutations.TryConsumeResource(world, agent.Inventory, ResourceDefinition.FoodId, 1);
 
-            WorldMutationResult consume = mutations.TryConsumeFood(world, food.Id);
-
+            Assert.True(pickup.Succeeded);
             Assert.True(consume.Succeeded);
-            Assert.False(SpatialQueries.IsCellOccupied(world, new GridCell(1, 0)));
-            Assert.Contains(food, world.Foods);
+            Assert.Equal(0, agent.Inventory.GetQuantity(ResourceDefinition.FoodId));
+            Assert.DoesNotContain(food, world.ResourceContainers);
+        }
+
+        [Fact]
+        public void PickUp_EnforcesWeightCapacity()
+        {
+            var agent = new AgentEntity
+            {
+                Id = "agent-1",
+                Position = new WorldPosition(0.5f, 1.5f),
+                Inventory = new Inventory { MaxSlots = 8, MaxWeight = 0.5f }
+            };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1, 1.5f));
+            WorldState world = WorldFactory.Create([agent], [food], new GridMap(width: 3, height: 3));
+            var mutations = new WorldMutationService();
+
+            WorldMutationResult result = mutations.TryPickUpResource(world, agent.Id, food.Id, ResourceDefinition.FoodId, 1);
+
+            Assert.Equal(WorldMutationFailureKind.CapacityExceeded, result.FailureKind);
+            Assert.Equal(0, agent.Inventory.GetQuantity(ResourceDefinition.FoodId));
+            Assert.Contains(food, world.ResourceContainers);
+        }
+
+        [Fact]
+        public void Drop_CreatesWorldContainerAtAgentPosition()
+        {
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
+            agent.Inventory.Stacks.Add(new ResourceStack
+            {
+                StackId = "agent-food",
+                ResourceId = ResourceDefinition.FoodId,
+                Quantity = 1
+            });
+            WorldState world = WorldFactory.Create([agent], [], new GridMap(width: 3, height: 3));
+            var mutations = new WorldMutationService();
+
+            WorldMutationResult result = mutations.TryDropResource(world, agent.Id, ResourceDefinition.FoodId, 1);
+
+            Assert.True(result.Succeeded);
+            ResourceContainerEntity container = Assert.Single(world.ResourceContainers);
+            Assert.Equal(agent.Position.ToGridCell(), container.Position.ToGridCell());
+            Assert.Equal(1, container.Inventory.GetQuantity(ResourceDefinition.FoodId));
+            Assert.Equal(0, agent.Inventory.GetQuantity(ResourceDefinition.FoodId));
         }
 
         [Fact]
         public void SimulationSnapshotMapper_IncludesOccupancyAndHealth()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
+            agent.Inventory.Stacks.Add(new ResourceStack
+            {
+                StackId = "agent-food",
+                ResourceId = ResourceDefinition.FoodId,
+                Quantity = 1
+            });
             var agentState = new AgentState(
                 agent.Id,
                 new AgentNeedState(),
@@ -128,6 +177,10 @@ namespace TabulaRasa.UnitTests.World.Mutation
             Assert.Single(snapshot.Agents[0].OccupiedCells);
             Assert.True(snapshot.Agents[0].OccupiesSpace);
             Assert.NotNull(snapshot.Agents[0].Health);
+            Assert.Single(snapshot.ResourceDefinitions);
+            Assert.Equal(ResourceDefinition.FoodId, snapshot.ResourceDefinitions.Single().Id);
+            Assert.Equal(1, snapshot.Agents[0].Inventory.Stacks.Single().Quantity);
+            Assert.Equal(1, snapshot.Agents[0].Inventory.UsedSlots);
         }
     }
 }

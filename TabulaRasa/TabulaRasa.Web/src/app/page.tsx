@@ -21,7 +21,7 @@ import { EventLogPanel, RuntimePanel } from "@/components/DebugPanels";
 import { Inspector } from "@/components/Inspector";
 import { WorldCanvas } from "@/components/WorldCanvas";
 import { simulationApi } from "@/lib/api";
-import { setTerrainCell, toggleBlockedCell, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
+import { setTerrainCell, toggleBlockedCell, updateAgentDraft, updateResourceContainerDraft } from "@/lib/draft";
 import type {
   GridCell,
   HoverInfo,
@@ -383,12 +383,12 @@ export default function Home() {
     setDraft(updateAgentDraft(draft, id, { position: { x: cell.x + 0.5, y: cell.y + 0.5 } }));
   }
 
-  function moveFood(id: string, cell: GridCell) {
+  function moveResourceContainer(id: string, cell: GridCell) {
     if (!draft) {
       return;
     }
 
-    setDraft(updateFoodDraft(draft, id, { position: { x: cell.x + 0.5, y: cell.y + 0.5 } }));
+    setDraft(updateResourceContainerDraft(draft, id, { position: { x: cell.x + 0.5, y: cell.y + 0.5 } }));
   }
 
   return (
@@ -503,7 +503,7 @@ export default function Home() {
             perceptionRadius={status?.config.perceptionRadius ?? 0}
             onSelect={setSelection}
             onMoveAgent={moveAgent}
-            onMoveFood={moveFood}
+            onMoveResourceContainer={moveResourceContainer}
             onToggleBlockedCell={(cell) => draft && setDraft(toggleBlockedCell(draft, cell))}
             onHover={setHover}
           />

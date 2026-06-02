@@ -33,13 +33,13 @@ namespace TabulaRasa.UnitTests.World.Spatial
         }
 
         [Fact]
-        public void SpatialQueries_FindAvailableFoodAtInteractionPoint_UsesExactAnchor()
+        public void SpatialQueries_FindAvailableFoodContainerAtInteractionPoint_UsesExactAnchor()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 1) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1, 1) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1, 1));
             var world = WorldFactory.Create([agent], [food]);
 
-            FoodEntity? result = SpatialQueries.FindAvailableFoodAtInteractionPoint(
+            ResourceContainerEntity? result = SpatialQueries.FindAvailableFoodContainerAtInteractionPoint(
                 world,
                 agent.Position,
                 food.Id);
@@ -48,13 +48,13 @@ namespace TabulaRasa.UnitTests.World.Spatial
         }
 
         [Fact]
-        public void SpatialQueries_FindAvailableFoodAtInteractionPoint_RejectsTileCenterOnlyOverlap()
+        public void SpatialQueries_FindAvailableFoodContainerAtInteractionPoint_RejectsTileCenterOnlyOverlap()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(1, 1) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1, 1) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1, 1));
             var world = WorldFactory.Create([agent], [food]);
 
-            FoodEntity? result = SpatialQueries.FindAvailableFoodAtInteractionPoint(
+            ResourceContainerEntity? result = SpatialQueries.FindAvailableFoodContainerAtInteractionPoint(
                 world,
                 agent.Position,
                 food.Id);

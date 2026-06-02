@@ -1,6 +1,7 @@
 using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.Spatial.Grid;
 
 namespace TabulaRasa.World.State
@@ -19,11 +20,15 @@ namespace TabulaRasa.World.State
 
         public GridMap Grid { get; }
         public List<AgentEntity> Agents { get; } = [];
-        public List<FoodEntity> Foods { get; } = [];
+        public List<ResourceContainerEntity> ResourceContainers { get; } = [];
+        public List<ResourceDefinition> ResourceDefinitions { get; } = [ResourceDefinition.CreateFood()];
 
         public IEnumerable<ISpatialEntity> SpatialEntities => Agents
             .Cast<ISpatialEntity>()
-            .Concat(Foods);
+            .Concat(ResourceContainers);
+
+        public IReadOnlyDictionary<string, ResourceDefinition> ResourceDefinitionsById =>
+            ResourceDefinitions.ToDictionary(definition => definition.Id, StringComparer.OrdinalIgnoreCase);
 
         public ISpatialEntity? GetSpatialEntityById(string entityId)
         {

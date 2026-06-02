@@ -8,7 +8,7 @@ namespace TabulaRasa.World.Construction
     {
         public static WorldState Create(
             List<AgentEntity> agents,
-            List<FoodEntity> foods,
+            List<ResourceContainerEntity> resourceContainers,
             GridMap? grid = null)
         {
             WorldState worldState = grid is null
@@ -16,7 +16,7 @@ namespace TabulaRasa.World.Construction
                 : new WorldState(grid);
 
             worldState.Agents.AddRange(agents);
-            worldState.Foods.AddRange(foods);
+            worldState.ResourceContainers.AddRange(resourceContainers);
 
             return worldState;
         }

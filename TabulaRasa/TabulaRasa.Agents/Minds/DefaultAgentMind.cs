@@ -103,6 +103,24 @@ namespace TabulaRasa.Agents.Minds
                     (needPressure * 1.25f) + (relevance * 0.25f) + learnedWeight));
             }
 
+            if ((self.Inventory?.GetValueOrDefault("food") ?? 0) > 0)
+            {
+                string contextKey = BuildContextKey("Hunger", "Food", "Inventory");
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Eat);
+                float needPressure = needPressures["Hunger"];
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Eat,
+                    null,
+                    "Hunger",
+                    contextKey,
+                    "Food",
+                    "Inventory",
+                    needPressure,
+                    1,
+                    learnedWeight,
+                    (needPressure * 1.30f) + learnedWeight));
+            }
+
             AddSelfCandidate(candidates, learning, needPressures["Thirst"], AgentActionType.Drink, "Thirst");
 
             string restGoal = needPressures["LowEnergy"] > needPressures["Fatigue"] ? "LowEnergy" : "Fatigue";

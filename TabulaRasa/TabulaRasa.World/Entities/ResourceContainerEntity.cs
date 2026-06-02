@@ -3,16 +3,23 @@ using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.Spatial.Footprints;
 using TabulaRasa.Abstractions.Spatial.Interaction;
 using TabulaRasa.Abstractions.World;
+using TabulaRasa.World.Resources;
 
 namespace TabulaRasa.World.Entities
 {
-    public sealed class FoodEntity : ISpatialEntity, IInteractableEntity, IDamageableEntity
+    public sealed class ResourceContainerEntity : ISpatialEntity, IInteractableEntity, IDamageableEntity
     {
         public required string Id { get; init; }
         public required WorldPosition Position { get; set; }
         public EntityFootprint Footprint { get; init; } = new(0.5f, 0.5f);
         public EntityHealth Health { get; init; } = new(maximum: 1);
-        public bool IsConsumed { get; set; }
+        public Inventory Inventory { get; init; } = new()
+        {
+            MaxSlots = 4,
+            MaxWeight = 100
+        };
+
+        public bool IsEmpty => Inventory.Stacks.Count == 0;
 
         public IReadOnlyList<InteractionPoint> InteractionPoints
         {

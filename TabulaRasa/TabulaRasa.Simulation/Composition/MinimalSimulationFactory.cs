@@ -14,6 +14,7 @@ using TabulaRasa.Simulation.Tasks.Assignment;
 using TabulaRasa.Simulation.Tasks.Execution;
 using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.World.Spatial.Grid;
+using TabulaRasa.World.Resources;
 
 namespace TabulaRasa.Simulation.Composition
 {
@@ -46,7 +47,7 @@ namespace TabulaRasa.Simulation.Composition
 
             List<AgentEntity> agentEntities = [];
             List<AgentState> agentStates = [];
-            List<FoodEntity> foods = [];
+            List<ResourceContainerEntity> resourceContainers = [];
 
             for (int index = 0; index < effectiveConfig.InitialAgentCount && index < positions.Count; index++)
             {
@@ -74,16 +75,22 @@ namespace TabulaRasa.Simulation.Composition
                     break;
                 }
 
-                foods.Add(new FoodEntity
+                ResourceContainerEntity container = new()
                 {
-                    Id = $"food-{index + 1}",
-                    Position = positions[positionIndex],
-                    IsConsumed = false
+                    Id = $"resource-container-{index + 1}",
+                    Position = positions[positionIndex]
+                };
+                container.Inventory.Stacks.Add(new ResourceStack
+                {
+                    StackId = $"food-stack-{index + 1}",
+                    ResourceId = ResourceDefinition.FoodId,
+                    Quantity = 1
                 });
+                resourceContainers.Add(container);
             }
 
             GridMap grid = new(effectiveConfig.WorldWidth, effectiveConfig.WorldHeight);
-            WorldState world = WorldFactory.Create(agentEntities, foods, grid);
+            WorldState world = WorldFactory.Create(agentEntities, resourceContainers, grid);
             SimulationState state = new(world, new SimulationTime(Tick: 0), agentStates, effectiveConfig);
 
             return (state, BuildSystems(state.Config));

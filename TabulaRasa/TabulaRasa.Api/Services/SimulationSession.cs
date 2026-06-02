@@ -12,6 +12,7 @@ using TabulaRasa.Simulation.Lifecycle;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Construction;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.Spatial.Grid;
 using TabulaRasa.World.State;
 
@@ -74,7 +75,7 @@ namespace TabulaRasa.Api.Services
                     _state.World.Agents.Count,
                     _state.World.Agents.Count(agent => !agent.IsDead),
                     _state.World.Agents.Count(agent => agent.IsDead),
-                    _state.World.Foods.Count,
+                    _state.World.ResourceContainers.Count,
                     CreatedAt,
                     UpdatedAt);
             }
@@ -339,7 +340,7 @@ namespace TabulaRasa.Api.Services
                 _state.World.Agents.Count,
                 _state.World.Agents.Count(agent => !agent.IsDead),
                 _state.World.Agents.Count(agent => agent.IsDead),
-                _state.World.Foods.Count,
+                _state.World.ResourceContainers.Count,
                 SimulationSnapshotMapper.ToConfig(_config),
                 ToLatestTickSummary(),
                 _state.EventHistory.Count == 0 ? null : _state.EventHistory.Keys.First(),
@@ -438,7 +439,8 @@ namespace TabulaRasa.Api.Services
             List<AgentEntity> agents = draft.Agents.Select(agent => new AgentEntity
             {
                 Id = agent.Id.Trim(),
-                Position = ToWorldPosition(agent.Position)
+                Position = ToWorldPosition(agent.Position),
+                Inventory = ToInventory(agent.Inventory)
             }).ToList();
 
             List<AgentState> agentStates = draft.Agents.Select(agent => new AgentState(
@@ -452,20 +454,22 @@ namespace TabulaRasa.Api.Services
                 },
                 new DefaultAgentMind())).ToList();
 
-            List<FoodEntity> foods = draft.Food.Select(food => new FoodEntity
+            List<ResourceContainerEntity> resourceContainers = draft.ResourceContainers.Select(container => new ResourceContainerEntity
             {
-                Id = food.Id.Trim(),
-                Position = ToWorldPosition(food.Position),
-                IsConsumed = food.IsConsumed
+                Id = container.Id.Trim(),
+                Position = ToWorldPosition(container.Position),
+                Inventory = ToInventory(container.Inventory)
             }).ToList();
 
-            WorldState world = WorldFactory.Create(agents, foods, grid);
+            WorldState world = WorldFactory.Create(agents, resourceContainers, grid);
+            world.ResourceDefinitions.Clear();
+            world.ResourceDefinitions.AddRange(draft.ResourceDefinitions.Select(ToResourceDefinition));
             SimulationConfig draftConfig = config with
             {
                 WorldWidth = draft.Grid.Width,
                 WorldHeight = draft.Grid.Height,
                 InitialAgentCount = agents.Count,
-                InitialFoodCount = foods.Count
+                InitialFoodCount = resourceContainers.Count
             };
 
             return new SimulationState(world, new SimulationTime((int)draft.Tick), agentStates, draftConfig);
@@ -496,9 +500,15 @@ namespace TabulaRasa.Api.Services
                 return errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
             }
 
-            if (draft.Food is null)
+            if (draft.ResourceDefinitions is null)
             {
-                Add("food", "Food is required.");
+                Add("resourceDefinitions", "Resource definitions are required.");
+                return errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
+            }
+
+            if (draft.ResourceContainers is null)
+            {
+                Add("resourceContainers", "Resource containers are required.");
                 return errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
             }
 
@@ -518,7 +528,25 @@ namespace TabulaRasa.Api.Services
             AddIf(draft.Grid.Height <= 0, "grid.height", "Grid height must be greater than zero.");
 
             HashSet<string> agentIds = new(StringComparer.Ordinal);
-            HashSet<string> foodIds = new(StringComparer.Ordinal);
+            HashSet<string> resourceDefinitionIds = new(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> resourceContainerIds = new(StringComparer.Ordinal);
+
+            for (int i = 0; i < draft.ResourceDefinitions.Count; i++)
+            {
+                EditableResourceDefinitionDto definition = draft.ResourceDefinitions[i];
+                string prefix = $"resourceDefinitions[{i}]";
+
+                ValidateId(definition.Id, $"{prefix}.id", resourceDefinitionIds);
+                AddIf(string.IsNullOrWhiteSpace(definition.DisplayName), $"{prefix}.displayName", "Display name is required.");
+                AddIf(string.IsNullOrWhiteSpace(definition.IconKey), $"{prefix}.iconKey", "Icon key is required.");
+                ValidateFinite(definition.UnitWeight, $"{prefix}.unitWeight");
+                AddIf(definition.UnitWeight <= 0, $"{prefix}.unitWeight", "Unit weight must be greater than zero.");
+                AddIf(definition.MaxStackQuantity <= 0, $"{prefix}.maxStackQuantity", "Max stack quantity must be greater than zero.");
+                ValidateFinite(definition.NeedEffects.HungerDelta, $"{prefix}.needEffects.hungerDelta");
+                ValidateFinite(definition.NeedEffects.ThirstDelta, $"{prefix}.needEffects.thirstDelta");
+                ValidateFinite(definition.NeedEffects.EnergyDelta, $"{prefix}.needEffects.energyDelta");
+                ValidateFinite(definition.NeedEffects.FatigueDelta, $"{prefix}.needEffects.fatigueDelta");
+            }
 
             for (int i = 0; i < draft.Agents.Count; i++)
             {
@@ -531,15 +559,17 @@ namespace TabulaRasa.Api.Services
                 ValidateFinite(agent.Needs.Thirst, $"{prefix}.needs.thirst");
                 ValidateFinite(agent.Needs.Energy, $"{prefix}.needs.energy");
                 ValidateFinite(agent.Needs.Fatigue, $"{prefix}.needs.fatigue");
+                ValidateInventory(agent.Inventory, $"{prefix}.inventory", resourceDefinitionIds, draft.ResourceDefinitions);
             }
 
-            for (int i = 0; i < draft.Food.Count; i++)
+            for (int i = 0; i < draft.ResourceContainers.Count; i++)
             {
-                EditableFoodDto food = draft.Food[i];
-                string prefix = $"food[{i}]";
+                EditableResourceContainerDto container = draft.ResourceContainers[i];
+                string prefix = $"resourceContainers[{i}]";
 
-                ValidateId(food.Id, $"{prefix}.id", foodIds);
-                ValidatePosition(food.Position, $"{prefix}.position", draft.Grid.Width, draft.Grid.Height);
+                ValidateId(container.Id, $"{prefix}.id", resourceContainerIds);
+                ValidatePosition(container.Position, $"{prefix}.position", draft.Grid.Width, draft.Grid.Height);
+                ValidateInventory(container.Inventory, $"{prefix}.inventory", resourceDefinitionIds, draft.ResourceDefinitions);
             }
 
             for (int i = 0; i < draft.Grid.BlockedCells.Count; i++)
@@ -606,6 +636,54 @@ namespace TabulaRasa.Api.Services
                 AddIf(float.IsNaN(value) || float.IsInfinity(value), key, "Value must be finite.");
             }
 
+            void ValidateInventory(
+                EditableInventoryDto inventory,
+                string key,
+                HashSet<string> definitionIds,
+                IReadOnlyList<EditableResourceDefinitionDto> definitions)
+            {
+                if (inventory is null)
+                {
+                    Add(key, "Inventory is required.");
+                    return;
+                }
+
+                AddIf(inventory.MaxSlots < 0, $"{key}.maxSlots", "Max slots must be zero or greater.");
+                ValidateFinite(inventory.MaxWeight, $"{key}.maxWeight");
+                AddIf(inventory.MaxWeight < 0, $"{key}.maxWeight", "Max weight must be zero or greater.");
+
+                if (inventory.Stacks is null)
+                {
+                    Add($"{key}.stacks", "Inventory stacks are required.");
+                    return;
+                }
+
+                HashSet<string> stackIds = new(StringComparer.Ordinal);
+                float usedWeight = 0;
+
+                for (int stackIndex = 0; stackIndex < inventory.Stacks.Count; stackIndex++)
+                {
+                    EditableResourceStackDto stack = inventory.Stacks[stackIndex];
+                    string stackKey = $"{key}.stacks[{stackIndex}]";
+
+                    ValidateId(stack.StackId, $"{stackKey}.stackId", stackIds);
+                    AddIf(string.IsNullOrWhiteSpace(stack.ResourceId), $"{stackKey}.resourceId", "Resource id is required.");
+                    AddIf(!definitionIds.Contains(stack.ResourceId), $"{stackKey}.resourceId", "Resource id must match a resource definition.");
+                    AddIf(stack.Quantity <= 0, $"{stackKey}.quantity", "Quantity must be greater than zero.");
+
+                    EditableResourceDefinitionDto? definition = definitions.FirstOrDefault(candidate =>
+                        string.Equals(candidate.Id, stack.ResourceId, StringComparison.OrdinalIgnoreCase));
+                    if (definition is not null)
+                    {
+                        AddIf(stack.Quantity > definition.MaxStackQuantity, $"{stackKey}.quantity", "Quantity exceeds max stack quantity.");
+                        usedWeight += stack.Quantity * definition.UnitWeight;
+                    }
+                }
+
+                AddIf(inventory.Stacks.Count > inventory.MaxSlots, $"{key}.maxSlots", "Inventory uses more slots than allowed.");
+                AddIf(usedWeight > inventory.MaxWeight, $"{key}.maxWeight", "Inventory uses more weight than allowed.");
+            }
+
             void AddIf(bool condition, string key, string message)
             {
                 if (condition)
@@ -624,6 +702,42 @@ namespace TabulaRasa.Api.Services
 
                 messages.Add(message);
             }
+        }
+
+        private static ResourceDefinition ToResourceDefinition(EditableResourceDefinitionDto definition)
+        {
+            return new ResourceDefinition
+            {
+                Id = definition.Id.Trim(),
+                DisplayName = definition.DisplayName.Trim(),
+                IconKey = definition.IconKey.Trim(),
+                UnitWeight = definition.UnitWeight,
+                MaxStackQuantity = definition.MaxStackQuantity,
+                IsConsumable = definition.IsConsumable,
+                NeedEffects = new ResourceNeedEffects(
+                    definition.NeedEffects.HungerDelta,
+                    definition.NeedEffects.ThirstDelta,
+                    definition.NeedEffects.EnergyDelta,
+                    definition.NeedEffects.FatigueDelta)
+            };
+        }
+
+        private static Inventory ToInventory(EditableInventoryDto inventory)
+        {
+            Inventory result = new()
+            {
+                MaxSlots = inventory.MaxSlots,
+                MaxWeight = inventory.MaxWeight
+            };
+
+            result.Stacks.AddRange(inventory.Stacks.Select(stack => new ResourceStack
+            {
+                StackId = stack.StackId.Trim(),
+                ResourceId = stack.ResourceId.Trim(),
+                Quantity = stack.Quantity
+            }));
+
+            return result;
         }
 
         private static WorldPosition ToWorldPosition(PositionDto position)

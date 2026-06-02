@@ -48,12 +48,12 @@ namespace TabulaRasa.Agents.Needs
             return needState;
         }
 
-        private static float ClampNeed(float value)
+        public static float ClampNeed(float value)
         {
             return Math.Clamp(value, 0, MaximumNeedValue);
         }
 
-        private static float ClampEnergy(float value)
+        public static float ClampEnergy(float value)
         {
             return Math.Clamp(value, 0, MaximumEnergyValue);
         }

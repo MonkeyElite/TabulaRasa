@@ -15,6 +15,7 @@ using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Systems;
 using TabulaRasa.World.Construction;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.UnitTests.Simulation.Movement
@@ -71,7 +72,7 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
         public void MovementExecutionSystem_WhenRouteBecomesOccupied_ReplansRoute()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1.5f, 0.5f));
             WorldState world = WorldFactory.Create([agent], [food], new TabulaRasa.World.Spatial.Grid.GridMap(3, 2));
             var state = new SimulationState(world, new SimulationTime(0), []);
             state.ActiveMovements.Add(new ActiveMovement(
@@ -96,7 +97,7 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
         public void MovementExecutionSystem_WhenRepathDestinationIsUnreachable_ReportsFailure()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1.5f, 0.5f));
             WorldState world = WorldFactory.Create([agent], [food], new TabulaRasa.World.Spatial.Grid.GridMap(2, 1));
             var state = new SimulationState(world, new SimulationTime(0), []);
             state.ActiveMovements.Add(new ActiveMovement(
@@ -119,7 +120,7 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
         public void RoutePlanner_WanderAvoidsOccupiedAdjacentCells()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(1.5f, 0.5f));
             WorldState world = WorldFactory.Create([agent], [food]);
             var state = new SimulationState(world, new SimulationTime(0), []);
             var request = new ActionRequest(agent.Id, AgentActionType.Wander, TargetId: null);
@@ -187,7 +188,7 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
         public void SimulationEngine_RoutesAgentToExactInteractionPointBeforeEating()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 1f) };
-            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(2f, 1f) };
+            var food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(2f, 1f));
             WorldState world = WorldFactory.Create([agent], [food]);
             var agentState = new AgentState(
                 agent.Id,
@@ -206,12 +207,12 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
 
             engine.Run(state, maxTicks: 4);
 
-            Assert.False(food.IsConsumed);
+            Assert.Equal(1, food.Inventory.GetQuantity(ResourceDefinition.FoodId));
             Assert.Equal(new WorldPosition(1.5f, 1f), agent.Position);
 
             engine.Run(state, maxTicks: 1);
 
-            Assert.True(food.IsConsumed);
+            Assert.DoesNotContain(food, state.World.ResourceContainers);
             Assert.Empty(state.ActiveMovements);
             Assert.Contains(
                 state.ActionResults,

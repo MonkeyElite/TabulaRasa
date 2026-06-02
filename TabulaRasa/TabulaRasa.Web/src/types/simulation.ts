@@ -124,6 +124,49 @@ export type AgentNeeds = {
   fatigue: number;
 };
 
+export type ResourceNeedEffects = {
+  hungerDelta: number;
+  thirstDelta: number;
+  energyDelta: number;
+  fatigueDelta: number;
+};
+
+export type ResourceDefinition = {
+  id: string;
+  displayName: string;
+  iconKey: string;
+  unitWeight: number;
+  maxStackQuantity: number;
+  isConsumable: boolean;
+  needEffects: ResourceNeedEffects;
+};
+
+export type ResourceStack = {
+  stackId: string;
+  resourceId: string;
+  quantity: number;
+};
+
+export type Inventory = {
+  maxSlots: number;
+  maxWeight: number;
+  usedSlots: number;
+  usedWeight: number;
+  stacks: ResourceStack[];
+};
+
+export type EditableInventory = {
+  maxSlots: number;
+  maxWeight: number;
+  stacks: EditableResourceStack[];
+};
+
+export type EditableResourceStack = {
+  stackId: string;
+  resourceId: string;
+  quantity: number;
+};
+
 export type SimulationSnapshot = {
   tick: number;
   grid: {
@@ -134,7 +177,8 @@ export type SimulationSnapshot = {
     occupiedCells: OccupiedCell[];
   };
   agents: AgentSnapshot[];
-  food: FoodSnapshot[];
+  resourceDefinitions: ResourceDefinition[];
+  resourceContainers: ResourceContainerSnapshot[];
   activeMovements: MovementSnapshot[];
   jobs: JobSnapshot[];
   reservations: ReservationSnapshot[];
@@ -186,6 +230,7 @@ export type AgentSnapshot = {
   occupiesSpace: boolean;
   health: EntityHealth | null;
   isDead: boolean;
+  inventory: Inventory;
   needs: AgentNeeds;
   movement: MovementSnapshot | null;
   perception: AgentPerceptionSnapshot;
@@ -276,7 +321,7 @@ export type AgentLearningEntrySnapshot = {
   learnedWeight: number;
 };
 
-export type FoodSnapshot = {
+export type ResourceContainerSnapshot = {
   id: string;
   entityType: string;
   position: Position;
@@ -285,7 +330,7 @@ export type FoodSnapshot = {
   occupiedCells: GridCell[];
   occupiesSpace: boolean;
   health: EntityHealth | null;
-  isConsumed: boolean;
+  inventory: Inventory;
 };
 
 export type MovementSnapshot = {
@@ -350,7 +395,8 @@ export type SimulationDraft = {
     terrainCells: EditableGridTerrainCell[];
   };
   agents: EditableAgent[];
-  food: EditableFood[];
+  resourceDefinitions: EditableResourceDefinition[];
+  resourceContainers: EditableResourceContainer[];
   config: SimulationConfig | null;
 };
 
@@ -358,7 +404,10 @@ export type SimulationDraftSchema = {
   stateFields: EditableField[];
   gridFields: EditableField[];
   agentFields: EditableField[];
-  foodFields: EditableField[];
+  resourceDefinitionFields: EditableField[];
+  resourceContainerFields: EditableField[];
+  inventoryFields: EditableField[];
+  resourceStackFields: EditableField[];
 };
 
 export type EditableField = {
@@ -373,18 +422,22 @@ export type EditableField = {
 export type EditableAgent = {
   id: string;
   position: Position;
+  inventory: EditableInventory;
   needs: AgentNeeds;
 };
 
-export type EditableFood = {
+export type EditableResourceDefinition = ResourceDefinition;
+
+export type EditableResourceContainer = {
   id: string;
   position: Position;
-  isConsumed: boolean;
+  inventory: EditableInventory;
 };
 
 export type Selection =
   | { type: "agent"; id: string }
-  | { type: "food"; id: string }
+  | { type: "resourceContainer"; id: string }
+  | { type: "resourceDefinition"; id: string }
   | { type: "cell"; cell: GridCell }
   | null;
 

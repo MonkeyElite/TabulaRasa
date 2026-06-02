@@ -102,7 +102,8 @@ const snapshot: SimulationSnapshot = {
     occupiedCells: []
   },
   agents: [],
-  food: [],
+  resourceDefinitions: [],
+  resourceContainers: [],
   activeMovements: [],
   jobs: [],
   reservations: [],

@@ -2,6 +2,7 @@ using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.Spatial.Footprints;
 using TabulaRasa.Abstractions.World;
+using TabulaRasa.World.Resources;
 
 namespace TabulaRasa.World.Entities
 {
@@ -11,6 +12,11 @@ namespace TabulaRasa.World.Entities
         public required WorldPosition Position { get; set; }
         public EntityFootprint Footprint { get; init; } = new(0.8f, 0.8f);
         public EntityHealth Health { get; init; } = new(maximum: 10);
+        public Inventory Inventory { get; init; } = new()
+        {
+            MaxSlots = 8,
+            MaxWeight = 10
+        };
         public bool IsDead { get; set; }
     }
 }

@@ -4,6 +4,7 @@ using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
+using TabulaRasa.World.Resources;
 
 namespace TabulaRasa.Simulation.Actions.Validation
 {
@@ -31,6 +32,10 @@ namespace TabulaRasa.Simulation.Actions.Validation
             return request.ActionType switch
             {
                 AgentActionType.Eat => ValidateEat(state, agentEntity, request),
+                AgentActionType.PickUpResource => ValidatePickUpResource(state, agentEntity, request),
+                AgentActionType.DropResource => ActionValidationResult.Valid,
+                AgentActionType.ConsumeResource => ActionValidationResult.Valid,
+                AgentActionType.TransferResource => ActionValidationResult.Valid,
                 AgentActionType.Drink => ActionValidationResult.Valid,
                 AgentActionType.Rest => ActionValidationResult.Valid,
                 AgentActionType.Wander => ValidateWander(state, agentEntity),
@@ -44,24 +49,58 @@ namespace TabulaRasa.Simulation.Actions.Validation
             AgentEntity agentEntity,
             ActionRequest request)
         {
-            if (request.TargetId is null)
+            if (agentEntity.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0)
             {
-                return ActionValidationResult.Invalid("Eat action requires a target.");
+                return ActionValidationResult.Valid;
             }
 
-            FoodEntity? food = SpatialQueries.FindAvailableFoodAtInteractionPoint(
+            if (request.TargetId is null)
+            {
+                return ActionValidationResult.Invalid("Eat action requires carried food or a target.");
+            }
+
+            ResourceContainerEntity? container = SpatialQueries.FindAvailableFoodContainerAtInteractionPoint(
                 state.World,
                 agentEntity.Position,
                 request.TargetId);
 
-            if (food is null)
+            if (container is null)
             {
                 AgentMemoryService.MarkTargetUnavailable(
                     state,
                     request.AgentId,
                     request.TargetId,
-                    "Target food is unavailable or out of reach.");
-                return ActionValidationResult.Invalid("Target food is unavailable or out of reach.");
+                    "Target resource container is unavailable or out of reach.");
+                return ActionValidationResult.Invalid("Target resource container is unavailable or out of reach.");
+            }
+
+            return ActionValidationResult.Valid;
+        }
+
+        private static ActionValidationResult ValidatePickUpResource(
+            SimulationState state,
+            AgentEntity agentEntity,
+            ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return ActionValidationResult.Invalid("Pick up action requires a target.");
+            }
+
+            ResourceContainerEntity? container = state.World.ResourceContainers.FirstOrDefault(candidate =>
+                candidate.Id == request.TargetId && !candidate.IsEmpty);
+
+            if (container is null)
+            {
+                return ActionValidationResult.Invalid("Target resource container is unavailable.");
+            }
+
+            if (SpatialQueries.FindNearestAvailableInteractionPoint(
+                    container,
+                    agentEntity.Position,
+                    SpatialQueries.DefaultInteractionTolerance) is null)
+            {
+                return ActionValidationResult.Invalid("Target resource container is out of reach.");
             }
 
             return ActionValidationResult.Valid;

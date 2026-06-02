@@ -15,6 +15,7 @@ using TabulaRasa.Simulation.Tasks.Jobs;
 using TabulaRasa.Simulation.Tasks.Reservations;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.Spatial.Grid;
 using TaskStatus = TabulaRasa.Simulation.Tasks.Definitions.TaskStatus;
 
@@ -35,7 +36,8 @@ namespace TabulaRasa.Api.Services
                 state.Time.Tick,
                 ToGrid(state),
                 state.World.Agents.Select(agent => ToAgent(agent, state, movementsByAgent)).ToList(),
-                state.World.Foods.Select(ToFood).ToList(),
+                state.World.ResourceDefinitions.Select(ToResourceDefinition).ToList(),
+                state.World.ResourceContainers.Select(container => ToResourceContainer(container, state.World.ResourceDefinitionsById)).ToList(),
                 state.ActiveMovements.Select(ToMovement).ToList(),
                 state.ActiveJobs.Concat(state.PendingJobs).Select(ToJob).ToList(),
                 state.Reservations.Reservations.Select(ToReservation).ToList(),
@@ -62,11 +64,13 @@ namespace TabulaRasa.Api.Services
                 state.World.Agents.Select(agent => new EditableAgentDto(
                     agent.Id,
                     ToPosition(agent.Position),
+                    ToEditableInventory(agent.Inventory),
                     ToNeeds(state.GetAgentById(agent.Id)?.NeedState))).ToList(),
-                state.World.Foods.Select(food => new EditableFoodDto(
-                    food.Id,
-                    ToPosition(food.Position),
-                    food.IsConsumed)).ToList(),
+                state.World.ResourceDefinitions.Select(ToEditableResourceDefinition).ToList(),
+                state.World.ResourceContainers.Select(container => new EditableResourceContainerDto(
+                    container.Id,
+                    ToPosition(container.Position),
+                    ToEditableInventory(container.Inventory))).ToList(),
                 ToConfig(state.Config));
         }
 
@@ -157,11 +161,13 @@ namespace TabulaRasa.Api.Services
                 snapshot.Agents.Select(agent => new EditableAgentDto(
                     agent.Id,
                     agent.Position,
+                    ToEditableInventory(agent.Inventory),
                     agent.Needs)).ToList(),
-                snapshot.Food.Select(food => new EditableFoodDto(
-                    food.Id,
-                    food.Position,
-                    food.IsConsumed)).ToList(),
+                snapshot.ResourceDefinitions.Select(ToEditableResourceDefinition).ToList(),
+                snapshot.ResourceContainers.Select(container => new EditableResourceContainerDto(
+                    container.Id,
+                    container.Position,
+                    ToEditableInventory(container.Inventory))).ToList(),
                 config);
         }
 
@@ -193,6 +199,7 @@ namespace TabulaRasa.Api.Services
                 SpatialQueries.OccupiesSpace(agent),
                 ToHealth(agent),
                 agent.IsDead,
+                ToInventory(agent.Inventory, state.World.ResourceDefinitionsById),
                 ToNeeds(agentState?.NeedState),
                 movement is null ? null : ToMovement(movement),
                 ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)),
@@ -314,19 +321,104 @@ namespace TabulaRasa.Api.Services
                 entry.LearnedWeight);
         }
 
-
-        private static FoodSnapshotDto ToFood(FoodEntity food)
+        private static ResourceDefinitionDto ToResourceDefinition(ResourceDefinition definition)
         {
-            return new FoodSnapshotDto(
-                food.Id,
-                nameof(FoodEntity),
-                ToPosition(food.Position),
-                ToGridCell(food.Position.ToGridCell()),
-                new FootprintDto(food.Footprint.Width, food.Footprint.Height),
-                SpatialQueries.GetOccupiedCellsForEntity(food).Select(ToGridCell).ToList(),
-                SpatialQueries.OccupiesSpace(food),
-                ToHealth(food),
-                food.IsConsumed);
+            return new ResourceDefinitionDto(
+                definition.Id,
+                definition.DisplayName,
+                definition.IconKey,
+                definition.UnitWeight,
+                definition.MaxStackQuantity,
+                definition.IsConsumable,
+                ToNeedEffects(definition.NeedEffects));
+        }
+
+        private static EditableResourceDefinitionDto ToEditableResourceDefinition(ResourceDefinition definition)
+        {
+            return new EditableResourceDefinitionDto(
+                definition.Id,
+                definition.DisplayName,
+                definition.IconKey,
+                definition.UnitWeight,
+                definition.MaxStackQuantity,
+                definition.IsConsumable,
+                ToNeedEffects(definition.NeedEffects));
+        }
+
+        private static EditableResourceDefinitionDto ToEditableResourceDefinition(ResourceDefinitionDto definition)
+        {
+            return new EditableResourceDefinitionDto(
+                definition.Id,
+                definition.DisplayName,
+                definition.IconKey,
+                definition.UnitWeight,
+                definition.MaxStackQuantity,
+                definition.IsConsumable,
+                definition.NeedEffects);
+        }
+
+        private static ResourceNeedEffectsDto ToNeedEffects(ResourceNeedEffects effects)
+        {
+            return new ResourceNeedEffectsDto(
+                effects.HungerDelta,
+                effects.ThirstDelta,
+                effects.EnergyDelta,
+                effects.FatigueDelta);
+        }
+
+        private static InventoryDto ToInventory(
+            Inventory inventory,
+            IReadOnlyDictionary<string, ResourceDefinition> definitions)
+        {
+            return new InventoryDto(
+                inventory.MaxSlots,
+                inventory.MaxWeight,
+                inventory.UsedSlots,
+                inventory.GetUsedWeight(definitions),
+                inventory.Stacks.Select(ToResourceStack).ToList());
+        }
+
+        private static EditableInventoryDto ToEditableInventory(Inventory inventory)
+        {
+            return new EditableInventoryDto(
+                inventory.MaxSlots,
+                inventory.MaxWeight,
+                inventory.Stacks.Select(stack => new EditableResourceStackDto(
+                    stack.StackId,
+                    stack.ResourceId,
+                    stack.Quantity)).ToList());
+        }
+
+        private static EditableInventoryDto ToEditableInventory(InventoryDto inventory)
+        {
+            return new EditableInventoryDto(
+                inventory.MaxSlots,
+                inventory.MaxWeight,
+                inventory.Stacks.Select(stack => new EditableResourceStackDto(
+                    stack.StackId,
+                    stack.ResourceId,
+                    stack.Quantity)).ToList());
+        }
+
+        private static ResourceStackDto ToResourceStack(ResourceStack stack)
+        {
+            return new ResourceStackDto(stack.StackId, stack.ResourceId, stack.Quantity);
+        }
+
+        private static ResourceContainerSnapshotDto ToResourceContainer(
+            ResourceContainerEntity container,
+            IReadOnlyDictionary<string, ResourceDefinition> definitions)
+        {
+            return new ResourceContainerSnapshotDto(
+                container.Id,
+                nameof(ResourceContainerEntity),
+                ToPosition(container.Position),
+                ToGridCell(container.Position.ToGridCell()),
+                new FootprintDto(container.Footprint.Width, container.Footprint.Height),
+                SpatialQueries.GetOccupiedCellsForEntity(container).Select(ToGridCell).ToList(),
+                SpatialQueries.OccupiesSpace(container),
+                ToHealth(container),
+                ToInventory(container.Inventory, definitions));
         }
 
         private static MovementSnapshotDto ToMovement(ActiveMovement movement)

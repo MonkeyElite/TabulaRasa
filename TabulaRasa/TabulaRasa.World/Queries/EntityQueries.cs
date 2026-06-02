@@ -22,9 +22,9 @@ namespace TabulaRasa.World.Queries
             return worldState.Agents.FirstOrDefault(a => a.Id == agentId);
         }
 
-        public static FoodEntity? GetFoodEntity(WorldState worldState, string foodId)
+        public static ResourceContainerEntity? GetResourceContainer(WorldState worldState, string containerId)
         {
-            return worldState.Foods.FirstOrDefault(food => food.Id == foodId);
+            return worldState.ResourceContainers.FirstOrDefault(container => container.Id == containerId);
         }
 
         public static IDamageableEntity? GetDamageableEntity(WorldState worldState, string entityId)

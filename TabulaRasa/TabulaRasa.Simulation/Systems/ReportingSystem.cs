@@ -7,6 +7,7 @@ using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Jobs;
 using TabulaRasa.Simulation.Tasks.Reservations;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Queries;
 using TabulaRasa.World.State;
 using System.Globalization;
 
@@ -21,11 +22,11 @@ namespace TabulaRasa.Simulation.Systems
         public void Execute(SimulationState state)
         {
             WorldState world = state.World;
-            int availableFood = world.Foods.Count(f => !f.IsConsumed);
+            int availableFood = world.ResourceContainers.Count(SpatialQueries.ContainerHasFood);
 
             Console.WriteLine($"Tick {state.Time.Tick}");
             Console.WriteLine(
-                $"  World: grid={world.Grid.Width}x{world.Grid.Height}, agents={world.Agents.Count}, food={availableFood}/{world.Foods.Count} available");
+                $"  World: grid={world.Grid.Width}x{world.Grid.Height}, agents={world.Agents.Count}, food={availableFood}/{world.ResourceContainers.Count} containers available");
 
             foreach (AgentEntity agentEntity in world.Agents)
             {

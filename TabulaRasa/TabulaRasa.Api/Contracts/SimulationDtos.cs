@@ -90,7 +90,8 @@ namespace TabulaRasa.Api.Contracts
         long Tick,
         GridDto Grid,
         IReadOnlyList<AgentSnapshotDto> Agents,
-        IReadOnlyList<FoodSnapshotDto> Food,
+        IReadOnlyList<ResourceDefinitionDto> ResourceDefinitions,
+        IReadOnlyList<ResourceContainerSnapshotDto> ResourceContainers,
         IReadOnlyList<MovementSnapshotDto> ActiveMovements,
         IReadOnlyList<JobSnapshotDto> Jobs,
         IReadOnlyList<ReservationSnapshotDto> Reservations,
@@ -171,6 +172,7 @@ namespace TabulaRasa.Api.Contracts
         bool OccupiesSpace,
         EntityHealthDto? Health,
         bool IsDead,
+        InventoryDto Inventory,
         AgentNeedsDto Needs,
         MovementSnapshotDto? Movement,
         AgentPerceptionSnapshotDto Perception,
@@ -253,7 +255,34 @@ namespace TabulaRasa.Api.Contracts
         float AverageOutcomeScore,
         float LearnedWeight);
 
-    public sealed record FoodSnapshotDto(
+    public sealed record ResourceDefinitionDto(
+        string Id,
+        string DisplayName,
+        string IconKey,
+        float UnitWeight,
+        int MaxStackQuantity,
+        bool IsConsumable,
+        ResourceNeedEffectsDto NeedEffects);
+
+    public sealed record ResourceNeedEffectsDto(
+        float HungerDelta,
+        float ThirstDelta,
+        float EnergyDelta,
+        float FatigueDelta);
+
+    public sealed record ResourceStackDto(
+        string StackId,
+        string ResourceId,
+        int Quantity);
+
+    public sealed record InventoryDto(
+        int MaxSlots,
+        float MaxWeight,
+        int UsedSlots,
+        float UsedWeight,
+        IReadOnlyList<ResourceStackDto> Stacks);
+
+    public sealed record ResourceContainerSnapshotDto(
         string Id,
         string EntityType,
         PositionDto Position,
@@ -262,7 +291,7 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<GridCellDto> OccupiedCells,
         bool OccupiesSpace,
         EntityHealthDto? Health,
-        bool IsConsumed);
+        InventoryDto Inventory);
 
     public sealed record MovementSnapshotDto(
         string AgentId,
@@ -317,14 +346,18 @@ namespace TabulaRasa.Api.Contracts
         long Tick,
         EditableGridDto Grid,
         IReadOnlyList<EditableAgentDto> Agents,
-        IReadOnlyList<EditableFoodDto> Food,
+        IReadOnlyList<EditableResourceDefinitionDto> ResourceDefinitions,
+        IReadOnlyList<EditableResourceContainerDto> ResourceContainers,
         SimulationConfigDto? Config = null);
 
     public sealed record SimulationDraftSchemaDto(
         IReadOnlyList<EditableFieldDto> StateFields,
         IReadOnlyList<EditableFieldDto> GridFields,
         IReadOnlyList<EditableFieldDto> AgentFields,
-        IReadOnlyList<EditableFieldDto> FoodFields);
+        IReadOnlyList<EditableFieldDto> ResourceDefinitionFields,
+        IReadOnlyList<EditableFieldDto> ResourceContainerFields,
+        IReadOnlyList<EditableFieldDto> InventoryFields,
+        IReadOnlyList<EditableFieldDto> ResourceStackFields);
 
     public sealed record EditableFieldDto(
         string Path,
@@ -343,10 +376,30 @@ namespace TabulaRasa.Api.Contracts
     public sealed record EditableAgentDto(
         string Id,
         PositionDto Position,
+        EditableInventoryDto Inventory,
         AgentNeedsDto Needs);
 
-    public sealed record EditableFoodDto(
+    public sealed record EditableResourceDefinitionDto(
+        string Id,
+        string DisplayName,
+        string IconKey,
+        float UnitWeight,
+        int MaxStackQuantity,
+        bool IsConsumable,
+        ResourceNeedEffectsDto NeedEffects);
+
+    public sealed record EditableInventoryDto(
+        int MaxSlots,
+        float MaxWeight,
+        IReadOnlyList<EditableResourceStackDto> Stacks);
+
+    public sealed record EditableResourceStackDto(
+        string StackId,
+        string ResourceId,
+        int Quantity);
+
+    public sealed record EditableResourceContainerDto(
         string Id,
         PositionDto Position,
-        bool IsConsumed);
+        EditableInventoryDto Inventory);
 }

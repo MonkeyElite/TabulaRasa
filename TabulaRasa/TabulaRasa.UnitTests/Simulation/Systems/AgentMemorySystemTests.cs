@@ -24,7 +24,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         public void PlanningSystem_RemembersSeenFoodLocations()
         {
             AgentEntity agent = new() { Id = "agent-1", Position = new WorldPosition(0.5f, 1.5f) };
-            FoodEntity food = new() { Id = "food-1", Position = new WorldPosition(2.5f, 1.5f) };
+            ResourceContainerEntity food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(2.5f, 1.5f));
             SimulationState state = CreateState(agent, [food], hunger: 1, perceptionRadius: 5);
 
             new PlanningSystem().Execute(state);
@@ -69,7 +69,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         public void PlanningSystem_UsesRememberedFoodWhenCurrentPerceptionIsInsufficient()
         {
             AgentEntity agent = new() { Id = "agent-1", Position = new WorldPosition(0.5f, 1.5f) };
-            FoodEntity food = new() { Id = "food-1", Position = new WorldPosition(3.5f, 1.5f) };
+            ResourceContainerEntity food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(3.5f, 1.5f));
             SimulationState state = CreateState(agent, [food], hunger: 1, perceptionRadius: 5);
             new PlanningSystem().Execute(state);
             state.PendingIntents.Clear();
@@ -117,7 +117,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
             Assert.Empty(state.ActiveMovements);
             ActionResult result = Assert.Single(state.ActionResults);
             Assert.False(result.Succeeded);
-            Assert.Equal("Target food is unavailable.", result.Reason);
+            Assert.Equal("Target resource container is unavailable.", result.Reason);
             Assert.DoesNotContain(
                 state.GetMemoryStore(agent.Id).Memories,
                 memory => memory.SubjectId == "food-missing" && memory.Kind is AgentMemoryKind.Entity or AgentMemoryKind.Location);
@@ -126,7 +126,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
 
         private static SimulationState CreateState(
             AgentEntity agent,
-            List<FoodEntity> foods,
+            List<ResourceContainerEntity> foods,
             float hunger,
             float perceptionRadius,
             MemoryConfig? memory = null)

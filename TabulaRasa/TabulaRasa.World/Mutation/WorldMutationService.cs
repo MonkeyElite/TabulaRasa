@@ -4,6 +4,7 @@ using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.World.Mutation
@@ -36,25 +37,184 @@ namespace TabulaRasa.World.Mutation
             return WorldMutationResult.Success();
         }
 
-        public WorldMutationResult TryConsumeFood(WorldState world, string foodId)
+        public WorldMutationResult TryTransferResource(
+            WorldState world,
+            Inventory source,
+            Inventory destination,
+            string resourceId,
+            int quantity)
         {
-            FoodEntity? food = EntityQueries.GetFoodEntity(world, foodId);
+            if (!TryGetDefinition(world, resourceId, out ResourceDefinition? definition, out WorldMutationResult failure))
+            {
+                return failure;
+            }
 
-            if (food is null)
+            WorldMutationResult transferValidation = ValidateTransfer(
+                source,
+                destination,
+                world.ResourceDefinitionsById,
+                definition,
+                quantity);
+            if (!transferValidation.Succeeded)
+            {
+                return transferValidation;
+            }
+
+            RemoveResource(source, resourceId, quantity);
+            AddResource(destination, definition, quantity);
+            RemoveEmptyStacks(source);
+            RemoveEmptyStacks(destination);
+            RemoveEmptyResourceContainers(world);
+
+            return WorldMutationResult.Success();
+        }
+
+        public WorldMutationResult TryPickUpResource(
+            WorldState world,
+            string agentId,
+            string containerId,
+            string resourceId,
+            int quantity)
+        {
+            AgentEntity? agent = EntityQueries.GetAgentEntity(world, agentId);
+            ResourceContainerEntity? container = EntityQueries.GetResourceContainer(world, containerId);
+
+            if (agent is null || container is null)
             {
                 return WorldMutationResult.Failure(
                     WorldMutationFailureKind.EntityNotFound,
-                    "Food does not exist.");
+                    "Agent or resource container does not exist.");
             }
 
-            if (food.IsConsumed)
+            if (SpatialQueries.FindNearestAvailableInteractionPoint(
+                    container,
+                    agent.Position,
+                    SpatialQueries.DefaultInteractionTolerance) is null)
             {
                 return WorldMutationResult.Failure(
                     WorldMutationFailureKind.InvalidOperation,
-                    "Food is already consumed.");
+                    "Resource container is out of reach.");
             }
 
-            food.IsConsumed = true;
+            return TryTransferResource(world, container.Inventory, agent.Inventory, resourceId, quantity);
+        }
+
+        public WorldMutationResult TryConsumeResource(
+            WorldState world,
+            Inventory inventory,
+            string resourceId,
+            int quantity)
+        {
+            if (!TryGetDefinition(world, resourceId, out ResourceDefinition? definition, out WorldMutationResult failure))
+            {
+                return failure;
+            }
+
+            if (!definition.IsConsumable)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidOperation,
+                    "Resource is not consumable.");
+            }
+
+            if (quantity <= 0)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Quantity must be greater than zero.");
+            }
+
+            if (inventory.GetQuantity(resourceId) < quantity)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Inventory does not contain enough resource quantity.");
+            }
+
+            RemoveResource(inventory, resourceId, quantity);
+            RemoveEmptyStacks(inventory);
+            RemoveEmptyResourceContainers(world);
+
+            return WorldMutationResult.Success();
+        }
+
+        public WorldMutationResult TryDropResource(
+            WorldState world,
+            string agentId,
+            string resourceId,
+            int quantity)
+        {
+            AgentEntity? agent = EntityQueries.GetAgentEntity(world, agentId);
+
+            if (agent is null)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.EntityNotFound,
+                    "Agent does not exist.");
+            }
+
+            if (!TryGetDefinition(world, resourceId, out ResourceDefinition? definition, out WorldMutationResult failure))
+            {
+                return failure;
+            }
+
+            if (quantity <= 0)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Quantity must be greater than zero.");
+            }
+
+            if (agent.Inventory.GetQuantity(resourceId) < quantity)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Agent inventory does not contain enough resource quantity.");
+            }
+
+            ResourceContainerEntity? container = world.ResourceContainers.FirstOrDefault(candidate =>
+                candidate.Position.ToGridCell() == agent.Position.ToGridCell());
+
+            if (container is null)
+            {
+                container = new ResourceContainerEntity
+                {
+                    Id = NextContainerId(world),
+                    Position = agent.Position
+                };
+
+                WorldMutationResult spawn = TrySpawnEntity(
+                    world,
+                    container,
+                    new WorldMutationOptions(AllowOccupiedCells: true));
+
+                if (!spawn.Succeeded)
+                {
+                    return spawn;
+                }
+            }
+
+            WorldMutationResult transferValidation = ValidateTransfer(
+                agent.Inventory,
+                container.Inventory,
+                world.ResourceDefinitionsById,
+                definition,
+                quantity);
+            if (!transferValidation.Succeeded)
+            {
+                if (container.IsEmpty)
+                {
+                    world.ResourceContainers.Remove(container);
+                }
+
+                return transferValidation;
+            }
+
+            RemoveResource(agent.Inventory, resourceId, quantity);
+            AddResource(container.Inventory, definition, quantity);
+            RemoveEmptyStacks(agent.Inventory);
+            RemoveEmptyStacks(container.Inventory);
+
             return WorldMutationResult.Success();
         }
 
@@ -82,8 +242,8 @@ namespace TabulaRasa.World.Mutation
                 case AgentEntity agent:
                     world.Agents.Add(agent);
                     return WorldMutationResult.Success();
-                case FoodEntity food:
-                    world.Foods.Add(food);
+                case ResourceContainerEntity container:
+                    world.ResourceContainers.Add(container);
                     return WorldMutationResult.Success();
                 default:
                     return WorldMutationResult.Failure(
@@ -102,11 +262,11 @@ namespace TabulaRasa.World.Mutation
                 return WorldMutationResult.Success();
             }
 
-            FoodEntity? food = EntityQueries.GetFoodEntity(world, entityId);
+            ResourceContainerEntity? container = EntityQueries.GetResourceContainer(world, entityId);
 
-            if (food is not null)
+            if (container is not null)
             {
-                world.Foods.Remove(food);
+                world.ResourceContainers.Remove(container);
                 return WorldMutationResult.Success();
             }
 
@@ -135,6 +295,196 @@ namespace TabulaRasa.World.Mutation
 
             entity.Health.Current = Math.Max(0, entity.Health.Current - amount);
             return WorldMutationResult.Success();
+        }
+
+        private static bool TryGetDefinition(
+            WorldState world,
+            string resourceId,
+            out ResourceDefinition definition,
+            out WorldMutationResult failure)
+        {
+            if (!world.ResourceDefinitionsById.TryGetValue(resourceId, out ResourceDefinition? found))
+            {
+                definition = null!;
+                failure = WorldMutationResult.Failure(
+                    WorldMutationFailureKind.ResourceNotFound,
+                    "Resource definition does not exist.");
+                return false;
+            }
+
+            definition = found;
+            failure = WorldMutationResult.Success();
+            return true;
+        }
+
+        private static WorldMutationResult ValidateTransfer(
+            Inventory source,
+            Inventory destination,
+            IReadOnlyDictionary<string, ResourceDefinition> definitions,
+            ResourceDefinition definition,
+            int quantity)
+        {
+            if (quantity <= 0)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Quantity must be greater than zero.");
+            }
+
+            if (source.GetQuantity(definition.Id) < quantity)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Source inventory does not contain enough resource quantity.");
+            }
+
+            if (!CanAddResource(destination, definitions, definition, quantity, out string reason))
+            {
+                return WorldMutationResult.Failure(WorldMutationFailureKind.CapacityExceeded, reason);
+            }
+
+            return WorldMutationResult.Success();
+        }
+
+        private static bool CanAddResource(
+            Inventory inventory,
+            IReadOnlyDictionary<string, ResourceDefinition> definitions,
+            ResourceDefinition definition,
+            int quantity,
+            out string reason)
+        {
+            int remaining = quantity;
+            int simulatedSlots = inventory.Stacks.Count;
+
+            foreach (ResourceStack stack in inventory.Stacks.Where(stack => stack.ResourceId == definition.Id))
+            {
+                int room = definition.MaxStackQuantity - stack.Quantity;
+                if (room > 0)
+                {
+                    int moved = Math.Min(room, remaining);
+                    remaining -= moved;
+                }
+
+                if (remaining == 0)
+                {
+                    break;
+                }
+            }
+
+            while (remaining > 0)
+            {
+                simulatedSlots++;
+                remaining -= Math.Min(definition.MaxStackQuantity, remaining);
+            }
+
+            if (simulatedSlots > inventory.MaxSlots)
+            {
+                reason = "Destination inventory does not have enough free slots.";
+                return false;
+            }
+
+            float addedWeight = definition.UnitWeight * quantity;
+            if (inventory.GetUsedWeight(definitions) + addedWeight > inventory.MaxWeight)
+            {
+                reason = "Destination inventory does not have enough weight capacity.";
+                return false;
+            }
+
+            reason = string.Empty;
+            return true;
+        }
+
+        private static void AddResource(Inventory inventory, ResourceDefinition definition, int quantity)
+        {
+            int remaining = quantity;
+
+            foreach (ResourceStack stack in inventory.Stacks.Where(stack => stack.ResourceId == definition.Id))
+            {
+                int room = definition.MaxStackQuantity - stack.Quantity;
+                if (room <= 0)
+                {
+                    continue;
+                }
+
+                int moved = Math.Min(room, remaining);
+                stack.Quantity += moved;
+                remaining -= moved;
+
+                if (remaining == 0)
+                {
+                    return;
+                }
+            }
+
+            while (remaining > 0)
+            {
+                int moved = Math.Min(definition.MaxStackQuantity, remaining);
+                inventory.Stacks.Add(new ResourceStack
+                {
+                    StackId = NextStackId(inventory, definition.Id),
+                    ResourceId = definition.Id,
+                    Quantity = moved
+                });
+                remaining -= moved;
+            }
+        }
+
+        private static void RemoveResource(Inventory inventory, string resourceId, int quantity)
+        {
+            int remaining = quantity;
+
+            foreach (ResourceStack stack in inventory.Stacks.Where(stack => stack.ResourceId == resourceId).ToList())
+            {
+                int moved = Math.Min(stack.Quantity, remaining);
+                stack.Quantity -= moved;
+                remaining -= moved;
+
+                if (remaining == 0)
+                {
+                    break;
+                }
+            }
+        }
+
+        private static void RemoveEmptyStacks(Inventory inventory)
+        {
+            inventory.Stacks.RemoveAll(stack => stack.Quantity <= 0);
+        }
+
+        private static void RemoveEmptyResourceContainers(WorldState world)
+        {
+            world.ResourceContainers.RemoveAll(container => container.IsEmpty);
+        }
+
+        private static string NextStackId(Inventory inventory, string resourceId)
+        {
+            string prefix = $"{resourceId}-stack";
+            HashSet<string> existingIds = inventory.Stacks.Select(stack => stack.StackId).ToHashSet(StringComparer.Ordinal);
+            int index = inventory.Stacks.Count + 1;
+            string id = $"{prefix}-{index}";
+
+            while (existingIds.Contains(id))
+            {
+                index++;
+                id = $"{prefix}-{index}";
+            }
+
+            return id;
+        }
+
+        private static string NextContainerId(WorldState world)
+        {
+            HashSet<string> existingIds = world.ResourceContainers.Select(container => container.Id).ToHashSet(StringComparer.Ordinal);
+            int index = world.ResourceContainers.Count + 1;
+            string id = $"resource-container-{index}";
+
+            while (existingIds.Contains(id))
+            {
+                index++;
+                id = $"resource-container-{index}";
+            }
+
+            return id;
         }
 
         private static WorldMutationResult ValidatePlacement(

@@ -23,7 +23,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         public void Execute_ReportsCurrentSimulationSurfaces()
         {
             AgentEntity agent = new() { Id = "agent-1", Position = new WorldPosition(0.5f, 1f) };
-            FoodEntity food = new() { Id = "food-1", Position = new WorldPosition(2f, 1f) };
+            ResourceContainerEntity food = TestResourceFactory.FoodContainer("food-1", new WorldPosition(2f, 1f));
             WorldState world = WorldFactory.Create([agent], [food]);
             SimulationState state = new(
                 world,
@@ -54,7 +54,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
             string report = CaptureReport(state);
 
             Assert.Contains("Tick 3", report);
-            Assert.Contains("World: grid=10x10, agents=1, food=1/1 available", report);
+            Assert.Contains("World: grid=10x10, agents=1, food=1/1 containers available", report);
             Assert.Contains("Agent agent-1: pos=(0.5, 1) cell=(0, 1) hunger=1.25", report);
             Assert.Contains("movement=Eat->food-1 InProgress waypoint=1/2 destination=(2, 1)", report);
             Assert.Contains("Cognition/actions: intents=0, requests=0, results=1 total", report);

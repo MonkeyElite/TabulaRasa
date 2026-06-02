@@ -4,6 +4,7 @@ using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.Spatial.Interaction;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.World.Queries
@@ -54,7 +55,7 @@ namespace TabulaRasa.World.Queries
 
             return world.Agents
                 .Cast<ISpatialEntity>()
-                .Concat(world.Foods)
+                .Concat(world.ResourceContainers)
                 .Where(entity => entity.Position.DistanceTo(origin) <= radius)
                 .ToList();
         }
@@ -63,7 +64,7 @@ namespace TabulaRasa.World.Queries
         {
             return entity switch
             {
-                FoodEntity food => !food.IsConsumed,
+                ResourceContainerEntity container => !container.IsEmpty,
                 _ => true
             };
         }
@@ -129,13 +130,13 @@ namespace TabulaRasa.World.Queries
                 .Any(occupied => targetCells.Contains(occupied.Cell));
         }
 
-        public static IReadOnlyList<FoodEntity> GetAvailableFoodsWithinRadius(
+        public static IReadOnlyList<ResourceContainerEntity> GetAvailableFoodContainersWithinRadius(
             WorldState world,
             WorldPosition origin,
             float radius)
         {
-            return world.Foods
-                .Where(food => !food.IsConsumed && food.Position.DistanceTo(origin) <= radius)
+            return world.ResourceContainers
+                .Where(container => ContainerHasFood(container) && container.Position.DistanceTo(origin) <= radius)
                 .ToList();
         }
 
@@ -157,26 +158,31 @@ namespace TabulaRasa.World.Queries
                 .FirstOrDefault();
         }
 
-        public static FoodEntity? FindAvailableFoodAtInteractionPoint(
+        public static ResourceContainerEntity? FindAvailableFoodContainerAtInteractionPoint(
             WorldState world,
             WorldPosition agentPosition,
-            string foodId,
+            string containerId,
             float tolerance = DefaultInteractionTolerance)
         {
-            FoodEntity? food = world.Foods.FirstOrDefault(f => f.Id == foodId && !f.IsConsumed);
+            ResourceContainerEntity? container = world.ResourceContainers.FirstOrDefault(candidate =>
+                candidate.Id == containerId && ContainerHasFood(candidate));
 
-            if (food is null)
+            if (container is null)
             {
                 return null;
             }
 
             InteractionPoint? interactionPoint = FindNearestAvailableInteractionPoint(
-                food,
+                container,
                 agentPosition,
                 tolerance);
 
-            return interactionPoint is null ? null : food;
+            return interactionPoint is null ? null : container;
         }
 
+        public static bool ContainerHasFood(ResourceContainerEntity container)
+        {
+            return container.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0;
+        }
     }
 }

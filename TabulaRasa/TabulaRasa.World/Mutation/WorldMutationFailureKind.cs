@@ -9,6 +9,8 @@ namespace TabulaRasa.World.Mutation
         BlockedCell,
         OccupiedCell,
         InvalidAmount,
+        ResourceNotFound,
+        CapacityExceeded,
         InvalidOperation,
         UnsupportedEntityType
     }

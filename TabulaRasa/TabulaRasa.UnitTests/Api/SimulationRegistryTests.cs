@@ -84,8 +84,8 @@ namespace TabulaRasa.UnitTests.Api
                 firstSnapshot.Agents.Select(agent => (agent.Id, agent.Position.X, agent.Position.Y, agent.Needs.Hunger)).ToList(),
                 secondSnapshot.Agents.Select(agent => (agent.Id, agent.Position.X, agent.Position.Y, agent.Needs.Hunger)).ToList());
             Assert.Equal(
-                firstSnapshot.Food.Select(food => (food.Id, food.Position.X, food.Position.Y)).ToList(),
-                secondSnapshot.Food.Select(food => (food.Id, food.Position.X, food.Position.Y)).ToList());
+                firstSnapshot.ResourceContainers.Select(container => (container.Id, container.Position.X, container.Position.Y)).ToList(),
+                secondSnapshot.ResourceContainers.Select(container => (container.Id, container.Position.X, container.Position.Y)).ToList());
             Assert.Equal(
                 firstSnapshot.Agents.SelectMany(agent => agent.Perception.NearbyEntities)
                     .Select(entity => (entity.EntityId, entity.EntityType, entity.Channel, entity.Distance, entity.Certainty, entity.Relevance))
@@ -192,11 +192,29 @@ namespace TabulaRasa.UnitTests.Api
                     new EditableAgentDto(
                         "agent-custom",
                         new PositionDto(2.5f, 3.25f),
+                        new EditableInventoryDto(8, 10, []),
                         new AgentNeedsDto(4, 5, 6))
                 ],
-                Food =
+                ResourceDefinitions =
                 [
-                    new EditableFoodDto("food-custom", new PositionDto(1, 1), true)
+                    new EditableResourceDefinitionDto(
+                        "food",
+                        "Food",
+                        "food",
+                        1,
+                        10,
+                        true,
+                        new ResourceNeedEffectsDto(-5, 0, 0, 0))
+                ],
+                ResourceContainers =
+                [
+                    new EditableResourceContainerDto(
+                        "resource-custom",
+                        new PositionDto(1, 1),
+                        new EditableInventoryDto(
+                            4,
+                            100,
+                            [new EditableResourceStackDto("resource-custom-food", "food", 1)]))
                 ],
                 Config = Config(seed: 7, agents: 1, food: 1)
             };
@@ -207,7 +225,7 @@ namespace TabulaRasa.UnitTests.Api
             Assert.NotNull(result.Snapshot);
             Assert.Equal(12, result.Snapshot.Tick);
             Assert.Equal("agent-custom", result.Snapshot.Agents.Single().Id);
-            Assert.Equal("food-custom", result.Snapshot.Food.Single().Id);
+            Assert.Equal("resource-custom", result.Snapshot.ResourceContainers.Single().Id);
             Assert.Equal("Forest", result.Snapshot.Grid.TerrainCells.Single().TerrainType);
             Assert.Null(session.GetSnapshot(0));
             Assert.Equal(7, session.GetStatus().Config.Seed);
@@ -223,7 +241,8 @@ namespace TabulaRasa.UnitTests.Api
 
             Assert.Contains(schema.AgentFields, field => field.Path == "position.x" && field.SourceType.EndsWith("AgentEntity"));
             Assert.Contains(schema.AgentFields, field => field.Path == "needs.hunger" && field.SourceType.EndsWith("AgentNeedState"));
-            Assert.Contains(schema.FoodFields, field => field.Path == "isConsumed" && field.SourceType.EndsWith("FoodEntity"));
+            Assert.Contains(schema.ResourceContainerFields, field => field.Path == "position.x" && field.SourceType.EndsWith("ResourceContainerEntity"));
+            Assert.Contains(schema.ResourceDefinitionFields, field => field.Path == "unitWeight" && field.SourceType.EndsWith("ResourceDefinition"));
             Assert.Contains(schema.GridFields, field => field.Path == "grid.blockedCells" && field.SourceType.EndsWith("GridMap"));
             Assert.Contains(schema.GridFields, field => field.Path == "grid.terrainCells" && field.SourceType.EndsWith("GridMap"));
         }
@@ -253,6 +272,33 @@ namespace TabulaRasa.UnitTests.Api
             Assert.Contains("grid.terrainCells[1]", result.Errors.Keys);
             Assert.Contains("grid.terrainCells[2]", result.Errors.Keys);
             Assert.Contains("grid.terrainCells[3].terrainType", result.Errors.Keys);
+        }
+
+        [Fact]
+        public void RestartFromDraft_RejectsOverCapacityInventories()
+        {
+            using SimulationRegistry registry = new();
+            SimulationSession session = registry.List().Select(summary => registry.Get(summary.SimulationId)!).Single();
+            SimulationDraftDto draft = session.GetDraft() with
+            {
+                Agents =
+                [
+                    new EditableAgentDto(
+                        "agent-1",
+                        new PositionDto(0.5f, 0.5f),
+                        new EditableInventoryDto(
+                            0,
+                            0,
+                            [new EditableResourceStackDto("agent-food", "food", 1)]),
+                        new AgentNeedsDto(1, 0, 10))
+                ]
+            };
+
+            RestartFromDraftResult result = registry.RestartFromDraft(session.SimulationId, draft);
+
+            Assert.False(result.Succeeded);
+            Assert.Contains("agents[0].inventory.maxSlots", result.Errors.Keys);
+            Assert.Contains("agents[0].inventory.maxWeight", result.Errors.Keys);
         }
 
         private static SimulationConfigDto Config(

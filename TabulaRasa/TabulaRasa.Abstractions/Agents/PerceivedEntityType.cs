@@ -4,6 +4,7 @@ namespace TabulaRasa.Abstractions.Agents
     {
         Unknown = 0,
         Agent = 1,
-        Food = 2
+        Food = 2,
+        ResourceContainer = 3
     }
 }

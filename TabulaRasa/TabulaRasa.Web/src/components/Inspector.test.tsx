@@ -182,6 +182,13 @@ const snapshot: SimulationSnapshot = {
       occupiesSpace: true,
       health: null,
       isDead: false,
+      inventory: {
+        maxSlots: 8,
+        maxWeight: 10,
+        usedSlots: 0,
+        usedWeight: 0,
+        stacks: []
+      },
       needs: { hunger: 1, thirst: 0, energy: 2, fatigue: 0 },
       movement: {
         agentId: "agent-1",
@@ -299,7 +306,16 @@ const snapshot: SimulationSnapshot = {
       }
     }
   ],
-  food: [],
+  resourceDefinitions: [{
+    id: "food",
+    displayName: "Food",
+    iconKey: "food",
+    unitWeight: 1,
+    maxStackQuantity: 10,
+    isConsumable: true,
+    needEffects: { hungerDelta: -5, thirstDelta: 0, energyDelta: 0, fatigueDelta: 0 }
+  }],
+  resourceContainers: [],
   activeMovements: [],
   jobs: [],
   reservations: [],
@@ -325,9 +341,15 @@ const draft: SimulationDraft = {
   agents: snapshot.agents.map((agent) => ({
     id: agent.id,
     position: agent.position,
+    inventory: {
+      maxSlots: agent.inventory.maxSlots,
+      maxWeight: agent.inventory.maxWeight,
+      stacks: agent.inventory.stacks
+    },
     needs: agent.needs
   })),
-  food: [],
+  resourceDefinitions: snapshot.resourceDefinitions,
+  resourceContainers: [],
   config: null
 };
 
@@ -335,5 +357,8 @@ const schema: SimulationDraftSchema = {
   stateFields: [],
   gridFields: [],
   agentFields: [],
-  foodFields: []
+  resourceDefinitionFields: [],
+  resourceContainerFields: [],
+  inventoryFields: [],
+  resourceStackFields: []
 };

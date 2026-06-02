@@ -15,7 +15,7 @@ type Props = {
   perceptionRadius: number;
   onSelect: (selection: Selection) => void;
   onMoveAgent: (id: string, cell: GridCell) => void;
-  onMoveFood: (id: string, cell: GridCell) => void;
+  onMoveResourceContainer: (id: string, cell: GridCell) => void;
   onToggleBlockedCell: (cell: GridCell) => void;
   onHover: (hover: HoverInfo) => void;
 };
@@ -39,7 +39,7 @@ export function WorldCanvas({
   perceptionRadius,
   onSelect,
   onMoveAgent,
-  onMoveFood,
+  onMoveResourceContainer,
   onHover,
   onToggleBlockedCell
 }: Props) {
@@ -297,31 +297,32 @@ export function WorldCanvas({
       world.addChild(graphic);
     }
 
-    const foodItems = editing && draft ? draft.food : snapshot.food;
-    for (const food of foodItems) {
+    const resourceContainers = editing && draft ? draft.resourceContainers : snapshot.resourceContainers;
+    for (const container of resourceContainers) {
       const graphic = new PIXI.Graphics();
-      const x = food.position.x * cellSize;
-      const y = food.position.y * cellSize;
-      const selected = selection?.type === "food" && selection.id === food.id;
-      const perceived = perceptionEntityIds.has(food.id);
+      const x = container.position.x * cellSize;
+      const y = container.position.y * cellSize;
+      const selected = selection?.type === "resourceContainer" && selection.id === container.id;
+      const perceived = perceptionEntityIds.has(container.id);
+      const totalQuantity = container.inventory.stacks.reduce((sum, stack) => sum + stack.quantity, 0);
       graphic.circle(x, y, selected ? 16 : 12);
-      graphic.fill(food.isConsumed ? 0x5a5f68 : 0xf4c95d);
+      graphic.fill(totalQuantity <= 0 ? 0x5a5f68 : 0xf4c95d);
       graphic.stroke({ color: selected ? 0xffffff : perceived ? 0x6aa8ff : 0x7b5525, width: selected ? 4 : perceived ? 3 : 2 });
       graphic.eventMode = "static";
       graphic.cursor = editing && canEdit ? "grab" : "pointer";
-      graphic.on("pointertap", () => onSelect({ type: "food", id: food.id }));
+      graphic.on("pointertap", () => onSelect({ type: "resourceContainer", id: container.id }));
       graphic.on("pointerover", (event) =>
         onHover({
-          label: food.id,
-          detail: food.isConsumed ? "Food - consumed" : "Food - available",
+          label: container.id,
+          detail: totalQuantity <= 0 ? "Resources - empty" : `Resources - ${totalQuantity} item${totalQuantity === 1 ? "" : "s"}`,
           x: event.global.x,
           y: event.global.y
         })
       );
       graphic.on("pointermove", (event) =>
         onHover({
-          label: food.id,
-          detail: food.isConsumed ? "Food - consumed" : "Food - available",
+          label: container.id,
+          detail: totalQuantity <= 0 ? "Resources - empty" : `Resources - ${totalQuantity} item${totalQuantity === 1 ? "" : "s"}`,
           x: event.global.x,
           y: event.global.y
         })
@@ -329,10 +330,24 @@ export function WorldCanvas({
       graphic.on("pointerout", () => onHover(null));
       graphic.on("rightclick", () => {
         if (editing && canEdit) {
-          onMoveFood(food.id, toCell(food.position.x, food.position.y));
+          onMoveResourceContainer(container.id, toCell(container.position.x, container.position.y));
         }
       });
       world.addChild(graphic);
+
+      if (totalQuantity > 0) {
+        const label = new PIXI.Text({
+          text: totalQuantity.toString(),
+          style: {
+            fontSize: 12,
+            fill: 0x101114,
+            fontWeight: "700"
+          }
+        });
+        label.x = x - label.width / 2;
+        label.y = y - label.height / 2;
+        world.addChild(label);
+      }
     }
 
     const agents = editing && draft ? draft.agents : snapshot.agents;
@@ -396,15 +411,15 @@ export function WorldCanvas({
 
       if (selection.type === "agent") {
         onMoveAgent(selection.id, cell);
-      } else {
-        onMoveFood(selection.id, cell);
+      } else if (selection.type === "resourceContainer") {
+        onMoveResourceContainer(selection.id, cell);
       }
     };
 
     host.addEventListener("dblclick", handleDoubleClick);
 
     return () => host.removeEventListener("dblclick", handleDoubleClick);
-  }, [canEdit, editing, onMoveAgent, onMoveFood, selection]);
+  }, [canEdit, editing, onMoveAgent, onMoveResourceContainer, selection]);
 
   return <div className="canvas-host" ref={hostRef} />;
 }
@@ -420,12 +435,12 @@ function draftOccupiedCells(draft: SimulationDraft): OccupiedCell[] {
       entityId: agent.id,
       entityType: "AgentEntity"
     })),
-    ...draft.food
-      .filter((food) => !food.isConsumed)
-      .map((food) => ({
-        cell: { x: Math.floor(food.position.x), y: Math.floor(food.position.y) },
-        entityId: food.id,
-        entityType: "FoodEntity"
+    ...draft.resourceContainers
+      .filter((container) => container.inventory.stacks.length > 0)
+      .map((container) => ({
+        cell: { x: Math.floor(container.position.x), y: Math.floor(container.position.y) },
+        entityId: container.id,
+        entityType: "ResourceContainerEntity"
       }))
   ];
 }

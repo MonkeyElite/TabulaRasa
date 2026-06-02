@@ -10,8 +10,8 @@ namespace TabulaRasa.Simulation.Systems
 {
     public sealed class NeedDecaySystem : ISystem
     {
-        private const float CriticalNeedThreshold = 80;
-        private const float HarmNeedThreshold = 100;
+        private const float CriticalNeedThreshold = 8;
+        private const float HarmNeedThreshold = 10;
         private const float ExhaustedEnergyThreshold = 0;
         private const float SurvivalDamagePerTick = 1;
 

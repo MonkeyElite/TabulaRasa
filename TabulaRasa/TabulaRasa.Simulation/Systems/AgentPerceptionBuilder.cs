@@ -3,6 +3,7 @@ using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.Spatial.Interaction;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.Systems
@@ -46,13 +47,15 @@ namespace TabulaRasa.Simulation.Systems
                     Certainty: 1,
                     Relevance: relevance));
 
-                if (entity is FoodEntity food && interactionPoint is not null)
+                if (entity is ResourceContainerEntity container
+                    && SpatialQueries.ContainerHasFood(container)
+                    && interactionPoint is not null)
                 {
                     opportunities.Add(new InteractionOpportunity(
                         AgentActionType.Eat,
-                        food.Id,
+                        container.Id,
                         interactionPoint.Value.StandPosition,
-                        SourceEntityId: food.Id,
+                        SourceEntityId: container.Id,
                         Channel: PerceptionChannel.Sight,
                         Relevance: relevance));
                 }
@@ -65,7 +68,7 @@ namespace TabulaRasa.Simulation.Systems
         {
             return entity switch
             {
-                FoodEntity food => !food.IsConsumed,
+                ResourceContainerEntity container => !container.IsEmpty,
                 _ => true
             };
         }
@@ -75,7 +78,8 @@ namespace TabulaRasa.Simulation.Systems
             return entity switch
             {
                 AgentEntity => PerceivedEntityType.Agent,
-                FoodEntity => PerceivedEntityType.Food,
+                ResourceContainerEntity container when container.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0 => PerceivedEntityType.Food,
+                ResourceContainerEntity => PerceivedEntityType.ResourceContainer,
                 _ => PerceivedEntityType.Unknown
             };
         }
