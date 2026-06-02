@@ -11,6 +11,8 @@ type Props = {
   canEdit: boolean;
   selection: Selection;
   showNavigationOverlay: boolean;
+  showPerceptionOverlay: boolean;
+  perceptionRadius: number;
   onSelect: (selection: Selection) => void;
   onMoveAgent: (id: string, cell: GridCell) => void;
   onMoveFood: (id: string, cell: GridCell) => void;
@@ -33,6 +35,8 @@ export function WorldCanvas({
   canEdit,
   selection,
   showNavigationOverlay,
+  showPerceptionOverlay,
+  perceptionRadius,
   onSelect,
   onMoveAgent,
   onMoveFood,
@@ -148,7 +152,7 @@ export function WorldCanvas({
   useEffect(() => {
     renderWorld();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot, draft, editing, canEdit, selection, showNavigationOverlay]);
+  }, [snapshot, draft, editing, canEdit, selection, showNavigationOverlay, showPerceptionOverlay, perceptionRadius]);
 
   function renderWorld() {
     const world = worldRef.current;
@@ -167,6 +171,12 @@ export function WorldCanvas({
     const occupiedCells = editing && draft ? draftOccupiedCells(draft) : snapshot.grid.occupiedCells;
     const occupiedByCell = new Map<string, OccupiedCell[]>();
     const agentsById = new Map(snapshot.agents.map((agent) => [agent.id, agent]));
+    const selectedSnapshotAgent = !editing && selection?.type === "agent"
+      ? agentsById.get(selection.id) ?? null
+      : null;
+    const perceptionEntityIds = showPerceptionOverlay && selectedSnapshotAgent
+      ? new Set(selectedSnapshotAgent.perception.nearbyEntities.map((entity) => entity.entityId))
+      : new Set<string>();
 
     for (const occupied of occupiedCells) {
       const key = `${occupied.cell.x}:${occupied.cell.y}`;
@@ -241,18 +251,31 @@ export function WorldCanvas({
       }
     }
 
+    if (showPerceptionOverlay && selectedSnapshotAgent) {
+      const perception = new PIXI.Graphics();
+      perception.circle(
+        selectedSnapshotAgent.position.x * cellSize,
+        selectedSnapshotAgent.position.y * cellSize,
+        Math.max(0, perceptionRadius) * cellSize
+      );
+      perception.fill({ color: 0x6aa8ff, alpha: 0.08 });
+      perception.stroke({ color: 0x6aa8ff, width: 2, alpha: 0.45 });
+      world.addChild(perception);
+    }
+
     const foodItems = editing && draft ? draft.food : snapshot.food;
     for (const food of foodItems) {
       const graphic = new PIXI.Graphics();
       const x = food.position.x * cellSize;
       const y = food.position.y * cellSize;
       const selected = selection?.type === "food" && selection.id === food.id;
+      const perceived = perceptionEntityIds.has(food.id);
       graphic.circle(x, y, selected ? 16 : 12);
       graphic.fill(food.isConsumed ? 0x5a5f68 : 0xf4c95d);
-      graphic.stroke({ color: selected ? 0xffffff : 0x7b5525, width: selected ? 4 : 2 });
+      graphic.stroke({ color: selected ? 0xffffff : perceived ? 0x6aa8ff : 0x7b5525, width: selected ? 4 : perceived ? 3 : 2 });
       graphic.eventMode = "static";
       graphic.cursor = editing && canEdit ? "grab" : "pointer";
-        graphic.on("pointertap", () => onSelect({ type: "food", id: food.id }));
+      graphic.on("pointertap", () => onSelect({ type: "food", id: food.id }));
       graphic.on("pointerover", (event) =>
         onHover({
           label: food.id,
@@ -284,9 +307,10 @@ export function WorldCanvas({
       const x = agent.position.x * cellSize;
       const y = agent.position.y * cellSize;
       const selected = selection?.type === "agent" && selection.id === agent.id;
+      const perceived = perceptionEntityIds.has(agent.id);
       graphic.roundRect(x - 17, y - 17, 34, 34, 6);
       graphic.fill(0x54c475);
-      graphic.stroke({ color: selected ? 0xffffff : 0x153b24, width: selected ? 4 : 2 });
+      graphic.stroke({ color: selected ? 0xffffff : perceived ? 0x6aa8ff : 0x153b24, width: selected ? 4 : perceived ? 3 : 2 });
       graphic.eventMode = "static";
       graphic.cursor = editing && canEdit ? "grab" : "pointer";
       graphic.on("pointertap", () => onSelect({ type: "agent", id: agent.id }));

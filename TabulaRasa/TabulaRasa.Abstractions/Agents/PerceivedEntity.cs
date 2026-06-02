@@ -6,5 +6,9 @@ namespace TabulaRasa.Abstractions.Agents
         string EntityId,
         PerceivedEntityType EntityType,
         WorldPosition Position,
-        bool IsInteractable);
+        bool IsInteractable,
+        PerceptionChannel Channel = PerceptionChannel.Sight,
+        float Distance = 0,
+        float Certainty = 1,
+        float Relevance = 0);
 }

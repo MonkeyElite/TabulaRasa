@@ -17,6 +17,7 @@ namespace TabulaRasa.Simulation.Systems
         public void Execute(SimulationState state)
         {
             WorldState world = state.World;
+            state.LatestPerceptionsByAgentId.Clear();
 
             foreach (AgentEntity agentEntity in world.Agents)
             {
@@ -31,6 +32,7 @@ namespace TabulaRasa.Simulation.Systems
                     world,
                     agentEntity,
                     state.Config.PerceptionRadius);
+                state.LatestPerceptionsByAgentId[agentEntity.Id] = perception;
                 AgentSnapshot snapshot = new(
                     agentEntity.Id,
                     agentState.NeedState.ToSnapshot(),

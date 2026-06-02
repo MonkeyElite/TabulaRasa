@@ -86,6 +86,32 @@ namespace TabulaRasa.UnitTests.Api
             Assert.Equal(
                 firstSnapshot.Food.Select(food => (food.Id, food.Position.X, food.Position.Y)).ToList(),
                 secondSnapshot.Food.Select(food => (food.Id, food.Position.X, food.Position.Y)).ToList());
+            Assert.Equal(
+                firstSnapshot.Agents.SelectMany(agent => agent.Perception.NearbyEntities)
+                    .Select(entity => (entity.EntityId, entity.EntityType, entity.Channel, entity.Distance, entity.Certainty, entity.Relevance))
+                    .ToList(),
+                secondSnapshot.Agents.SelectMany(agent => agent.Perception.NearbyEntities)
+                    .Select(entity => (entity.EntityId, entity.EntityType, entity.Channel, entity.Distance, entity.Certainty, entity.Relevance))
+                    .ToList());
+        }
+
+        [Fact]
+        public void Snapshot_IncludesLatestAgentPerceptionAfterPlanning()
+        {
+            using SimulationRegistry registry = new();
+            SimulationSession session = registry.Create("Perception", Config(seed: 4, agents: 1, food: 1));
+
+            session.Step();
+
+            AgentSnapshotDto agent = Assert.Single(session.GetCurrentSnapshot().Agents);
+            PerceivedEntitySnapshotDto perceivedFood = Assert.Single(agent.Perception.NearbyEntities);
+            InteractionOpportunitySnapshotDto opportunity = Assert.Single(agent.Perception.Opportunities);
+            Assert.Equal("Food", perceivedFood.EntityType);
+            Assert.Equal("Sight", perceivedFood.Channel);
+            Assert.True(perceivedFood.Distance <= session.GetStatus().Config.PerceptionRadius);
+            Assert.Equal(perceivedFood.EntityId, opportunity.TargetId);
+            Assert.Equal("Eat", opportunity.ActionType);
+            Assert.Equal("Sight", opportunity.Channel);
         }
 
         [Fact]

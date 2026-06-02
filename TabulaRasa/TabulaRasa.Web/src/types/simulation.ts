@@ -170,6 +170,32 @@ export type AgentSnapshot = {
   health: EntityHealth | null;
   needs: AgentNeeds;
   movement: MovementSnapshot | null;
+  perception: AgentPerceptionSnapshot;
+};
+
+export type AgentPerceptionSnapshot = {
+  nearbyEntities: PerceivedEntitySnapshot[];
+  opportunities: InteractionOpportunitySnapshot[];
+};
+
+export type PerceivedEntitySnapshot = {
+  entityId: string;
+  entityType: string;
+  position: Position;
+  isInteractable: boolean;
+  channel: "Sight" | "Hearing" | "Smell" | string;
+  distance: number;
+  certainty: number;
+  relevance: number;
+};
+
+export type InteractionOpportunitySnapshot = {
+  actionType: string;
+  targetId: string | null;
+  targetPosition: Position;
+  sourceEntityId: string | null;
+  channel: "Sight" | "Hearing" | "Smell" | string;
+  relevance: number;
 };
 
 export type FoodSnapshot = {

@@ -1,4 +1,5 @@
 using TabulaRasa.Abstractions.Agents;
+using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.Spatial.Interaction;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
@@ -13,29 +14,80 @@ namespace TabulaRasa.Simulation.Systems
             List<PerceivedEntity> nearbyEntities = [];
             List<InteractionOpportunity> opportunities = [];
 
-            foreach (FoodEntity food in SpatialQueries.GetAvailableFoodsWithinRadius(world, agent.Position, perceptionRadius))
+            foreach (ISpatialEntity entity in world.SpatialEntities)
             {
-                InteractionPoint? interactionPoint = SpatialQueries.FindNearestAvailableInteractionPoint(
-                    food,
-                    agent.Position,
-                    maxDistance: float.MaxValue);
+                if (entity.Id == agent.Id || !CanBeSeen(entity))
+                {
+                    continue;
+                }
+
+                float distance = entity.Position.DistanceTo(agent.Position);
+
+                if (distance > perceptionRadius)
+                {
+                    continue;
+                }
+
+                InteractionPoint? interactionPoint = entity is IInteractableEntity interactable
+                    ? SpatialQueries.FindNearestAvailableInteractionPoint(
+                        interactable,
+                        agent.Position,
+                        maxDistance: float.MaxValue)
+                    : null;
+                float relevance = CalculateRelevance(distance, perceptionRadius);
 
                 nearbyEntities.Add(new PerceivedEntity(
-                    food.Id,
-                    PerceivedEntityType.Food,
-                    food.Position,
-                    IsInteractable: interactionPoint is not null));
+                    entity.Id,
+                    ToPerceivedEntityType(entity),
+                    entity.Position,
+                    IsInteractable: interactionPoint is not null,
+                    Channel: PerceptionChannel.Sight,
+                    Distance: distance,
+                    Certainty: 1,
+                    Relevance: relevance));
 
-                if (interactionPoint is not null)
+                if (entity is FoodEntity food && interactionPoint is not null)
                 {
                     opportunities.Add(new InteractionOpportunity(
                         AgentActionType.Eat,
                         food.Id,
-                        interactionPoint.Value.StandPosition));
+                        interactionPoint.Value.StandPosition,
+                        SourceEntityId: food.Id,
+                        Channel: PerceptionChannel.Sight,
+                        Relevance: relevance));
                 }
             }
 
             return new AgentPerception(nearbyEntities, opportunities);
+        }
+
+        private static bool CanBeSeen(ISpatialEntity entity)
+        {
+            return entity switch
+            {
+                FoodEntity food => !food.IsConsumed,
+                _ => true
+            };
+        }
+
+        private static PerceivedEntityType ToPerceivedEntityType(ISpatialEntity entity)
+        {
+            return entity switch
+            {
+                AgentEntity => PerceivedEntityType.Agent,
+                FoodEntity => PerceivedEntityType.Food,
+                _ => PerceivedEntityType.Unknown
+            };
+        }
+
+        private static float CalculateRelevance(float distance, float radius)
+        {
+            if (radius <= 0)
+            {
+                return distance <= 0 ? 1 : 0;
+            }
+
+            return Math.Clamp(1 - (distance / radius), 0, 1);
         }
     }
 }

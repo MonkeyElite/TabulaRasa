@@ -1,6 +1,7 @@
 using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.World;
+using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
@@ -161,7 +162,41 @@ namespace TabulaRasa.Api.Services
                 SpatialQueries.OccupiesSpace(agent),
                 ToHealth(agent),
                 ToNeeds(state.GetAgentById(agent.Id)?.NeedState),
-                movement is null ? null : ToMovement(movement));
+                movement is null ? null : ToMovement(movement),
+                ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)));
+        }
+
+        private static AgentPerceptionSnapshotDto ToPerception(AgentPerception? perception)
+        {
+            AgentPerception source = perception ?? AgentPerception.Empty;
+
+            return new AgentPerceptionSnapshotDto(
+                source.NearbyEntities.Select(ToPerceivedEntity).ToList(),
+                source.Opportunities.Select(ToInteractionOpportunity).ToList());
+        }
+
+        private static PerceivedEntitySnapshotDto ToPerceivedEntity(PerceivedEntity entity)
+        {
+            return new PerceivedEntitySnapshotDto(
+                entity.EntityId,
+                entity.EntityType.ToString(),
+                ToPosition(entity.Position),
+                entity.IsInteractable,
+                entity.Channel.ToString(),
+                entity.Distance,
+                entity.Certainty,
+                entity.Relevance);
+        }
+
+        private static InteractionOpportunitySnapshotDto ToInteractionOpportunity(InteractionOpportunity opportunity)
+        {
+            return new InteractionOpportunitySnapshotDto(
+                opportunity.ActionType.ToString(),
+                opportunity.TargetId,
+                ToPosition(opportunity.TargetPosition),
+                opportunity.SourceEntityId,
+                opportunity.Channel.ToString(),
+                opportunity.Relevance);
         }
 
         private static FoodSnapshotDto ToFood(FoodEntity food)

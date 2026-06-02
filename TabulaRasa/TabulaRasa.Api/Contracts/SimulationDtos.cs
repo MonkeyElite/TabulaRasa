@@ -154,9 +154,32 @@ namespace TabulaRasa.Api.Contracts
         bool OccupiesSpace,
         EntityHealthDto? Health,
         AgentNeedsDto Needs,
-        MovementSnapshotDto? Movement);
+        MovementSnapshotDto? Movement,
+        AgentPerceptionSnapshotDto Perception);
 
     public sealed record AgentNeedsDto(float Hunger, float Thirst, float Energy);
+
+    public sealed record AgentPerceptionSnapshotDto(
+        IReadOnlyList<PerceivedEntitySnapshotDto> NearbyEntities,
+        IReadOnlyList<InteractionOpportunitySnapshotDto> Opportunities);
+
+    public sealed record PerceivedEntitySnapshotDto(
+        string EntityId,
+        string EntityType,
+        PositionDto Position,
+        bool IsInteractable,
+        string Channel,
+        float Distance,
+        float Certainty,
+        float Relevance);
+
+    public sealed record InteractionOpportunitySnapshotDto(
+        string ActionType,
+        string? TargetId,
+        PositionDto TargetPosition,
+        string? SourceEntityId,
+        string Channel,
+        float Relevance);
 
     public sealed record FoodSnapshotDto(
         string Id,

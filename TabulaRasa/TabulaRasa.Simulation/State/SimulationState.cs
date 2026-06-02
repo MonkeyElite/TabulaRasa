@@ -24,6 +24,7 @@ namespace TabulaRasa.Simulation.State
         public List<JobInstance> PendingJobs { get; } = [];
         public List<JobInstance> ActiveJobs { get; } = [];
         public ReservationRegistry Reservations { get; } = new();
+        public Dictionary<string, AgentPerception> LatestPerceptionsByAgentId { get; } = [];
         public SimulationConfig Config { get; private set; }
         public Random Random { get; private set; }
         public IReadOnlyList<SimulationEvent> CurrentTickEvents => _currentTickEvents;

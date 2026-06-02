@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Copy,
+  Eye,
   Map,
   Pause,
   Play,
@@ -89,6 +90,7 @@ export default function Home() {
   const [editing, setEditing] = useState(false);
   const [hover, setHover] = useState<HoverInfo>(null);
   const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
+  const [showPerceptionOverlay, setShowPerceptionOverlay] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState("Simulation");
@@ -402,6 +404,14 @@ export default function Home() {
         >
           <Map size={18} />
         </button>
+        <button
+          className={`icon ${showPerceptionOverlay ? "selected" : ""}`}
+          onClick={() => setShowPerceptionOverlay((value) => !value)}
+          title="Toggle selected agent perception"
+          disabled={!snapshot || selection?.type !== "agent" || editing}
+        >
+          <Eye size={18} />
+        </button>
         <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))} title="Tick speed">
           <option value={1000}>1.0s</option>
           <option value={500}>0.5s</option>
@@ -475,6 +485,8 @@ export default function Home() {
             canEdit={canEdit}
             selection={selection}
             showNavigationOverlay={showNavigationOverlay}
+            showPerceptionOverlay={showPerceptionOverlay}
+            perceptionRadius={status?.config.perceptionRadius ?? 0}
             onSelect={setSelection}
             onMoveAgent={moveAgent}
             onMoveFood={moveFood}

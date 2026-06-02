@@ -49,6 +49,61 @@ describe("Inspector", () => {
     expect(screen.getByText("Mud / cost 3 / speed x0.50")).toBeTruthy();
     expect(onTerrainChange).toHaveBeenCalledWith({ x: 1, y: 1 }, "Road");
   });
+
+  it("renders perceived entities and opportunities for selected agents", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Perceived entities")).toBeTruthy();
+    expect(screen.getByText("food-1")).toBeTruthy();
+    expect(screen.getByText("Food / Sight / distance 1.25")).toBeTruthy();
+    expect(screen.getByText("Opportunities")).toBeTruthy();
+    expect(screen.getByText("Eat")).toBeTruthy();
+    expect(screen.getByText("target food-1 / source food-1 / Sight")).toBeTruthy();
+  });
+
+  it("renders empty perception states for selected agents", () => {
+    const emptySnapshot: SimulationSnapshot = {
+      ...snapshot,
+      agents: [
+        {
+          ...snapshot.agents[0],
+          perception: {
+            nearbyEntities: [],
+            opportunities: []
+          }
+        }
+      ]
+    };
+
+    render(
+      <Inspector
+        snapshot={emptySnapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("No perceived entities.")).toBeTruthy();
+    expect(screen.getByText("No opportunities.")).toBeTruthy();
+  });
 });
 
 const snapshot: SimulationSnapshot = {
@@ -96,6 +151,30 @@ const snapshot: SimulationSnapshot = {
         maxStuckTicks: 3,
         lastRepathReason: "Route became blocked.",
         lastEffectiveSpeedPerTick: 0.75
+      },
+      perception: {
+        nearbyEntities: [
+          {
+            entityId: "food-1",
+            entityType: "Food",
+            position: { x: 1.5, y: 0.5 },
+            isInteractable: true,
+            channel: "Sight",
+            distance: 1.25,
+            certainty: 1,
+            relevance: 0.5
+          }
+        ],
+        opportunities: [
+          {
+            actionType: "Eat",
+            targetId: "food-1",
+            targetPosition: { x: 1, y: 0.5 },
+            sourceEntityId: "food-1",
+            channel: "Sight",
+            relevance: 0.5
+          }
+        ]
       }
     }
   ],

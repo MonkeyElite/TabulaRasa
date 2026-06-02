@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { EditableField, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
+import type { AgentSnapshot, EditableField, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
 import { addAgentDraft, addFoodDraft, removeAgentDraft, removeFoodDraft, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
 import { getValue, setValue } from "@/lib/objectPath";
@@ -25,6 +25,10 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
   const agent =
     selection?.type === "agent"
       ? (editable ? draft.agents : snapshot?.agents)?.find((candidate) => candidate.id === selection.id)
+      : null;
+  const selectedSnapshotAgent =
+    selection?.type === "agent"
+      ? snapshot?.agents.find((candidate) => candidate.id === selection.id) ?? null
       : null;
   const food =
     selection?.type === "food"
@@ -183,6 +187,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               )
             }
           />
+          {!editing && selectedSnapshotAgent && <PerceptionDetails agent={selectedSnapshotAgent} />}
           {editable && (
             <button
               className="danger"
@@ -273,6 +278,50 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
         </div>
       </section>
     </aside>
+  );
+}
+
+function PerceptionDetails({ agent }: { agent: AgentSnapshot }) {
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Perceived entities</div>
+      {agent.perception.nearbyEntities.length === 0 ? (
+        <span className="empty-state">No perceived entities.</span>
+      ) : (
+        <div className="perception-list">
+          {agent.perception.nearbyEntities.map((entity) => (
+            <div className="perception-row" key={`${entity.channel}:${entity.entityId}`}>
+              <strong>{entity.entityId}</strong>
+              <small>
+                {entity.entityType} / {entity.channel} / distance {formatNumber(entity.distance)}
+              </small>
+              <small>
+                certainty {formatNumber(entity.certainty)} / relevance {formatNumber(entity.relevance)} / interactable {entity.isInteractable ? "yes" : "no"}
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="subsection-title">Opportunities</div>
+      {agent.perception.opportunities.length === 0 ? (
+        <span className="empty-state">No opportunities.</span>
+      ) : (
+        <div className="perception-list">
+          {agent.perception.opportunities.map((opportunity, index) => (
+            <div className="perception-row" key={`${opportunity.actionType}:${opportunity.targetId ?? index}`}>
+              <strong>{opportunity.actionType}</strong>
+              <small>
+                target {opportunity.targetId ?? "none"} / source {opportunity.sourceEntityId ?? "none"} / {opportunity.channel}
+              </small>
+              <small>
+                relevance {formatNumber(opportunity.relevance)} / position {formatNumber(opportunity.targetPosition.x)}, {formatNumber(opportunity.targetPosition.y)}
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
