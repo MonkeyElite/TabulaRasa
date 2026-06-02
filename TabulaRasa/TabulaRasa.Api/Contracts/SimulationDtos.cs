@@ -27,6 +27,14 @@ namespace TabulaRasa.Api.Contracts
         int MaxVisitedCells,
         int MaxRepathAttempts = 3);
 
+    public sealed record MemoryConfigDto(
+        bool Enabled,
+        int MaxMemoriesPerAgent,
+        int RetentionTicks,
+        float DecayPerTick,
+        float MinimumStrength,
+        float RecallThreshold);
+
     public sealed record SimulationConfigDto(
         int Seed,
         int WorldWidth,
@@ -40,7 +48,8 @@ namespace TabulaRasa.Api.Contracts
         float PerceptionRadius,
         float MovementSpeedPerTick,
         PathfindingConfigDto Pathfinding,
-        IReadOnlyList<string> EnabledSystems);
+        IReadOnlyList<string> EnabledSystems,
+        MemoryConfigDto? Memory = null);
 
     public sealed record SimulationSummaryDto(
         string SimulationId,
@@ -164,7 +173,8 @@ namespace TabulaRasa.Api.Contracts
         bool IsDead,
         AgentNeedsDto Needs,
         MovementSnapshotDto? Movement,
-        AgentPerceptionSnapshotDto Perception);
+        AgentPerceptionSnapshotDto Perception,
+        AgentMemorySnapshotDto Memory);
 
     public sealed record AgentNeedsDto(float Hunger, float Thirst, float Energy, float Fatigue = 0);
 
@@ -189,6 +199,23 @@ namespace TabulaRasa.Api.Contracts
         string? SourceEntityId,
         string Channel,
         float Relevance);
+
+    public sealed record AgentMemorySnapshotDto(
+        IReadOnlyList<AgentMemoryRecordSnapshotDto> Memories);
+
+    public sealed record AgentMemoryRecordSnapshotDto(
+        string Id,
+        string Kind,
+        string SubjectId,
+        string SubjectType,
+        PositionDto Position,
+        long CreatedTick,
+        long LastUpdatedTick,
+        float Strength,
+        float Certainty,
+        long? ExpiresAtTick,
+        string Summary,
+        IReadOnlyDictionary<string, string> Metadata);
 
     public sealed record FoodSnapshotDto(
         string Id,

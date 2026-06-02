@@ -2,6 +2,7 @@ using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.State;
@@ -32,13 +33,17 @@ namespace TabulaRasa.Simulation.Systems
                     world,
                     agentEntity,
                     state.Config.PerceptionRadius);
-                state.LatestPerceptionsByAgentId[agentEntity.Id] = perception;
+                AgentPerception enrichedPerception = AgentMemoryService.RememberAndEnrichPerception(
+                    state,
+                    agentEntity,
+                    perception);
+                state.LatestPerceptionsByAgentId[agentEntity.Id] = enrichedPerception;
                 AgentSnapshot snapshot = new(
                     agentEntity.Id,
                     agentState.NeedState.ToSnapshot(),
                     agentEntity.Position);
 
-                state.PendingIntents.Add(agentState.Mind.Decide(perception, snapshot));
+                state.PendingIntents.Add(agentState.Mind.Decide(enrichedPerception, snapshot));
             }
         }
     }

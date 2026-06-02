@@ -37,6 +37,7 @@ import type {
 
 const systemOptions = [
   ["need-decay", "Need decay"],
+  ["memory", "Memory"],
   ["planning", "Planning"],
   ["action-request-creation", "Actions"],
   ["route-planning", "Routes"],
@@ -70,6 +71,14 @@ const defaultConfig: SimulationConfig = {
     maxVisitedCells: 1000,
     maxRepathAttempts: 3
   },
+  memory: {
+    enabled: true,
+    maxMemoriesPerAgent: 100,
+    retentionTicks: 80,
+    decayPerTick: 0.02,
+    minimumStrength: 0.2,
+    recallThreshold: 0.35
+  },
   enabledSystems: systemOptions.map(([id]) => id)
 };
 
@@ -88,6 +97,7 @@ export default function Home() {
   const [configDraft, setConfigDraft] = useState<SimulationConfig | null>(null);
   const [eventScope, setEventScope] = useState<"recent" | "current">("recent");
   const [eventType, setEventType] = useState("all");
+  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events">("inspect");
   const [editing, setEditing] = useState(false);
   const [hover, setHover] = useState<HoverInfo>(null);
   const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
@@ -505,37 +515,53 @@ export default function Home() {
           )}
         </div>
         <aside className="right-rail">
-          <Inspector
-            snapshot={snapshot}
-            draft={draft}
-            schema={schema}
-            selection={selection}
-            onSelect={setSelection}
-            editing={editing}
-            canEdit={canEdit}
-            onDraftChange={setDraft}
-            onTerrainChange={(cell, terrainType) => draft && setDraft(setTerrainCell(draft, cell, terrainType))}
-          />
-          <RuntimePanel
-            status={status}
-            snapshot={snapshot}
-            configDraft={null}
-            onConfigDraftChange={() => undefined}
-          />
-          <SettingsPanel
-            config={configDraft}
-            canTune={canTune}
-            onChange={setConfigDraft}
-            onApply={handleApplyConfig}
-          />
-          <EventLogPanel
-            events={visibleEvents}
-            eventTypes={eventTypes}
-            eventScope={eventScope}
-            eventType={eventType}
-            onEventScopeChange={setEventScope}
-            onEventTypeChange={setEventType}
-          />
+          <div className="rail-tabs">
+            <button className={rightRailTab === "inspect" ? "selected" : ""} onClick={() => setRightRailTab("inspect")}>Inspect</button>
+            <button className={rightRailTab === "runtime" ? "selected" : ""} onClick={() => setRightRailTab("runtime")}>Runtime</button>
+            <button className={rightRailTab === "settings" ? "selected" : ""} onClick={() => setRightRailTab("settings")}>Settings</button>
+            <button className={rightRailTab === "events" ? "selected" : ""} onClick={() => setRightRailTab("events")}>Events</button>
+          </div>
+          <div className="rail-panel">
+            {rightRailTab === "inspect" && (
+              <Inspector
+                snapshot={snapshot}
+                draft={draft}
+                schema={schema}
+                selection={selection}
+                onSelect={setSelection}
+                editing={editing}
+                canEdit={canEdit}
+                onDraftChange={setDraft}
+                onTerrainChange={(cell, terrainType) => draft && setDraft(setTerrainCell(draft, cell, terrainType))}
+              />
+            )}
+            {rightRailTab === "runtime" && (
+              <RuntimePanel
+                status={status}
+                snapshot={snapshot}
+                configDraft={null}
+                onConfigDraftChange={() => undefined}
+              />
+            )}
+            {rightRailTab === "settings" && (
+              <SettingsPanel
+                config={configDraft}
+                canTune={canTune}
+                onChange={setConfigDraft}
+                onApply={handleApplyConfig}
+              />
+            )}
+            {rightRailTab === "events" && (
+              <EventLogPanel
+                events={visibleEvents}
+                eventTypes={eventTypes}
+                eventScope={eventScope}
+                eventType={eventType}
+                onEventScopeChange={setEventScope}
+                onEventTypeChange={setEventType}
+              />
+            )}
+          </div>
         </aside>
       </section>
 
@@ -741,6 +767,39 @@ function ConfigFields({
         disabled={disabled}
         onChange={(maxRepathAttempts) => onChange({ ...config, pathfinding: { ...config.pathfinding, maxRepathAttempts } })}
       />
+      <NumberConfigField
+        label="Memory max"
+        value={config.memory.maxMemoriesPerAgent}
+        disabled={disabled}
+        onChange={(maxMemoriesPerAgent) => onChange({ ...config, memory: { ...config.memory, maxMemoriesPerAgent } })}
+      />
+      <NumberConfigField
+        label="Memory ttl"
+        value={config.memory.retentionTicks}
+        disabled={disabled}
+        onChange={(retentionTicks) => onChange({ ...config, memory: { ...config.memory, retentionTicks } })}
+      />
+      <NumberConfigField
+        label="Memory decay"
+        value={config.memory.decayPerTick}
+        disabled={disabled}
+        step={0.01}
+        onChange={(decayPerTick) => onChange({ ...config, memory: { ...config.memory, decayPerTick } })}
+      />
+      <NumberConfigField
+        label="Forget below"
+        value={config.memory.minimumStrength}
+        disabled={disabled}
+        step={0.05}
+        onChange={(minimumStrength) => onChange({ ...config, memory: { ...config.memory, minimumStrength } })}
+      />
+      <NumberConfigField
+        label="Recall at"
+        value={config.memory.recallThreshold}
+        disabled={disabled}
+        step={0.05}
+        onChange={(recallThreshold) => onChange({ ...config, memory: { ...config.memory, recallThreshold } })}
+      />
       <label className="field checkbox-field">
         <span>Diagonal</span>
         <input
@@ -751,6 +810,15 @@ function ConfigFields({
             ...config,
             pathfinding: { ...config.pathfinding, allowDiagonalMovement: event.target.checked }
           })}
+        />
+      </label>
+      <label className="field checkbox-field">
+        <span>Memory</span>
+        <input
+          type="checkbox"
+          checked={config.memory.enabled}
+          disabled={disabled}
+          onChange={(event) => onChange({ ...config, memory: { ...config.memory, enabled: event.target.checked } })}
         />
       </label>
       <div className="system-toggles wide">

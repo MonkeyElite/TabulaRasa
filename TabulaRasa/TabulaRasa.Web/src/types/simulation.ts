@@ -59,6 +59,14 @@ export type SimulationConfig = {
     maxVisitedCells: number;
     maxRepathAttempts: number;
   };
+  memory: {
+    enabled: boolean;
+    maxMemoriesPerAgent: number;
+    retentionTicks: number;
+    decayPerTick: number;
+    minimumStrength: number;
+    recallThreshold: number;
+  };
   enabledSystems: string[];
 };
 
@@ -181,6 +189,7 @@ export type AgentSnapshot = {
   needs: AgentNeeds;
   movement: MovementSnapshot | null;
   perception: AgentPerceptionSnapshot;
+  memory: AgentMemorySnapshot;
 };
 
 export type AgentPerceptionSnapshot = {
@@ -206,6 +215,25 @@ export type InteractionOpportunitySnapshot = {
   sourceEntityId: string | null;
   channel: "Sight" | "Hearing" | "Smell" | string;
   relevance: number;
+};
+
+export type AgentMemorySnapshot = {
+  memories: AgentMemoryRecordSnapshot[];
+};
+
+export type AgentMemoryRecordSnapshot = {
+  id: string;
+  kind: "Entity" | "Location" | "Event" | "ActionOutcome" | string;
+  subjectId: string;
+  subjectType: string;
+  position: Position;
+  createdTick: number;
+  lastUpdatedTick: number;
+  strength: number;
+  certainty: number;
+  expiresAtTick: number | null;
+  summary: string;
+  metadata: Record<string, string>;
 };
 
 export type FoodSnapshot = {

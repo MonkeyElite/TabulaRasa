@@ -233,8 +233,45 @@ select {
   background: var(--panel);
   border-left: 1px solid var(--line);
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto minmax(220px, 30vh) minmax(180px, 24vh);
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
+}
+
+.rail-tabs {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 10px;
+}
+
+.rail-tabs button {
+  justify-content: center;
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.rail-tabs button.selected {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.rail-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rail-panel > .debug-panel,
+.rail-panel > .inspector {
+  height: 100%;
+}
+
+.inspector-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .section {
@@ -281,10 +318,31 @@ select {
   gap: 8px;
 }
 
+.tabs {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.tabs button {
+  justify-content: center;
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.tabs button.selected {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
 .debug-panel {
   border-top: 1px solid var(--line);
   display: grid;
   gap: 10px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 12px 14px;
 }
 
@@ -319,6 +377,10 @@ select {
 .settings-panel,
 .settings-panel .config-grid {
   min-height: 0;
+}
+
+.settings-panel {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .config-grid {
@@ -412,6 +474,7 @@ select {
 }
 
 .event-panel {
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -700,7 +763,7 @@ select {
   .right-rail {
     border-left: 0;
     border-top: 1px solid var(--line);
-    grid-template-rows: minmax(0, 1fr) auto minmax(220px, auto) minmax(180px, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .inspector {

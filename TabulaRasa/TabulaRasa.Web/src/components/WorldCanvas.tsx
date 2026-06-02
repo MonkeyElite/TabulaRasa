@@ -177,6 +177,9 @@ export function WorldCanvas({
     const perceptionEntityIds = showPerceptionOverlay && selectedSnapshotAgent
       ? new Set(selectedSnapshotAgent.perception.nearbyEntities.map((entity) => entity.entityId))
       : new Set<string>();
+    const rememberedTargets = selectedSnapshotAgent
+      ? selectedSnapshotAgent.memory.memories.filter((memory) => memory.kind === "Entity" || memory.kind === "Location")
+      : [];
 
     for (const occupied of occupiedCells) {
       const key = `${occupied.cell.x}:${occupied.cell.y}`;
@@ -261,6 +264,37 @@ export function WorldCanvas({
       perception.fill({ color: 0x6aa8ff, alpha: 0.08 });
       perception.stroke({ color: 0x6aa8ff, width: 2, alpha: 0.45 });
       world.addChild(perception);
+    }
+
+    for (const memory of rememberedTargets) {
+      const graphic = new PIXI.Graphics();
+      const x = memory.position.x * cellSize;
+      const y = memory.position.y * cellSize;
+      const isFood = memory.subjectType === "Food";
+      const radius = Math.max(7, 13 * Math.max(0.3, memory.strength));
+      graphic.circle(x, y, radius);
+      graphic.fill({ color: isFood ? 0xf4c95d : 0xb7c7d9, alpha: 0.18 });
+      graphic.stroke({ color: isFood ? 0xf4c95d : 0xb7c7d9, width: 2, alpha: 0.72 });
+      graphic.eventMode = "static";
+      graphic.cursor = "default";
+      graphic.on("pointerover", (event) =>
+        onHover({
+          label: `Memory ${memory.subjectId}`,
+          detail: `${memory.kind} - strength ${formatNumber(memory.strength)} certainty ${formatNumber(memory.certainty)}`,
+          x: event.global.x,
+          y: event.global.y
+        })
+      );
+      graphic.on("pointermove", (event) =>
+        onHover({
+          label: `Memory ${memory.subjectId}`,
+          detail: `${memory.kind} - strength ${formatNumber(memory.strength)} certainty ${formatNumber(memory.certainty)}`,
+          x: event.global.x,
+          y: event.global.y
+        })
+      );
+      graphic.on("pointerout", () => onHover(null));
+      world.addChild(graphic);
     }
 
     const foodItems = editing && draft ? draft.food : snapshot.food;

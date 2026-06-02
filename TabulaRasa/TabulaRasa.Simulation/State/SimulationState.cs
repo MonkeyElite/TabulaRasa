@@ -4,6 +4,7 @@ using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Configuration;
+using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
 using TabulaRasa.Simulation.Tasks.Jobs;
@@ -25,8 +26,10 @@ namespace TabulaRasa.Simulation.State
         public List<JobInstance> ActiveJobs { get; } = [];
         public ReservationRegistry Reservations { get; } = new();
         public Dictionary<string, AgentPerception> LatestPerceptionsByAgentId { get; } = [];
+        public Dictionary<string, AgentMemoryStore> MemoryStoresByAgentId { get; } = [];
         public SimulationConfig Config { get; private set; }
         public Random Random { get; private set; }
+        public long ActiveTick => _activeEventTick;
         public IReadOnlyList<SimulationEvent> CurrentTickEvents => _currentTickEvents;
         public IReadOnlyDictionary<long, IReadOnlyList<SimulationEvent>> EventHistory => _eventsByTick;
         public IReadOnlyDictionary<long, SimulationTickDiagnostics> DiagnosticsHistory => _diagnosticsByTick;
@@ -59,6 +62,17 @@ namespace TabulaRasa.Simulation.State
             AgentState? agent = Agents.Find(a => a.Id == id);
 
             return agent;
+        }
+
+        public AgentMemoryStore GetMemoryStore(string agentId)
+        {
+            if (!MemoryStoresByAgentId.TryGetValue(agentId, out AgentMemoryStore? store))
+            {
+                store = new AgentMemoryStore();
+                MemoryStoresByAgentId[agentId] = store;
+            }
+
+            return store;
         }
 
         public void BeginTickObservability(long tick)
@@ -156,6 +170,7 @@ namespace TabulaRasa.Simulation.State
         {
             NeedDecayConfig needDecay = config.EffectiveNeedDecay;
             PathfindingConfig pathfinding = config.EffectivePathfinding;
+            MemoryConfig memory = config.EffectiveMemory;
             IReadOnlyList<string> enabledSystems = config.EffectiveEnabledSystems
                 .Where(systemId => !string.IsNullOrWhiteSpace(systemId))
                 .Select(systemId => systemId.Trim())
@@ -182,6 +197,13 @@ namespace TabulaRasa.Simulation.State
                     pathfinding.AllowDiagonalMovement,
                     Math.Clamp(pathfinding.MaxVisitedCells, 1, 1_000_000),
                     Math.Clamp(pathfinding.MaxRepathAttempts, 0, 1_000)),
+                Memory = new MemoryConfig(
+                    memory.Enabled,
+                    Math.Clamp(memory.MaxMemoriesPerAgent, 1, 10_000),
+                    Math.Clamp(memory.RetentionTicks, 1, 1_000_000),
+                    ClampFinite(memory.DecayPerTick, 0, 100),
+                    ClampFinite(memory.MinimumStrength, 0, 1),
+                    ClampFinite(memory.RecallThreshold, 0, 1)),
                 EnabledSystems = enabledSystems.Count == 0
                     ? SimulationConfig.DefaultEnabledSystems
                     : enabledSystems

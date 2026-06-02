@@ -6,6 +6,7 @@ using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Simulation.Configuration;
+using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
 using TabulaRasa.Simulation.State;
@@ -91,14 +92,34 @@ namespace TabulaRasa.Api.Services
                     config.EffectivePathfinding.AllowDiagonalMovement,
                     config.EffectivePathfinding.MaxVisitedCells,
                     config.EffectivePathfinding.MaxRepathAttempts),
-                config.EffectiveEnabledSystems.ToList());
+                config.EffectiveEnabledSystems.ToList(),
+                new MemoryConfigDto(
+                    config.EffectiveMemory.Enabled,
+                    config.EffectiveMemory.MaxMemoriesPerAgent,
+                    config.EffectiveMemory.RetentionTicks,
+                    config.EffectiveMemory.DecayPerTick,
+                    config.EffectiveMemory.MinimumStrength,
+                    config.EffectiveMemory.RecallThreshold));
         }
 
         public static SimulationConfig ToConfig(SimulationConfigDto? dto, SimulationConfig fallback)
         {
-            return dto is null
-                ? fallback
-                : new SimulationConfig(
+            if (dto is null)
+            {
+                return fallback;
+            }
+
+            MemoryConfig memory = dto.Memory is null
+                ? fallback.EffectiveMemory
+                : new MemoryConfig(
+                    dto.Memory.Enabled,
+                    dto.Memory.MaxMemoriesPerAgent,
+                    dto.Memory.RetentionTicks,
+                    dto.Memory.DecayPerTick,
+                    dto.Memory.MinimumStrength,
+                    dto.Memory.RecallThreshold);
+
+            return new SimulationConfig(
                     dto.Seed,
                     dto.WorldWidth,
                     dto.WorldHeight,
@@ -118,7 +139,8 @@ namespace TabulaRasa.Api.Services
                         dto.Pathfinding.AllowDiagonalMovement,
                         dto.Pathfinding.MaxVisitedCells,
                         dto.Pathfinding.MaxRepathAttempts),
-                    dto.EnabledSystems);
+                    dto.EnabledSystems,
+                    memory);
         }
 
         public static SimulationDraftDto ToDraft(SimulationSnapshotDto snapshot, SimulationConfigDto config)
@@ -172,7 +194,8 @@ namespace TabulaRasa.Api.Services
                 agent.IsDead,
                 ToNeeds(state.GetAgentById(agent.Id)?.NeedState),
                 movement is null ? null : ToMovement(movement),
-                ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)));
+                ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)),
+                ToMemory(state.MemoryStoresByAgentId.GetValueOrDefault(agent.Id)));
         }
 
         private static AgentPerceptionSnapshotDto ToPerception(AgentPerception? perception)
@@ -206,6 +229,33 @@ namespace TabulaRasa.Api.Services
                 opportunity.SourceEntityId,
                 opportunity.Channel.ToString(),
                 opportunity.Relevance);
+        }
+
+        private static AgentMemorySnapshotDto ToMemory(AgentMemoryStore? store)
+        {
+            return new AgentMemorySnapshotDto(
+                (store?.Memories ?? [])
+                    .OrderByDescending(memory => memory.Strength)
+                    .ThenByDescending(memory => memory.LastUpdatedTick)
+                    .Select(ToMemoryRecord)
+                    .ToList());
+        }
+
+        private static AgentMemoryRecordSnapshotDto ToMemoryRecord(AgentMemoryRecord memory)
+        {
+            return new AgentMemoryRecordSnapshotDto(
+                memory.Id,
+                memory.Kind.ToString(),
+                memory.SubjectId,
+                memory.SubjectType,
+                ToPosition(memory.Position),
+                memory.CreatedTick,
+                memory.LastUpdatedTick,
+                memory.Strength,
+                memory.Certainty,
+                memory.ExpiresAtTick,
+                memory.Summary,
+                memory.Metadata);
         }
 
         private static FoodSnapshotDto ToFood(FoodEntity food)

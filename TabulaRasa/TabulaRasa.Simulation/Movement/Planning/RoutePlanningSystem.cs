@@ -1,6 +1,7 @@
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.State;
 
 namespace TabulaRasa.Simulation.Movement.Planning
@@ -44,12 +45,18 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 if (!result.Succeeded)
                 {
                     state.PendingActionRequests.Remove(request);
+                    AgentMemoryService.MarkTargetUnavailable(
+                        state,
+                        request.AgentId,
+                        request.TargetId,
+                        result.FailureReason ?? "Route planning failed.");
                     ActionResult actionResult = new(
                         request.AgentId,
                         request.ActionType,
                         false,
                         result.FailureReason);
                     state.ActionResults.Add(actionResult);
+                    AgentMemoryService.RememberActionOutcome(state, actionResult);
                     state.EmitEvent(
                         "action.result",
                         Name,

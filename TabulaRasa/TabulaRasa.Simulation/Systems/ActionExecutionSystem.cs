@@ -3,6 +3,7 @@ using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Simulation.Actions.Resolution;
 using TabulaRasa.Simulation.Actions.Validation;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 
@@ -51,6 +52,7 @@ namespace TabulaRasa.Simulation.Systems
                         false,
                         validation.FailureReason);
                     state.ActionResults.Add(result);
+                    AgentMemoryService.RememberActionOutcome(state, result);
                     EmitActionResultEvent(state, result);
 
                     continue;
@@ -58,6 +60,7 @@ namespace TabulaRasa.Simulation.Systems
 
                 ActionResult resolved = _resolver.Resolve(state, request);
                 state.ActionResults.Add(resolved);
+                AgentMemoryService.RememberActionOutcome(state, resolved);
                 EmitActionResultEvent(state, resolved);
             }
         }

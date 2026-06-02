@@ -1,5 +1,6 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
+using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
@@ -55,6 +56,11 @@ namespace TabulaRasa.Simulation.Actions.Validation
 
             if (food is null)
             {
+                AgentMemoryService.MarkTargetUnavailable(
+                    state,
+                    request.AgentId,
+                    request.TargetId,
+                    "Target food is unavailable or out of reach.");
                 return ActionValidationResult.Invalid("Target food is unavailable or out of reach.");
             }
 

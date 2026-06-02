@@ -4,6 +4,7 @@ namespace TabulaRasa.Abstractions.Agents
     {
         Sight = 0,
         Hearing = 1,
-        Smell = 2
+        Smell = 2,
+        Memory = 3
     }
 }

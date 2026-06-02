@@ -22,6 +22,7 @@ namespace TabulaRasa.Simulation.Composition
         public static readonly IReadOnlyDictionary<string, string> SystemNamesById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["need-decay"] = "Need Decay System",
+            ["memory"] = "Agent Memory System",
             ["planning"] = "Planning System",
             ["action-request-creation"] = "Action Request Creation System",
             ["route-planning"] = "Route Planning System",
@@ -93,6 +94,7 @@ namespace TabulaRasa.Simulation.Composition
             Dictionary<string, Func<ISystem>> factories = new(StringComparer.OrdinalIgnoreCase)
             {
                 ["need-decay"] = () => new NeedDecaySystem(),
+                ["memory"] = () => new AgentMemorySystem(),
                 ["planning"] = () => new PlanningSystem(),
                 ["action-request-creation"] = () => new ActionRequestCreationSystem(),
                 ["route-planning"] = () => new RoutePlanningSystem(),

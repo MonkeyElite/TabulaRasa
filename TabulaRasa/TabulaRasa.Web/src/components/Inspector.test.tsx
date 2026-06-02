@@ -65,6 +65,8 @@ describe("Inspector", () => {
       />
     );
 
+    fireEvent.click(screen.getByText("Perception"));
+
     expect(screen.getByText("Perceived entities")).toBeTruthy();
     expect(screen.getByText("food-1")).toBeTruthy();
     expect(screen.getByText("Food / Sight / distance 1.25")).toBeTruthy();
@@ -101,8 +103,31 @@ describe("Inspector", () => {
       />
     );
 
+    fireEvent.click(screen.getByText("Perception"));
+
     expect(screen.getByText("No perceived entities.")).toBeTruthy();
     expect(screen.getByText("No opportunities.")).toBeTruthy();
+  });
+
+  it("renders selected agent memories in the memory tab", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Memory"));
+
+    expect(screen.getByText("Remembered locations and entities")).toBeTruthy();
+    expect(screen.getByText("Location / Food / strength 0.85 / certainty 0.90")).toBeTruthy();
   });
 });
 
@@ -174,6 +199,24 @@ const snapshot: SimulationSnapshot = {
             sourceEntityId: "food-1",
             channel: "Sight",
             relevance: 0.5
+          }
+        ]
+      },
+      memory: {
+        memories: [
+          {
+            id: "location:Food:food-1",
+            kind: "Location",
+            subjectId: "food-1",
+            subjectType: "Food",
+            position: { x: 1.5, y: 0.5 },
+            createdTick: 1,
+            lastUpdatedTick: 3,
+            strength: 0.85,
+            certainty: 0.9,
+            expiresAtTick: 83,
+            summary: "Remembered Food location for food-1.",
+            metadata: {}
           }
         ]
       }

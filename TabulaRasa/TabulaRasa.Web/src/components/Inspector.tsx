@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
+import type { AgentMemoryRecordSnapshot, AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
 import { addAgentDraft, addFoodDraft, removeAgentDraft, removeFoodDraft, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
 import { getValue, setValue } from "@/lib/objectPath";
@@ -19,6 +19,8 @@ type Props = {
 };
 
 export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange, onTerrainChange }: Props) {
+  const [inspectorTab, setInspectorTab] = React.useState<"state" | "entities" | "selection">("selection");
+  const [agentTab, setAgentTab] = React.useState<"overview" | "perception" | "memory">("overview");
   const editable = editing && canEdit && draft;
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
   const listedFood = editable ? draft.food : snapshot?.food ?? [];
@@ -42,6 +44,13 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
 
   return (
     <aside className="inspector">
+      <div className="rail-tabs inspector-tabs">
+        <button className={inspectorTab === "state" ? "selected" : ""} onClick={() => setInspectorTab("state")}>State</button>
+        <button className={inspectorTab === "entities" ? "selected" : ""} onClick={() => setInspectorTab("entities")}>Entities</button>
+        <button className={inspectorTab === "selection" ? "selected" : ""} onClick={() => setInspectorTab("selection")}>Selection</button>
+      </div>
+
+      {inspectorTab === "state" && (
       <section className="section">
         <h2>State</h2>
         <div className="stack">
@@ -85,7 +94,9 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           )}
         </div>
       </section>
+      )}
 
+      {inspectorTab === "entities" && (
       <section className="section">
         <h3>Entities</h3>
         {editable && (
@@ -147,10 +158,22 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           ))}
         </div>
       </section>
+      )}
 
+      {inspectorTab === "selection" && (
+      <>
       {agent && (
         <section className="section">
           <h3>Agent - {agent.id}</h3>
+          {!editing && selectedSnapshotAgent && (
+            <div className="tabs">
+              <button className={agentTab === "overview" ? "selected" : ""} onClick={() => setAgentTab("overview")}>Overview</button>
+              <button className={agentTab === "perception" ? "selected" : ""} onClick={() => setAgentTab("perception")}>Perception</button>
+              <button className={agentTab === "memory" ? "selected" : ""} onClick={() => setAgentTab("memory")}>Memory</button>
+            </div>
+          )}
+          {(editing || agentTab === "overview") && (
+            <>
           {(() => {
             const movement = snapshot?.agents.find((item) => item.id === agent.id)?.movement ?? null;
 
@@ -191,7 +214,10 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               )
             }
           />
-          {!editing && selectedSnapshotAgent && <PerceptionDetails agent={selectedSnapshotAgent} />}
+            </>
+          )}
+          {!editing && selectedSnapshotAgent && agentTab === "perception" && <PerceptionDetails agent={selectedSnapshotAgent} />}
+          {!editing && selectedSnapshotAgent && agentTab === "memory" && <MemoryDetails agent={selectedSnapshotAgent} />}
           {editable && (
             <button
               className="danger"
@@ -272,16 +298,49 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
         </section>
       )}
 
-      <section className="section">
-        <h3>Runtime</h3>
-        <div className="stack">
-          <span className="metric">Intents: {snapshot?.pendingIntentCount ?? 0}</span>
-          <span className="metric">Action requests: {snapshot?.pendingActionRequestCount ?? 0}</span>
-          <span className="metric">Jobs: {snapshot?.jobs.length ?? 0}</span>
-          <span className="metric">Reservations: {snapshot?.reservations.length ?? 0}</span>
-        </div>
-      </section>
+      {!agent && !food && selection?.type !== "cell" && (
+        <section className="section">
+          <h3>Selection</h3>
+          <span className="empty-state">No entity or cell selected.</span>
+        </section>
+      )}
+      </>
+      )}
     </aside>
+  );
+}
+
+function MemoryDetails({ agent }: { agent: AgentSnapshot }) {
+  const memories = agent.memory.memories;
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Remembered locations and entities</div>
+      {memories.length === 0 ? (
+        <span className="empty-state">No memories.</span>
+      ) : (
+        <div className="perception-list">
+          {memories.map((memory) => (
+            <MemoryRow key={memory.id} memory={memory} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MemoryRow({ memory }: { memory: AgentMemoryRecordSnapshot }) {
+  return (
+    <div className="perception-row">
+      <strong>{memory.subjectId}</strong>
+      <small>
+        {memory.kind} / {memory.subjectType} / strength {formatNumber(memory.strength)} / certainty {formatNumber(memory.certainty)}
+      </small>
+      <small>
+        tick {memory.lastUpdatedTick} / expires {memory.expiresAtTick ?? "never"} / {formatNumber(memory.position.x)}, {formatNumber(memory.position.y)}
+      </small>
+      <small>{memory.summary}</small>
+    </div>
   );
 }
 
