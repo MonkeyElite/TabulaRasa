@@ -65,6 +65,11 @@ button.icon {
   padding: 0;
 }
 
+button.icon.selected {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
 input,
 select {
   background: #12151a;

@@ -23,7 +23,8 @@ namespace TabulaRasa.Api.Contracts
 
     public sealed record PathfindingConfigDto(
         bool AllowDiagonalMovement,
-        int MaxVisitedCells);
+        int MaxVisitedCells,
+        int MaxRepathAttempts = 3);
 
     public sealed record SimulationConfigDto(
         int Seed,
@@ -114,9 +115,20 @@ namespace TabulaRasa.Api.Contracts
         int Width,
         int Height,
         IReadOnlyList<GridCellDto> BlockedCells,
+        IReadOnlyList<GridTerrainCellDto> TerrainCells,
         IReadOnlyList<OccupiedCellDto> OccupiedCells);
 
     public sealed record GridCellDto(int X, int Y);
+
+    public sealed record GridTerrainCellDto(
+        GridCellDto Cell,
+        string TerrainType,
+        float TraversalCost,
+        float SpeedMultiplier);
+
+    public sealed record EditableGridTerrainCellDto(
+        GridCellDto Cell,
+        string TerrainType);
 
     public sealed record OccupiedCellDto(
         GridCellDto Cell,
@@ -167,7 +179,14 @@ namespace TabulaRasa.Api.Contracts
         int CurrentWaypointIndex,
         float SpeedPerTick,
         float ArrivalTolerance,
-        string? FailureReason);
+        string? FailureReason,
+        float RouteCost,
+        int RepathCount,
+        int MaxRepathAttempts,
+        int StuckTicks,
+        int MaxStuckTicks,
+        string? LastRepathReason,
+        float LastEffectiveSpeedPerTick);
 
     public sealed record JobSnapshotDto(
         string Id,
@@ -220,7 +239,8 @@ namespace TabulaRasa.Api.Contracts
     public sealed record EditableGridDto(
         int Width,
         int Height,
-        IReadOnlyList<GridCellDto> BlockedCells);
+        IReadOnlyList<GridCellDto> BlockedCells,
+        IReadOnlyList<EditableGridTerrainCellDto> TerrainCells);
 
     public sealed record EditableAgentDto(
         string Id,

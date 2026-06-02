@@ -11,7 +11,8 @@ namespace TabulaRasa.Simulation.Movement.Execution
             string? targetId,
             MovementRoute route,
             float speedPerTick,
-            float arrivalTolerance)
+            float arrivalTolerance,
+            int maxRepathAttempts = 3)
         {
             AgentId = agentId;
             RequestedAction = requestedAction;
@@ -19,12 +20,13 @@ namespace TabulaRasa.Simulation.Movement.Execution
             Route = route;
             SpeedPerTick = speedPerTick;
             ArrivalTolerance = arrivalTolerance;
+            MaxRepathAttempts = maxRepathAttempts;
         }
 
         public string AgentId { get; }
         public AgentActionType RequestedAction { get; }
         public string? TargetId { get; }
-        public MovementRoute Route { get; }
+        public MovementRoute Route { get; set; }
         public float SpeedPerTick { get; }
         public float ArrivalTolerance { get; }
         public int CurrentWaypointIndex { get; set; }
@@ -32,5 +34,10 @@ namespace TabulaRasa.Simulation.Movement.Execution
         public string? FailureReason { get; set; }
         public int StuckTicks { get; set; }
         public int MaxStuckTicks { get; set; } = 3;
+        public int RepathCount { get; set; }
+        public int MaxRepathAttempts { get; set; }
+        public string? LastRepathReason { get; set; }
+        public float LastEffectiveSpeedPerTick { get; set; }
+        public float RouteCost => Route.TotalCost;
     }
 }

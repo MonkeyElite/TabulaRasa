@@ -52,6 +52,7 @@ export type SimulationConfig = {
   pathfinding: {
     allowDiagonalMovement: boolean;
     maxVisitedCells: number;
+    maxRepathAttempts: number;
   };
   enabledSystems: string[];
 };
@@ -89,6 +90,20 @@ export type OccupiedCell = {
   entityType: string;
 };
 
+export type TerrainType = "Plain" | "Road" | "Forest" | "Mud";
+
+export type GridTerrainCell = {
+  cell: GridCell;
+  terrainType: TerrainType | string;
+  traversalCost: number;
+  speedMultiplier: number;
+};
+
+export type EditableGridTerrainCell = {
+  cell: GridCell;
+  terrainType: TerrainType | string;
+};
+
 export type AgentNeeds = {
   hunger: number;
   thirst: number;
@@ -101,6 +116,7 @@ export type SimulationSnapshot = {
     width: number;
     height: number;
     blockedCells: GridCell[];
+    terrainCells: GridTerrainCell[];
     occupiedCells: OccupiedCell[];
   };
   agents: AgentSnapshot[];
@@ -179,6 +195,13 @@ export type MovementSnapshot = {
   speedPerTick: number;
   arrivalTolerance: number;
   failureReason: string | null;
+  routeCost: number;
+  repathCount: number;
+  maxRepathAttempts: number;
+  stuckTicks: number;
+  maxStuckTicks: number;
+  lastRepathReason: string | null;
+  lastEffectiveSpeedPerTick: number;
 };
 
 export type JobSnapshot = {
@@ -217,6 +240,7 @@ export type SimulationDraft = {
     width: number;
     height: number;
     blockedCells: GridCell[];
+    terrainCells: EditableGridTerrainCell[];
   };
   agents: EditableAgent[];
   food: EditableFood[];
@@ -233,7 +257,7 @@ export type SimulationDraftSchema = {
 export type EditableField = {
   path: string;
   label: string;
-  valueType: "number" | "string" | "boolean" | "gridCells" | string;
+  valueType: "number" | "string" | "boolean" | "gridCells" | "terrainCells" | string;
   isEditable: boolean;
   sourceType: string;
   sourceProperty: string;

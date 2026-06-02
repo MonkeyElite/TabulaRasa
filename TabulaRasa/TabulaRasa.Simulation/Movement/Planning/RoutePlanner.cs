@@ -37,6 +37,60 @@ namespace TabulaRasa.Simulation.Movement.Planning
             };
         }
 
+        public MovementRoute? ReplanRoute(
+            SimulationState state,
+            ActiveMovement movement,
+            out string failureReason)
+        {
+            failureReason = string.Empty;
+            AgentEntity? agent = state.World.Agents.FirstOrDefault(a => a.Id == movement.AgentId);
+
+            if (agent is null)
+            {
+                failureReason = "Agent does not exist.";
+                return null;
+            }
+
+            if (movement.RequestedAction == AgentActionType.Eat)
+            {
+                if (movement.TargetId is null)
+                {
+                    failureReason = "Eat action requires a target.";
+                    return null;
+                }
+
+                FoodEntity? food = state.World.Foods.FirstOrDefault(f => f.Id == movement.TargetId && !f.IsConsumed);
+
+                if (food is null)
+                {
+                    failureReason = "Target food is unavailable.";
+                    return null;
+                }
+
+                RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, food);
+
+                if (candidate is null)
+                {
+                    failureReason = "Target food is unreachable.";
+                    return null;
+                }
+
+                return candidate.Route;
+            }
+
+            MovementRoute? route = FindRouteToExactDestination(
+                state,
+                agent,
+                movement.Route.Destination);
+
+            if (route is null)
+            {
+                failureReason = "Destination is unreachable.";
+            }
+
+            return route;
+        }
+
         private RoutePlanningResult PlanEatRoute(SimulationState state, ActionRequest request)
         {
             if (request.TargetId is null)
@@ -75,7 +129,8 @@ namespace TabulaRasa.Simulation.Movement.Planning
                     request,
                     candidate.Route,
                     state.Config.MovementSpeedPerTick,
-                    DefaultArrivalTolerance));
+                    DefaultArrivalTolerance,
+                    state.Config.EffectivePathfinding.MaxRepathAttempts));
         }
 
         private RoutePlanningResult PlanWanderRoute(SimulationState state, ActionRequest request)
@@ -101,14 +156,15 @@ namespace TabulaRasa.Simulation.Movement.Planning
 
             GridCell destination = destinations[0];
             MovementRoute route = CreateRoute(
-                new GridPath([currentCell, destination]),
+                new GridPath([currentCell, destination], state.World.Grid.GetTraversalCost(destination)),
                 GetCellCenter(destination));
 
             return RoutePlanningResult.Success(CreateMovement(
                 request,
                 route,
                 state.Config.MovementSpeedPerTick,
-                DefaultArrivalTolerance));
+                DefaultArrivalTolerance,
+                state.Config.EffectivePathfinding.MaxRepathAttempts));
         }
 
         private RouteCandidate? FindBestRouteToInteractionPoint(
@@ -138,21 +194,43 @@ namespace TabulaRasa.Simulation.Movement.Planning
 
                 candidates.Add(new RouteCandidate(
                     CreateRoute(result.Path, point.StandPosition),
-                    result.Path.Cells.Count,
+                    result.Path.TotalCost,
                     agent.Position.DistanceTo(point.StandPosition)));
             }
 
             return candidates
-                .OrderBy(candidate => candidate.CellCount)
+                .OrderBy(candidate => candidate.TotalCost)
                 .ThenBy(candidate => candidate.Distance)
                 .FirstOrDefault();
+        }
+
+        private MovementRoute? FindRouteToExactDestination(
+            SimulationState state,
+            AgentEntity agent,
+            WorldPosition exactDestination)
+        {
+            GridCell startCell = SpatialQueries.GetCurrentCell(state.World, agent.Position);
+            GridCell destinationCell = exactDestination.ToGridCell();
+            PathResult result = _pathfinder.FindPath(
+                state.World.Grid,
+                new PathRequest(
+                    startCell,
+                    destinationCell,
+                    cell => CanAgentEnterCell(state, agent, cell),
+                    state.Config.EffectivePathfinding.AllowDiagonalMovement,
+                    state.Config.EffectivePathfinding.MaxVisitedCells));
+
+            return result.Succeeded && result.Path is not null
+                ? CreateRoute(result.Path, exactDestination)
+                : null;
         }
 
         private static ActiveMovement CreateMovement(
             ActionRequest request,
             MovementRoute route,
             float speedPerTick,
-            float arrivalTolerance)
+            float arrivalTolerance,
+            int maxRepathAttempts)
         {
             return new ActiveMovement(
                 request.AgentId,
@@ -160,7 +238,8 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 request.TargetId,
                 route,
                 speedPerTick,
-                arrivalTolerance);
+                arrivalTolerance,
+                maxRepathAttempts);
         }
 
         private static MovementRoute CreateRoute(GridPath path, WorldPosition exactDestination)
@@ -174,7 +253,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
 
             waypoints.Add(exactDestination);
 
-            return new MovementRoute(waypoints);
+            return new MovementRoute(waypoints, path.TotalCost);
         }
 
         private static WorldPosition GetCellCenter(GridCell cell)
@@ -191,6 +270,6 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 && !SpatialQueries.IsCellOccupied(state.World, cell, agent.Id);
         }
 
-        private sealed record RouteCandidate(MovementRoute Route, int CellCount, float Distance);
+        private sealed record RouteCandidate(MovementRoute Route, float TotalCost, float Distance);
     }
 }

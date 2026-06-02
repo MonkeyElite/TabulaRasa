@@ -43,34 +43,61 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
         }
 
         [Fact]
-        public void MovementExecutionSystem_WhenRouteBecomesBlocked_ReportsFailure()
+        public void MovementExecutionSystem_WhenRouteBecomesBlocked_ReplansRoute()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
-            WorldState world = WorldFactory.Create([agent], []);
+            WorldState world = WorldFactory.Create([agent], [], new TabulaRasa.World.Spatial.Grid.GridMap(3, 2));
             world.Grid.SetTraversable(new GridCell(1, 0), isTraversable: false);
             var state = new SimulationState(world, new SimulationTime(0), []);
             state.ActiveMovements.Add(new ActiveMovement(
                 agent.Id,
                 AgentActionType.Wander,
                 targetId: null,
-                new MovementRoute([new WorldPosition(1.5f, 0.5f)]),
+                new MovementRoute([new WorldPosition(1.5f, 0.5f), new WorldPosition(2.5f, 0.5f)]),
                 speedPerTick: 0.25f,
                 arrivalTolerance: 0.05f));
 
             new MovementExecutionSystem().Execute(state);
 
-            Assert.Empty(state.ActiveMovements);
-            ActionResult result = Assert.Single(state.ActionResults);
-            Assert.False(result.Succeeded);
-            Assert.Equal("Route became blocked.", result.Reason);
+            ActiveMovement movement = Assert.Single(state.ActiveMovements);
+            Assert.Equal(MovementStatus.Repathing, movement.Status);
+            Assert.Equal(1, movement.RepathCount);
+            Assert.Equal("Route became blocked.", movement.LastRepathReason);
+            Assert.Equal(new WorldPosition(2.5f, 0.5f), movement.Route.Destination);
+            Assert.Empty(state.ActionResults);
         }
 
         [Fact]
-        public void MovementExecutionSystem_WhenRouteBecomesOccupied_ReportsFailure()
+        public void MovementExecutionSystem_WhenRouteBecomesOccupied_ReplansRoute()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
             var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
-            WorldState world = WorldFactory.Create([agent], [food]);
+            WorldState world = WorldFactory.Create([agent], [food], new TabulaRasa.World.Spatial.Grid.GridMap(3, 2));
+            var state = new SimulationState(world, new SimulationTime(0), []);
+            state.ActiveMovements.Add(new ActiveMovement(
+                agent.Id,
+                AgentActionType.Wander,
+                targetId: null,
+                new MovementRoute([food.Position, new WorldPosition(2.5f, 0.5f)]),
+                speedPerTick: 1f,
+                arrivalTolerance: 0.05f));
+
+            new MovementExecutionSystem().Execute(state);
+
+            Assert.Equal(new WorldPosition(0.5f, 0.5f), agent.Position);
+            ActiveMovement movement = Assert.Single(state.ActiveMovements);
+            Assert.Equal(MovementStatus.Repathing, movement.Status);
+            Assert.Equal(1, movement.RepathCount);
+            Assert.Equal("Route became occupied.", movement.LastRepathReason);
+            Assert.Empty(state.ActionResults);
+        }
+
+        [Fact]
+        public void MovementExecutionSystem_WhenRepathDestinationIsUnreachable_ReportsFailure()
+        {
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
+            var food = new FoodEntity { Id = "food-1", Position = new WorldPosition(1.5f, 0.5f) };
+            WorldState world = WorldFactory.Create([agent], [food], new TabulaRasa.World.Spatial.Grid.GridMap(2, 1));
             var state = new SimulationState(world, new SimulationTime(0), []);
             state.ActiveMovements.Add(new ActiveMovement(
                 agent.Id,
@@ -82,11 +109,10 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
 
             new MovementExecutionSystem().Execute(state);
 
-            Assert.Equal(new WorldPosition(0.5f, 0.5f), agent.Position);
             Assert.Empty(state.ActiveMovements);
             ActionResult result = Assert.Single(state.ActionResults);
             Assert.False(result.Succeeded);
-            Assert.Equal("Route became occupied.", result.Reason);
+            Assert.Equal("Route became occupied. Could not replan route: Destination is unreachable.", result.Reason);
         }
 
         [Fact]
@@ -128,6 +154,33 @@ namespace TabulaRasa.UnitTests.Simulation.Movement
             ActionResult result = Assert.Single(state.ActionResults);
             Assert.False(result.Succeeded);
             Assert.Equal("Movement is stuck.", result.Reason);
+        }
+
+        [Fact]
+        public void MovementExecutionSystem_AppliesTerrainAndEnergySpeedModifiers()
+        {
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f) };
+            var grid = new TabulaRasa.World.Spatial.Grid.GridMap(2, 1);
+            grid.SetTerrain(new GridCell(1, 0), TabulaRasa.World.Spatial.Grid.GridTerrainType.Forest);
+            WorldState world = WorldFactory.Create([agent], [], grid);
+            var agentState = new AgentState(
+                agent.Id,
+                new AgentNeedState { Energy = 0.5f },
+                new DefaultAgentMind());
+            var state = new SimulationState(world, new SimulationTime(0), [agentState]);
+            state.ActiveMovements.Add(new ActiveMovement(
+                agent.Id,
+                AgentActionType.Wander,
+                targetId: null,
+                new MovementRoute([new WorldPosition(1.5f, 0.5f)]),
+                speedPerTick: 1f,
+                arrivalTolerance: 0.05f));
+
+            new MovementExecutionSystem().Execute(state);
+
+            Assert.Equal(new WorldPosition(1.0625f, 0.5f), agent.Position);
+            ActiveMovement movement = Assert.Single(state.ActiveMovements);
+            Assert.Equal(0.5625f, movement.LastEffectiveSpeedPerTick);
         }
 
         [Fact]

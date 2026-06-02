@@ -1,4 +1,4 @@
-import type { EditableAgent, EditableFood, GridCell, SimulationDraft } from "@/types/simulation";
+import type { EditableAgent, EditableFood, GridCell, SimulationDraft, TerrainType } from "@/types/simulation";
 
 export function updateAgentDraft(
   draft: SimulationDraft,
@@ -32,6 +32,22 @@ export function toggleBlockedCell(draft: SimulationDraft, cell: GridCell): Simul
       blockedCells: exists
         ? draft.grid.blockedCells.filter((candidate) => candidate.x !== cell.x || candidate.y !== cell.y)
         : [...draft.grid.blockedCells, cell]
+    }
+  };
+}
+
+export function setTerrainCell(draft: SimulationDraft, cell: GridCell, terrainType: TerrainType): SimulationDraft {
+  const terrainCells = draft.grid.terrainCells.filter(
+    (candidate) => candidate.cell.x !== cell.x || candidate.cell.y !== cell.y
+  );
+
+  return {
+    ...draft,
+    grid: {
+      ...draft.grid,
+      terrainCells: terrainType === "Plain"
+        ? terrainCells
+        : [...terrainCells, { cell, terrainType }]
     }
   };
 }

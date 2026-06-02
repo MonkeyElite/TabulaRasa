@@ -1,11 +1,15 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Execution;
+using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.World;
+using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Movement.Planning;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Mutation;
+using TabulaRasa.World.Queries;
 
 namespace TabulaRasa.Simulation.Movement.Execution
 {
@@ -13,15 +17,22 @@ namespace TabulaRasa.Simulation.Movement.Execution
     {
         private const string SourceSystem = "Movement Execution System";
         private readonly WorldMutationService _mutations;
+        private readonly RoutePlanner _routePlanner;
 
         public MovementExecutionSystem()
-            : this(new WorldMutationService())
+            : this(new WorldMutationService(), new RoutePlanner())
         {
         }
 
         public MovementExecutionSystem(WorldMutationService mutations)
+            : this(mutations, new RoutePlanner())
+        {
+        }
+
+        public MovementExecutionSystem(WorldMutationService mutations, RoutePlanner routePlanner)
         {
             _mutations = mutations;
+            _routePlanner = routePlanner;
         }
 
         public string Name => "Movement Execution System";
@@ -40,6 +51,11 @@ namespace TabulaRasa.Simulation.Movement.Execution
                     continue;
                 }
 
+                if (movement.Status == MovementStatus.Repathing)
+                {
+                    movement.Status = MovementStatus.InProgress;
+                }
+
                 if (movement.CurrentWaypointIndex >= movement.Route.Waypoints.Count)
                 {
                     CompleteMovement(state, movement);
@@ -48,14 +64,21 @@ namespace TabulaRasa.Simulation.Movement.Execution
 
                 WorldPosition waypoint = movement.Route.Waypoints[movement.CurrentWaypointIndex];
 
-                if (!state.World.Grid.IsTraversable(waypoint.ToGridCell()))
+                if (IsRouteCellInvalid(state, agent, waypoint.ToGridCell(), out string invalidReason))
                 {
-                    FailMovement(state, movement, "Route became blocked.");
+                    if (TryRepath(state, movement, invalidReason, out string repathFailureReason))
+                    {
+                        continue;
+                    }
+
+                    FailMovement(state, movement, repathFailureReason);
                     continue;
                 }
 
                 WorldPosition previousPosition = agent.Position;
-                WorldPosition nextPosition = MoveToward(agent.Position, waypoint, movement.SpeedPerTick);
+                float effectiveSpeed = GetEffectiveSpeedPerTick(state, agent, movement, waypoint.ToGridCell());
+                movement.LastEffectiveSpeedPerTick = effectiveSpeed;
+                WorldPosition nextPosition = MoveToward(agent.Position, waypoint, effectiveSpeed);
                 WorldMutationResult moveResult = _mutations.TryMoveEntity(
                     state.World,
                     agent.Id,
@@ -63,7 +86,14 @@ namespace TabulaRasa.Simulation.Movement.Execution
 
                 if (!moveResult.Succeeded)
                 {
-                    FailMovement(state, movement, ToMovementFailureReason(moveResult));
+                    string reason = ToMovementFailureReason(moveResult);
+                    if (moveResult.FailureKind is WorldMutationFailureKind.BlockedCell or WorldMutationFailureKind.OccupiedCell
+                        && TryRepath(state, movement, reason, out string repathFailureReason))
+                    {
+                        continue;
+                    }
+
+                    FailMovement(state, movement, reason);
                     continue;
                 }
 
@@ -76,7 +106,14 @@ namespace TabulaRasa.Simulation.Movement.Execution
 
                     if (!snapResult.Succeeded)
                     {
-                        FailMovement(state, movement, ToMovementFailureReason(snapResult));
+                        string reason = ToMovementFailureReason(snapResult);
+                        if (snapResult.FailureKind is WorldMutationFailureKind.BlockedCell or WorldMutationFailureKind.OccupiedCell
+                            && TryRepath(state, movement, reason, out string repathFailureReason))
+                        {
+                            continue;
+                        }
+
+                        FailMovement(state, movement, reason);
                         continue;
                     }
 
@@ -103,6 +140,97 @@ namespace TabulaRasa.Simulation.Movement.Execution
                     CompleteMovement(state, movement);
                 }
             }
+        }
+
+        private static bool IsRouteCellInvalid(
+            SimulationState state,
+            AgentEntity agent,
+            GridCell cell,
+            out string reason)
+        {
+            if (!state.World.Grid.IsTraversable(cell))
+            {
+                reason = "Route became blocked.";
+                return true;
+            }
+
+            if (SpatialQueries.IsCellOccupied(state.World, cell, agent.Id))
+            {
+                reason = "Route became occupied.";
+                return true;
+            }
+
+            reason = string.Empty;
+            return false;
+        }
+
+        private bool TryRepath(
+            SimulationState state,
+            ActiveMovement movement,
+            string reason,
+            out string failureReason)
+        {
+            failureReason = reason;
+
+            if (movement.RepathCount >= movement.MaxRepathAttempts)
+            {
+                failureReason = $"{reason} Maximum repath attempts reached.";
+                return false;
+            }
+
+            MovementRoute? route = _routePlanner.ReplanRoute(state, movement, out string routeFailureReason);
+
+            if (route is null)
+            {
+                failureReason = $"{reason} Could not replan route: {routeFailureReason}";
+                return false;
+            }
+
+            movement.Route = route;
+            movement.CurrentWaypointIndex = 0;
+            movement.StuckTicks = 0;
+            movement.RepathCount++;
+            movement.LastRepathReason = reason;
+            movement.LastEffectiveSpeedPerTick = 0;
+            movement.Status = MovementStatus.Repathing;
+
+            state.EmitEvent(
+                "movement.replanned",
+                SourceSystem,
+                $"{movement.AgentId} replanned movement for {movement.RequestedAction}: {reason}",
+                movement.AgentId,
+                new Dictionary<string, string>
+                {
+                    ["actionType"] = movement.RequestedAction.ToString(),
+                    ["targetId"] = movement.TargetId ?? "",
+                    ["reason"] = reason,
+                    ["routeCost"] = movement.RouteCost.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                    ["repathCount"] = movement.RepathCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                });
+
+            return true;
+        }
+
+        private static float GetEffectiveSpeedPerTick(
+            SimulationState state,
+            AgentEntity agent,
+            ActiveMovement movement,
+            GridCell nextCell)
+        {
+            float terrainMultiplier = state.World.Grid.GetSpeedMultiplier(nextCell);
+            float energyMultiplier = GetEnergySpeedMultiplier(state.GetAgentById(agent.Id));
+
+            return movement.SpeedPerTick * terrainMultiplier * energyMultiplier;
+        }
+
+        private static float GetEnergySpeedMultiplier(AgentState? agentState)
+        {
+            if (agentState is null || agentState.NeedState.Energy >= 1)
+            {
+                return 1f;
+            }
+
+            return agentState.NeedState.Energy > 0 ? 0.75f : 0.5f;
         }
 
         private static string ToMovementFailureReason(WorldMutationResult result)

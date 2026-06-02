@@ -67,7 +67,8 @@ const status: SimulationStatus = {
     movementSpeedPerTick: 0.25,
     pathfinding: {
       allowDiagonalMovement: false,
-      maxVisitedCells: 1000
+      maxVisitedCells: 1000,
+      maxRepathAttempts: 3
     },
     enabledSystems: ["need-decay", "planning"]
   },
@@ -86,6 +87,7 @@ const snapshot: SimulationSnapshot = {
     width: 10,
     height: 10,
     blockedCells: [],
+    terrainCells: [],
     occupiedCells: []
   },
   agents: [],

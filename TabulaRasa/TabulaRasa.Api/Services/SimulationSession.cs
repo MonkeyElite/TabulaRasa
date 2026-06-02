@@ -421,6 +421,16 @@ namespace TabulaRasa.Api.Services
                 grid.SetTraversable(new GridCell(blockedCell.X, blockedCell.Y), false);
             }
 
+            foreach (EditableGridTerrainCellDto terrainCell in draft.Grid.TerrainCells)
+            {
+                GridTerrainType terrainType = Enum.Parse<GridTerrainType>(
+                    terrainCell.TerrainType,
+                    ignoreCase: true);
+                grid.SetTerrain(
+                    new GridCell(terrainCell.Cell.X, terrainCell.Cell.Y),
+                    terrainType);
+            }
+
             List<AgentEntity> agents = draft.Agents.Select(agent => new AgentEntity
             {
                 Id = agent.Id.Trim(),
@@ -493,6 +503,12 @@ namespace TabulaRasa.Api.Services
                 return errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
             }
 
+            if (draft.Grid.TerrainCells is null)
+            {
+                Add("grid.terrainCells", "Terrain cells are required.");
+                return errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
+            }
+
             AddIf(draft.Grid.Width <= 0, "grid.width", "Grid width must be greater than zero.");
             AddIf(draft.Grid.Height <= 0, "grid.height", "Grid height must be greater than zero.");
 
@@ -527,6 +543,30 @@ namespace TabulaRasa.Api.Services
                     cell.X < 0 || cell.Y < 0 || cell.X >= draft.Grid.Width || cell.Y >= draft.Grid.Height,
                     $"grid.blockedCells[{i}]",
                     "Blocked cell must be inside the grid.");
+            }
+
+            HashSet<GridCell> terrainCells = [];
+
+            for (int i = 0; i < draft.Grid.TerrainCells.Count; i++)
+            {
+                EditableGridTerrainCellDto terrainCell = draft.Grid.TerrainCells[i];
+                string prefix = $"grid.terrainCells[{i}]";
+                GridCell cell = new(terrainCell.Cell.X, terrainCell.Cell.Y);
+
+                AddIf(
+                    cell.X < 0 || cell.Y < 0 || cell.X >= draft.Grid.Width || cell.Y >= draft.Grid.Height,
+                    prefix,
+                    "Terrain cell must be inside the grid.");
+
+                if (!terrainCells.Add(cell))
+                {
+                    Add(prefix, "Terrain cell must be unique.");
+                }
+
+                if (!Enum.TryParse(terrainCell.TerrainType, ignoreCase: true, out GridTerrainType _))
+                {
+                    Add($"{prefix}.terrainType", "Terrain type is invalid.");
+                }
             }
 
             return errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());

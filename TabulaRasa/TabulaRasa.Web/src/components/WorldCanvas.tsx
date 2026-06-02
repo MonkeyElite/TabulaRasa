@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import * as PIXI from "pixi.js";
-import type { GridCell, HoverInfo, OccupiedCell, Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
+import type { GridCell, HoverInfo, OccupiedCell, Selection, SimulationDraft, SimulationSnapshot, TerrainType } from "@/types/simulation";
 
 type Props = {
   snapshot: SimulationSnapshot | null;
@@ -10,6 +10,7 @@ type Props = {
   editing: boolean;
   canEdit: boolean;
   selection: Selection;
+  showNavigationOverlay: boolean;
   onSelect: (selection: Selection) => void;
   onMoveAgent: (id: string, cell: GridCell) => void;
   onMoveFood: (id: string, cell: GridCell) => void;
@@ -18,6 +19,12 @@ type Props = {
 };
 
 const cellSize = 58;
+const terrainProfiles: Record<TerrainType, { terrainType: TerrainType; traversalCost: number; speedMultiplier: number; color: number }> = {
+  Plain: { terrainType: "Plain", traversalCost: 1, speedMultiplier: 1, color: 0x20262b },
+  Road: { terrainType: "Road", traversalCost: 0.5, speedMultiplier: 1.25, color: 0x4b4f58 },
+  Forest: { terrainType: "Forest", traversalCost: 2, speedMultiplier: 0.75, color: 0x26543a },
+  Mud: { terrainType: "Mud", traversalCost: 3, speedMultiplier: 0.5, color: 0x5c4632 }
+};
 
 export function WorldCanvas({
   snapshot,
@@ -25,11 +32,12 @@ export function WorldCanvas({
   editing,
   canEdit,
   selection,
+  showNavigationOverlay,
   onSelect,
   onMoveAgent,
   onMoveFood,
-  onToggleBlockedCell,
-  onHover
+  onHover,
+  onToggleBlockedCell
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<PIXI.Application | null>(null);
@@ -140,7 +148,7 @@ export function WorldCanvas({
   useEffect(() => {
     renderWorld();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot, draft, editing, canEdit, selection]);
+  }, [snapshot, draft, editing, canEdit, selection, showNavigationOverlay]);
 
   function renderWorld() {
     const world = worldRef.current;
@@ -155,8 +163,10 @@ export function WorldCanvas({
 
     const blocked = new Set(snapshot.grid.blockedCells.map((cell) => `${cell.x}:${cell.y}`));
     const draftBlocked = new Set(draft?.grid.blockedCells.map((cell) => `${cell.x}:${cell.y}`));
+    const terrainByCell = buildTerrainMap(snapshot, draft, editing);
     const occupiedCells = editing && draft ? draftOccupiedCells(draft) : snapshot.grid.occupiedCells;
     const occupiedByCell = new Map<string, OccupiedCell[]>();
+    const agentsById = new Map(snapshot.agents.map((agent) => [agent.id, agent]));
 
     for (const occupied of occupiedCells) {
       const key = `${occupied.cell.x}:${occupied.cell.y}`;
@@ -167,9 +177,10 @@ export function WorldCanvas({
       for (let x = 0; x < snapshot.grid.width; x++) {
         const isBlocked = editing && draft ? draftBlocked.has(`${x}:${y}`) : blocked.has(`${x}:${y}`);
         const occupants = occupiedByCell.get(`${x}:${y}`) ?? [];
+        const terrain = terrainByCell.get(`${x}:${y}`) ?? terrainProfile("Plain");
         const cell = new PIXI.Graphics();
         cell.rect(x * cellSize, y * cellSize, cellSize - 1, cellSize - 1);
-        cell.fill(isBlocked ? 0x17191d : occupants.length > 0 ? 0x24394a : (x + y) % 2 === 0 ? 0x20262b : 0x243225);
+        cell.fill(cellFill(isBlocked, occupants, terrain.terrainType, showNavigationOverlay, x, y));
         cell.stroke({ color: occupants.length > 0 ? 0x6aa8ff : 0x3a414d, width: occupants.length > 0 ? 2 : 1 });
         cell.eventMode = "static";
         cell.cursor = editing && canEdit ? "pointer" : "default";
@@ -184,7 +195,7 @@ export function WorldCanvas({
         cell.on("pointerover", (event) =>
           onHover({
             label: `Cell ${x}, ${y}`,
-            detail: cellDetail(isBlocked, occupants),
+            detail: cellDetail(isBlocked, occupants, terrain),
             x: event.global.x,
             y: event.global.y
           })
@@ -192,7 +203,7 @@ export function WorldCanvas({
         cell.on("pointermove", (event) =>
           onHover({
             label: `Cell ${x}, ${y}`,
-            detail: cellDetail(isBlocked, occupants),
+            detail: cellDetail(isBlocked, occupants, terrain),
             x: event.global.x,
             y: event.global.y
           })
@@ -207,25 +218,34 @@ export function WorldCanvas({
         continue;
       }
 
+      const agent = agentsById.get(movement.agentId);
       const route = new PIXI.Graphics();
       route.moveTo(
-        movement.waypoints[0].x * cellSize + cellSize / 2,
-        movement.waypoints[0].y * cellSize + cellSize / 2
+        (agent?.position.x ?? movement.waypoints[0].x) * cellSize,
+        (agent?.position.y ?? movement.waypoints[0].y) * cellSize
       );
 
-      for (const waypoint of movement.waypoints.slice(1)) {
-        route.lineTo(waypoint.x * cellSize + cellSize / 2, waypoint.y * cellSize + cellSize / 2);
+      for (const waypoint of movement.waypoints) {
+        route.lineTo(waypoint.x * cellSize, waypoint.y * cellSize);
       }
 
-      route.stroke({ color: 0x6aa8ff, width: 3, alpha: 0.75 });
+      route.stroke({ color: routeColor(movement.status), width: 3, alpha: 0.78 });
       world.addChild(route);
+
+      if (showNavigationOverlay) {
+        const destination = new PIXI.Graphics();
+        destination.circle(movement.destination.x * cellSize, movement.destination.y * cellSize, 7);
+        destination.fill(routeColor(movement.status));
+        destination.stroke({ color: 0xffffff, width: 2, alpha: 0.75 });
+        world.addChild(destination);
+      }
     }
 
     const foodItems = editing && draft ? draft.food : snapshot.food;
     for (const food of foodItems) {
       const graphic = new PIXI.Graphics();
-      const x = food.position.x * cellSize + cellSize / 2;
-      const y = food.position.y * cellSize + cellSize / 2;
+      const x = food.position.x * cellSize;
+      const y = food.position.y * cellSize;
       const selected = selection?.type === "food" && selection.id === food.id;
       graphic.circle(x, y, selected ? 16 : 12);
       graphic.fill(food.isConsumed ? 0x5a5f68 : 0xf4c95d);
@@ -261,8 +281,8 @@ export function WorldCanvas({
     const agents = editing && draft ? draft.agents : snapshot.agents;
     for (const agent of agents) {
       const graphic = new PIXI.Graphics();
-      const x = agent.position.x * cellSize + cellSize / 2;
-      const y = agent.position.y * cellSize + cellSize / 2;
+      const x = agent.position.x * cellSize;
+      const y = agent.position.y * cellSize;
       const selected = selection?.type === "agent" && selection.id === agent.id;
       graphic.roundRect(x - 17, y - 17, 34, 34, 6);
       graphic.fill(0x54c475);
@@ -351,11 +371,70 @@ function draftOccupiedCells(draft: SimulationDraft): OccupiedCell[] {
   ];
 }
 
-function cellDetail(isBlocked: boolean, occupants: OccupiedCell[]) {
+function cellFill(
+  isBlocked: boolean,
+  occupants: OccupiedCell[],
+  terrainType: string,
+  showNavigationOverlay: boolean,
+  x: number,
+  y: number
+) {
+  if (isBlocked) {
+    return 0x17191d;
+  }
+
+  if (showNavigationOverlay && isTerrainType(terrainType) && terrainType !== "Plain") {
+    return terrainProfiles[terrainType].color;
+  }
+
+  return occupants.length > 0 ? 0x24394a : (x + y) % 2 === 0 ? 0x20262b : 0x243225;
+}
+
+function routeColor(status: string) {
+  if (status === "Repathing") {
+    return 0xf4c95d;
+  }
+
+  if (status === "Failed") {
+    return 0xe06767;
+  }
+
+  return 0x6aa8ff;
+}
+
+function buildTerrainMap(snapshot: SimulationSnapshot, draft: SimulationDraft | null, editing: boolean) {
+  const terrainCells = editing && draft
+    ? draft.grid.terrainCells.map((cell) => ({
+        cell: cell.cell,
+        ...terrainProfile(cell.terrainType)
+      }))
+    : snapshot.grid.terrainCells.map((cell) => ({
+        cell: cell.cell,
+        terrainType: cell.terrainType,
+        traversalCost: cell.traversalCost,
+        speedMultiplier: cell.speedMultiplier
+      }));
+
+  return new Map(terrainCells.map((cell) => [`${cell.cell.x}:${cell.cell.y}`, cell]));
+}
+
+function terrainProfile(terrainType: string) {
+  return isTerrainType(terrainType) ? terrainProfiles[terrainType] : terrainProfiles.Plain;
+}
+
+function isTerrainType(value: string): value is TerrainType {
+  return value === "Plain" || value === "Road" || value === "Forest" || value === "Mud";
+}
+
+function cellDetail(
+  isBlocked: boolean,
+  occupants: OccupiedCell[],
+  terrain: { terrainType: string; traversalCost: number; speedMultiplier: number }
+) {
   const state = isBlocked ? "blocked" : "open";
   const occupied = occupants.length === 0
     ? "unoccupied"
     : `occupied by ${occupants.map((occupant) => occupant.entityId).join(", ")}`;
 
-  return `${state} - ${occupied}`;
+  return `${state} - ${terrain.terrainType} cost ${formatNumber(terrain.traversalCost)} speed x${formatNumber(terrain.speedMultiplier)} - ${occupied}`;
 }

@@ -7,7 +7,8 @@ namespace TabulaRasa.Simulation.Configuration
 
     public sealed record PathfindingConfig(
         bool AllowDiagonalMovement = false,
-        int MaxVisitedCells = 1_000);
+        int MaxVisitedCells = 1_000,
+        int MaxRepathAttempts = 3);
 
     public sealed record SimulationConfig(
         int Seed = 12345,

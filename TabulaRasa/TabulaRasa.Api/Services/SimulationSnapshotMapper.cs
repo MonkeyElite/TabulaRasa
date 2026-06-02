@@ -13,6 +13,7 @@ using TabulaRasa.Simulation.Tasks.Jobs;
 using TabulaRasa.Simulation.Tasks.Reservations;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
+using TabulaRasa.World.Spatial.Grid;
 using TaskStatus = TabulaRasa.Simulation.Tasks.Definitions.TaskStatus;
 
 namespace TabulaRasa.Api.Services
@@ -48,7 +49,8 @@ namespace TabulaRasa.Api.Services
                 new EditableGridDto(
                     state.World.Grid.Width,
                     state.World.Grid.Height,
-                    state.World.Grid.BlockedCells.Select(ToGridCell).ToList()),
+                    state.World.Grid.BlockedCells.Select(ToGridCell).ToList(),
+                    state.World.Grid.TerrainCells.Select(ToEditableTerrainCell).ToList()),
                 state.World.Agents.Select(agent => new EditableAgentDto(
                     agent.Id,
                     ToPosition(agent.Position),
@@ -79,7 +81,8 @@ namespace TabulaRasa.Api.Services
                 config.MovementSpeedPerTick,
                 new PathfindingConfigDto(
                     config.EffectivePathfinding.AllowDiagonalMovement,
-                    config.EffectivePathfinding.MaxVisitedCells),
+                    config.EffectivePathfinding.MaxVisitedCells,
+                    config.EffectivePathfinding.MaxRepathAttempts),
                 config.EffectiveEnabledSystems.ToList());
         }
 
@@ -104,7 +107,8 @@ namespace TabulaRasa.Api.Services
                     dto.MovementSpeedPerTick,
                     new PathfindingConfig(
                         dto.Pathfinding.AllowDiagonalMovement,
-                        dto.Pathfinding.MaxVisitedCells),
+                        dto.Pathfinding.MaxVisitedCells,
+                        dto.Pathfinding.MaxRepathAttempts),
                     dto.EnabledSystems);
         }
 
@@ -115,7 +119,10 @@ namespace TabulaRasa.Api.Services
                 new EditableGridDto(
                     snapshot.Grid.Width,
                     snapshot.Grid.Height,
-                    snapshot.Grid.BlockedCells),
+                    snapshot.Grid.BlockedCells,
+                    snapshot.Grid.TerrainCells.Select(cell => new EditableGridTerrainCellDto(
+                        cell.Cell,
+                        cell.TerrainType)).ToList()),
                 snapshot.Agents.Select(agent => new EditableAgentDto(
                     agent.Id,
                     agent.Position,
@@ -133,6 +140,7 @@ namespace TabulaRasa.Api.Services
                 state.World.Grid.Width,
                 state.World.Grid.Height,
                 state.World.Grid.BlockedCells.Select(ToGridCell).ToList(),
+                state.World.Grid.TerrainCells.Select(ToTerrainCell).ToList(),
                 SpatialQueries.GetOccupiedCells(state.World).Select(ToOccupiedCell).ToList());
         }
 
@@ -182,7 +190,14 @@ namespace TabulaRasa.Api.Services
                 movement.CurrentWaypointIndex,
                 movement.SpeedPerTick,
                 movement.ArrivalTolerance,
-                movement.FailureReason);
+                movement.FailureReason,
+                movement.RouteCost,
+                movement.RepathCount,
+                movement.MaxRepathAttempts,
+                movement.StuckTicks,
+                movement.MaxStuckTicks,
+                movement.LastRepathReason,
+                movement.LastEffectiveSpeedPerTick);
         }
 
         private static JobSnapshotDto ToJob(JobInstance job)
@@ -275,6 +290,24 @@ namespace TabulaRasa.Api.Services
         private static GridCellDto ToGridCell(GridCell cell)
         {
             return new GridCellDto(cell.X, cell.Y);
+        }
+
+        private static GridTerrainCellDto ToTerrainCell(GridTerrainCell terrainCell)
+        {
+            GridTerrainProfile profile = GridTerrainProfile.For(terrainCell.TerrainType);
+
+            return new GridTerrainCellDto(
+                ToGridCell(terrainCell.Cell),
+                terrainCell.TerrainType.ToString(),
+                profile.TraversalCost,
+                profile.SpeedMultiplier);
+        }
+
+        private static EditableGridTerrainCellDto ToEditableTerrainCell(GridTerrainCell terrainCell)
+        {
+            return new EditableGridTerrainCellDto(
+                ToGridCell(terrainCell.Cell),
+                terrainCell.TerrainType.ToString());
         }
 
         private static OccupiedCellDto ToOccupiedCell(OccupiedCell occupiedCell)

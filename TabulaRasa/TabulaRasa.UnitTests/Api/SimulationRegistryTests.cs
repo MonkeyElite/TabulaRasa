@@ -156,7 +156,11 @@ namespace TabulaRasa.UnitTests.Api
             SimulationDraftDto draft = session.GetDraft() with
             {
                 Tick = 12,
-                Grid = new EditableGridDto(8, 8, [new GridCellDto(4, 4)]),
+                Grid = new EditableGridDto(
+                    8,
+                    8,
+                    [new GridCellDto(4, 4)],
+                    [new EditableGridTerrainCellDto(new GridCellDto(2, 2), "Forest")]),
                 Agents =
                 [
                     new EditableAgentDto(
@@ -178,6 +182,7 @@ namespace TabulaRasa.UnitTests.Api
             Assert.Equal(12, result.Snapshot.Tick);
             Assert.Equal("agent-custom", result.Snapshot.Agents.Single().Id);
             Assert.Equal("food-custom", result.Snapshot.Food.Single().Id);
+            Assert.Equal("Forest", result.Snapshot.Grid.TerrainCells.Single().TerrainType);
             Assert.Null(session.GetSnapshot(0));
             Assert.Equal(7, session.GetStatus().Config.Seed);
         }
@@ -194,6 +199,34 @@ namespace TabulaRasa.UnitTests.Api
             Assert.Contains(schema.AgentFields, field => field.Path == "needs.hunger" && field.SourceType.EndsWith("AgentNeedState"));
             Assert.Contains(schema.FoodFields, field => field.Path == "isConsumed" && field.SourceType.EndsWith("FoodEntity"));
             Assert.Contains(schema.GridFields, field => field.Path == "grid.blockedCells" && field.SourceType.EndsWith("GridMap"));
+            Assert.Contains(schema.GridFields, field => field.Path == "grid.terrainCells" && field.SourceType.EndsWith("GridMap"));
+        }
+
+        [Fact]
+        public void RestartFromDraft_RejectsInvalidTerrainCells()
+        {
+            using SimulationRegistry registry = new();
+            SimulationSession session = registry.List().Select(summary => registry.Get(summary.SimulationId)!).Single();
+            SimulationDraftDto draft = session.GetDraft() with
+            {
+                Grid = new EditableGridDto(
+                    3,
+                    3,
+                    [],
+                    [
+                        new EditableGridTerrainCellDto(new GridCellDto(1, 1), "Forest"),
+                        new EditableGridTerrainCellDto(new GridCellDto(1, 1), "Mud"),
+                        new EditableGridTerrainCellDto(new GridCellDto(4, 1), "Road"),
+                        new EditableGridTerrainCellDto(new GridCellDto(2, 2), "Bog")
+                    ])
+            };
+
+            RestartFromDraftResult result = registry.RestartFromDraft(session.SimulationId, draft);
+
+            Assert.False(result.Succeeded);
+            Assert.Contains("grid.terrainCells[1]", result.Errors.Keys);
+            Assert.Contains("grid.terrainCells[2]", result.Errors.Keys);
+            Assert.Contains("grid.terrainCells[3].terrainType", result.Errors.Keys);
         }
 
         private static SimulationConfigDto Config(
@@ -218,7 +251,7 @@ namespace TabulaRasa.UnitTests.Api
                 new NeedDecayConfigDto(1, 1, -1),
                 20,
                 0.25f,
-                new PathfindingConfigDto(false, 1_000),
+                new PathfindingConfigDto(false, 1_000, 3),
                 [
                     "need-decay",
                     "planning",

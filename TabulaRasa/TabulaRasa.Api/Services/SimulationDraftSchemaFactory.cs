@@ -20,7 +20,8 @@ namespace TabulaRasa.Api.Services
                 [
                     Field<GridMap>("grid.width", "Width", "number", nameof(GridMap.Width)),
                     Field<GridMap>("grid.height", "Height", "number", nameof(GridMap.Height)),
-                    Field<GridMap>("grid.blockedCells", "Blocked cells", "gridCells", nameof(GridMap.BlockedCells))
+                    Field<GridMap>("grid.blockedCells", "Blocked cells", "gridCells", nameof(GridMap.BlockedCells)),
+                    Field<GridMap>("grid.terrainCells", "Terrain cells", "terrainCells", nameof(GridMap.TerrainCells))
                 ],
                 AgentFields:
                 [

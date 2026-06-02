@@ -178,7 +178,8 @@ namespace TabulaRasa.Simulation.State
                 MovementSpeedPerTick = ClampFinite(config.MovementSpeedPerTick, 0.01f, 100),
                 Pathfinding = new PathfindingConfig(
                     pathfinding.AllowDiagonalMovement,
-                    Math.Clamp(pathfinding.MaxVisitedCells, 1, 1_000_000)),
+                    Math.Clamp(pathfinding.MaxVisitedCells, 1, 1_000_000),
+                    Math.Clamp(pathfinding.MaxRepathAttempts, 0, 1_000)),
                 EnabledSystems = enabledSystems.Count == 0
                     ? SimulationConfig.DefaultEnabledSystems
                     : enabledSystems

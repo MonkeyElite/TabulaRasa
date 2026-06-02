@@ -4,6 +4,7 @@ import {
   addFoodDraft,
   removeAgentDraft,
   removeFoodDraft,
+  setTerrainCell,
   toggleBlockedCell,
   updateAgentDraft,
   updateFoodDraft
@@ -13,7 +14,7 @@ import type { SimulationDraft } from "@/types/simulation";
 
 const draft: SimulationDraft = {
   tick: 0,
-  grid: { width: 10, height: 10, blockedCells: [] },
+  grid: { width: 10, height: 10, blockedCells: [], terrainCells: [] },
   agents: [{ id: "agent-1", position: { x: 0.5, y: 1 }, needs: { hunger: 1, thirst: 2, energy: 3 } }],
   food: [{ id: "food-1", position: { x: 1, y: 1 }, isConsumed: false }]
 };
@@ -40,6 +41,14 @@ describe("draft helpers", () => {
 
     expect(blocked.grid.blockedCells).toEqual([{ x: 2, y: 3 }]);
     expect(unblocked.grid.blockedCells).toEqual([]);
+  });
+
+  it("sets and clears terrain cells", () => {
+    const forest = setTerrainCell(draft, { x: 2, y: 3 }, "Forest");
+    const plain = setTerrainCell(forest, { x: 2, y: 3 }, "Plain");
+
+    expect(forest.grid.terrainCells).toEqual([{ cell: { x: 2, y: 3 }, terrainType: "Forest" }]);
+    expect(plain.grid.terrainCells).toEqual([]);
   });
 
   it("reads and writes nested fields by path", () => {

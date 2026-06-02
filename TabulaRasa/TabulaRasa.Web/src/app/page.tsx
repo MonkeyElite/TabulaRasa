@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Copy,
+  Map,
   Pause,
   Play,
   Plus,
@@ -19,7 +20,7 @@ import { EventLogPanel, RuntimePanel } from "@/components/DebugPanels";
 import { Inspector } from "@/components/Inspector";
 import { WorldCanvas } from "@/components/WorldCanvas";
 import { simulationApi } from "@/lib/api";
-import { toggleBlockedCell, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
+import { setTerrainCell, toggleBlockedCell, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
 import type {
   GridCell,
   HoverInfo,
@@ -64,7 +65,8 @@ const defaultConfig: SimulationConfig = {
   movementSpeedPerTick: 0.25,
   pathfinding: {
     allowDiagonalMovement: false,
-    maxVisitedCells: 1000
+    maxVisitedCells: 1000,
+    maxRepathAttempts: 3
   },
   enabledSystems: systemOptions.map(([id]) => id)
 };
@@ -86,6 +88,7 @@ export default function Home() {
   const [eventType, setEventType] = useState("all");
   const [editing, setEditing] = useState(false);
   const [hover, setHover] = useState<HoverInfo>(null);
+  const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState("Simulation");
@@ -391,6 +394,14 @@ export default function Home() {
         <button className="icon" onClick={handleReset} title="Reset" disabled={!activeSimulationId}>
           <RotateCcw size={18} />
         </button>
+        <button
+          className={`icon ${showNavigationOverlay ? "selected" : ""}`}
+          onClick={() => setShowNavigationOverlay((value) => !value)}
+          title="Toggle path and cost layer"
+          disabled={!snapshot}
+        >
+          <Map size={18} />
+        </button>
         <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))} title="Tick speed">
           <option value={1000}>1.0s</option>
           <option value={500}>0.5s</option>
@@ -463,6 +474,7 @@ export default function Home() {
             editing={editing}
             canEdit={canEdit}
             selection={selection}
+            showNavigationOverlay={showNavigationOverlay}
             onSelect={setSelection}
             onMoveAgent={moveAgent}
             onMoveFood={moveFood}
@@ -486,6 +498,7 @@ export default function Home() {
             editing={editing}
             canEdit={canEdit}
             onDraftChange={setDraft}
+            onTerrainChange={(cell, terrainType) => draft && setDraft(setTerrainCell(draft, cell, terrainType))}
           />
           <RuntimePanel
             status={status}
@@ -699,6 +712,12 @@ function ConfigFields({
         value={config.pathfinding.maxVisitedCells}
         disabled={disabled}
         onChange={(maxVisitedCells) => onChange({ ...config, pathfinding: { ...config.pathfinding, maxVisitedCells } })}
+      />
+      <NumberConfigField
+        label="Repaths"
+        value={config.pathfinding.maxRepathAttempts}
+        disabled={disabled}
+        onChange={(maxRepathAttempts) => onChange({ ...config, pathfinding: { ...config.pathfinding, maxRepathAttempts } })}
       />
       <label className="field checkbox-field">
         <span>Diagonal</span>

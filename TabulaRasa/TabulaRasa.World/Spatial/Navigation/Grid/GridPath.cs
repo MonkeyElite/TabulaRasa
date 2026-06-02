@@ -4,7 +4,7 @@ namespace TabulaRasa.World.Spatial.Navigation.Grid
 {
     public sealed record GridPath
     {
-        public GridPath(IReadOnlyList<GridCell> cells)
+        public GridPath(IReadOnlyList<GridCell> cells, float totalCost = 0)
         {
             if (cells.Count == 0)
             {
@@ -12,9 +12,11 @@ namespace TabulaRasa.World.Spatial.Navigation.Grid
             }
 
             Cells = cells;
+            TotalCost = totalCost;
         }
 
         public IReadOnlyList<GridCell> Cells { get; }
+        public float TotalCost { get; }
         public GridCell Start => Cells[0];
         public GridCell Destination => Cells[^1];
     }

@@ -82,7 +82,8 @@ const config = {
   movementSpeedPerTick: 0.25,
   pathfinding: {
     allowDiagonalMovement: false,
-    maxVisitedCells: 1000
+    maxVisitedCells: 1000,
+    maxRepathAttempts: 3
   },
   enabledSystems: ["need-decay", "planning"]
 };

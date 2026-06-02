@@ -1,6 +1,7 @@
 "use client";
 
-import type { EditableField, GridCell, SimulationDraftSchema } from "@/types/simulation";
+import React from "react";
+import type { EditableField, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
 import { addAgentDraft, addFoodDraft, removeAgentDraft, removeFoodDraft, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
 import { getValue, setValue } from "@/lib/objectPath";
@@ -14,9 +15,10 @@ type Props = {
   editing: boolean;
   canEdit: boolean;
   onDraftChange: (draft: SimulationDraft) => void;
+  onTerrainChange: (cell: GridCell, terrainType: TerrainType) => void;
 };
 
-export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange }: Props) {
+export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange, onTerrainChange }: Props) {
   const editable = editing && canEdit && draft;
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
   const listedFood = editable ? draft.food : snapshot?.food ?? [];
@@ -32,6 +34,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
   const blockedCells = (editable ? draft.grid.blockedCells : snapshot?.grid.blockedCells) ?? [];
   const cellIsBlocked = selectedCell ? blockedCells.some((cell) => sameCell(cell, selectedCell)) : false;
   const cellOccupants = selectedCell ? getCellOccupants(snapshot, draft, Boolean(editable), selectedCell) : [];
+  const selectedCellTerrain = selectedCell ? getCellTerrain(snapshot, draft, Boolean(editable), selectedCell) : terrainProfile("Plain");
 
   return (
     <aside className="inspector">
@@ -62,7 +65,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
                 />
               ))}
               {schema.gridFields
-                .filter((field) => field.valueType !== "gridCells")
+                .filter((field) => field.valueType !== "gridCells" && field.valueType !== "terrainCells")
                 .map((field) => (
                   <DraftField
                     key={field.path}
@@ -142,6 +145,10 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
       {agent && (
         <section className="section">
           <h3>Agent - {agent.id}</h3>
+          {(() => {
+            const movement = snapshot?.agents.find((item) => item.id === agent.id)?.movement ?? null;
+
+            return (
           <EntitySummary
             rows={[
               ["Cell", `${Math.floor(agent.position.x)}, ${Math.floor(agent.position.y)}`],
@@ -152,10 +159,19 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               ["Occupied cells", occupiedCells(agent)],
               ["Health", health(agent)],
               ["Needs", `H ${formatNumber(agent.needs.hunger)} / T ${formatNumber(agent.needs.thirst)} / E ${formatNumber(agent.needs.energy)}`],
-              ["Movement", snapshot?.agents.find((item) => item.id === agent.id)?.movement?.status ?? "idle"],
-              ["Route target", snapshot?.agents.find((item) => item.id === agent.id)?.movement?.targetId ?? "none"]
+              ["Movement", movement?.status ?? "idle"],
+              ["Route target", movement?.targetId ?? "none"],
+              ["Destination", movement ? `${formatNumber(movement.destination.x)}, ${formatNumber(movement.destination.y)}` : "none"],
+              ["Waypoint", movement ? `${Math.min(movement.currentWaypointIndex + 1, movement.waypoints.length)} / ${movement.waypoints.length}` : "none"],
+              ["Route cost", movement ? formatNumber(movement.routeCost) : "0"],
+              ["Speed", movement ? `${formatNumber(movement.lastEffectiveSpeedPerTick)} / ${formatNumber(movement.speedPerTick)}` : "0"],
+              ["Stuck", movement ? `${movement.stuckTicks} / ${movement.maxStuckTicks}` : "0"],
+              ["Repaths", movement ? `${movement.repathCount} / ${movement.maxRepathAttempts}` : "0"],
+              ["Last repath", movement?.lastRepathReason ?? "none"]
             ]}
           />
+            );
+          })()}
           <GenericEntityEditor
             fields={schema?.agentFields}
             entity={agent}
@@ -226,10 +242,24 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             rows={[
               ["X", selection.cell.x.toString()],
               ["Y", selection.cell.y.toString()],
+              ["Terrain", `${selectedCellTerrain.terrainType} / cost ${formatNumber(selectedCellTerrain.traversalCost)} / speed x${formatNumber(selectedCellTerrain.speedMultiplier)}`],
               ["Blocked", cellIsBlocked ? "yes" : "no"],
               ["Occupancy", cellOccupants.length === 0 ? "unoccupied" : cellOccupants.map((occupant) => `${occupant.entityId} (${occupant.entityType})`).join(", ")]
             ]}
           />
+          {editable && (
+            <label className="field">
+              <span>Terrain</span>
+              <select
+                value={selectedCellTerrain.terrainType}
+                onChange={(event) => onTerrainChange(selection.cell, event.target.value as TerrainType)}
+              >
+                {terrainTypes.map((terrainType) => (
+                  <option key={terrainType} value={terrainType}>{terrainType}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </section>
       )}
 
@@ -442,6 +472,46 @@ function getCellOccupants(
   }
 
   return snapshot?.grid.occupiedCells.filter((occupant) => sameCell(occupant.cell, cell)) ?? [];
+}
+
+const terrainTypes: TerrainType[] = ["Plain", "Road", "Forest", "Mud"];
+
+function getCellTerrain(
+  snapshot: SimulationSnapshot | null,
+  draft: SimulationDraft | null,
+  editing: boolean,
+  cell: GridCell
+) {
+  if (editing && draft) {
+    const terrainCell = draft.grid.terrainCells.find((candidate) => sameCell(candidate.cell, cell));
+
+    return terrainProfile(terrainCell?.terrainType ?? "Plain");
+  }
+
+  const terrainCell = snapshot?.grid.terrainCells.find((candidate) => sameCell(candidate.cell, cell));
+
+  if (!terrainCell) {
+    return terrainProfile("Plain");
+  }
+
+  return {
+    terrainType: terrainCell.terrainType,
+    traversalCost: terrainCell.traversalCost,
+    speedMultiplier: terrainCell.speedMultiplier
+  };
+}
+
+function terrainProfile(terrainType: string) {
+  switch (terrainType) {
+    case "Road":
+      return { terrainType: "Road" as const, traversalCost: 0.5, speedMultiplier: 1.25 };
+    case "Forest":
+      return { terrainType: "Forest" as const, traversalCost: 2, speedMultiplier: 0.75 };
+    case "Mud":
+      return { terrainType: "Mud" as const, traversalCost: 3, speedMultiplier: 0.5 };
+    default:
+      return { terrainType: "Plain" as const, traversalCost: 1, speedMultiplier: 1 };
+  }
 }
 
 function sameCell(left: GridCell, right: GridCell) {

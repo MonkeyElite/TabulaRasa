@@ -6,6 +6,7 @@ namespace TabulaRasa.World.Spatial.Grid
     public sealed class GridMap
     {
         private readonly HashSet<GridCell> blockedCells = [];
+        private readonly Dictionary<GridCell, GridTerrainType> terrainByCell = [];
 
         public GridMap(int width, int height)
         {
@@ -26,6 +27,9 @@ namespace TabulaRasa.World.Spatial.Grid
         public int Width { get; }
         public int Height { get; }
         public IReadOnlyCollection<GridCell> BlockedCells => blockedCells;
+        public IReadOnlyCollection<GridTerrainCell> TerrainCells => terrainByCell
+            .Select(pair => new GridTerrainCell(pair.Key, pair.Value))
+            .ToList();
 
         public bool Contains(GridCell cell)
         {
@@ -40,6 +44,47 @@ namespace TabulaRasa.World.Spatial.Grid
         public bool IsTraversable(GridCell cell)
         {
             return Contains(cell) && !blockedCells.Contains(cell);
+        }
+
+        public GridTerrainType GetTerrain(GridCell cell)
+        {
+            if (!Contains(cell))
+            {
+                throw new ArgumentOutOfRangeException(nameof(cell), "Cell must be inside the grid bounds.");
+            }
+
+            return terrainByCell.GetValueOrDefault(cell, GridTerrainType.Plain);
+        }
+
+        public GridTerrainProfile GetTerrainProfile(GridCell cell)
+        {
+            return GridTerrainProfile.For(GetTerrain(cell));
+        }
+
+        public float GetTraversalCost(GridCell cell)
+        {
+            return GetTerrainProfile(cell).TraversalCost;
+        }
+
+        public float GetSpeedMultiplier(GridCell cell)
+        {
+            return GetTerrainProfile(cell).SpeedMultiplier;
+        }
+
+        public void SetTerrain(GridCell cell, GridTerrainType terrainType)
+        {
+            if (!Contains(cell))
+            {
+                throw new ArgumentOutOfRangeException(nameof(cell), "Cell must be inside the grid bounds.");
+            }
+
+            if (terrainType == GridTerrainType.Plain)
+            {
+                terrainByCell.Remove(cell);
+                return;
+            }
+
+            terrainByCell[cell] = terrainType;
         }
 
         public void SetTraversable(GridCell cell, bool isTraversable)
