@@ -60,7 +60,8 @@ const defaultConfig: SimulationConfig = {
   needDecay: {
     hungerDelta: 1,
     thirstDelta: 1,
-    energyDelta: -1
+    energyDelta: -1,
+    fatigueDelta: 1
   },
   perceptionRadius: 20,
   movementSpeedPerTick: 0.25,
@@ -432,6 +433,9 @@ export default function Home() {
         <span className="metric">
           Status <strong>{status?.status ?? "-"}</strong>
         </span>
+        <span className="metric">
+          Alive <strong>{status ? `${status.aliveAgentCount}/${status.agentCount}` : "-"}</strong>
+        </span>
       </header>
 
       <section className="main">
@@ -453,7 +457,7 @@ export default function Home() {
                   <strong>{simulation.name}</strong>
                   <small>{simulation.status} / tick {simulation.currentTick}</small>
                 </span>
-                <span className="pill">{simulation.agentCount}a</span>
+                <span className="pill">{simulation.aliveAgentCount}/{simulation.agentCount}a</span>
               </button>
             ))}
           </div>
@@ -705,6 +709,12 @@ function ConfigFields({
         value={config.needDecay.energyDelta}
         disabled={disabled}
         onChange={(energyDelta) => onChange({ ...config, needDecay: { ...config.needDecay, energyDelta } })}
+      />
+      <NumberConfigField
+        label="Fatigue"
+        value={config.needDecay.fatigueDelta}
+        disabled={disabled}
+        onChange={(fatigueDelta) => onChange({ ...config, needDecay: { ...config.needDecay, fatigueDelta } })}
       />
       <NumberConfigField
         label="Radius"

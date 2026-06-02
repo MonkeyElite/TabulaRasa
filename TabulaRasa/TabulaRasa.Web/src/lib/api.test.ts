@@ -76,7 +76,8 @@ const config = {
   needDecay: {
     hungerDelta: 1,
     thirstDelta: 1,
-    energyDelta: -1
+    energyDelta: -1,
+    fatigueDelta: 1
   },
   perceptionRadius: 20,
   movementSpeedPerTick: 0.25,

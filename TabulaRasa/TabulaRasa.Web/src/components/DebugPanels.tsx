@@ -34,6 +34,12 @@ export function RuntimePanel({
           Events <strong>{snapshot?.diagnostics?.eventCount ?? snapshot?.events.length ?? 0}</strong>
         </span>
         <span className="metric">
+          Alive <strong>{snapshot?.aliveAgentCount ?? status?.aliveAgentCount ?? 0}</strong>
+        </span>
+        <span className="metric">
+          Dead <strong>{snapshot?.deadAgentCount ?? status?.deadAgentCount ?? 0}</strong>
+        </span>
+        <span className="metric">
           Seed <strong>{status?.config.seed ?? "-"}</strong>
         </span>
       </div>

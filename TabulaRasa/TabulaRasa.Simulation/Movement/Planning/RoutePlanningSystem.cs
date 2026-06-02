@@ -27,6 +27,12 @@ namespace TabulaRasa.Simulation.Movement.Planning
         {
             foreach (ActionRequest request in state.PendingActionRequests.ToList())
             {
+                if (state.World.Agents.FirstOrDefault(agent => agent.Id == request.AgentId)?.IsDead == true)
+                {
+                    state.PendingActionRequests.Remove(request);
+                    continue;
+                }
+
                 if (state.ActiveMovements.Any(m => m.AgentId == request.AgentId))
                 {
                     state.PendingActionRequests.Remove(request);

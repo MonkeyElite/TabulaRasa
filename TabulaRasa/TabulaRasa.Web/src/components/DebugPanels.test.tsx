@@ -48,6 +48,8 @@ const status: SimulationStatus = {
   gridWidth: 10,
   gridHeight: 10,
   agentCount: 1,
+  aliveAgentCount: 1,
+  deadAgentCount: 0,
   foodCount: 1,
   config: {
     seed: 12345,
@@ -61,7 +63,8 @@ const status: SimulationStatus = {
     needDecay: {
       hungerDelta: 1,
       thirstDelta: 1,
-      energyDelta: -1
+      energyDelta: -1,
+      fatigueDelta: 1
     },
     perceptionRadius: 20,
     movementSpeedPerTick: 0.25,
@@ -132,6 +135,9 @@ const snapshot: SimulationSnapshot = {
       }
     }
   ],
+  populationCount: 1,
+  aliveAgentCount: 1,
+  deadAgentCount: 0,
   diagnostics: {
     tick: 1,
     startedAt: "2026-06-01T00:00:00Z",

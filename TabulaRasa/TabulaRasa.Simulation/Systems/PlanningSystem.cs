@@ -23,7 +23,7 @@ namespace TabulaRasa.Simulation.Systems
             {
                 AgentState? agentState = state.GetAgentById(agentEntity.Id);
 
-                if (agentState is null)
+                if (agentState is null || agentEntity.IsDead)
                 {
                     continue;
                 }

@@ -308,16 +308,17 @@ export function WorldCanvas({
       const y = agent.position.y * cellSize;
       const selected = selection?.type === "agent" && selection.id === agent.id;
       const perceived = perceptionEntityIds.has(agent.id);
+      const dead = "isDead" in agent && agent.isDead === true;
       graphic.roundRect(x - 17, y - 17, 34, 34, 6);
-      graphic.fill(0x54c475);
-      graphic.stroke({ color: selected ? 0xffffff : perceived ? 0x6aa8ff : 0x153b24, width: selected ? 4 : perceived ? 3 : 2 });
+      graphic.fill(dead ? 0x5a5f68 : 0x54c475);
+      graphic.stroke({ color: selected ? 0xffffff : perceived ? 0x6aa8ff : dead ? 0xe06767 : 0x153b24, width: selected ? 4 : perceived ? 3 : 2 });
       graphic.eventMode = "static";
       graphic.cursor = editing && canEdit ? "grab" : "pointer";
       graphic.on("pointertap", () => onSelect({ type: "agent", id: agent.id }));
       graphic.on("pointerover", (event) =>
         onHover({
           label: agent.id,
-          detail: `Agent - hunger ${formatNumber(agent.needs.hunger)}`,
+          detail: `${dead ? "Corpse" : "Agent"} - hunger ${formatNumber(agent.needs.hunger)} thirst ${formatNumber(agent.needs.thirst)}`,
           x: event.global.x,
           y: event.global.y
         })
@@ -325,7 +326,7 @@ export function WorldCanvas({
       graphic.on("pointermove", (event) =>
         onHover({
           label: agent.id,
-          detail: `Agent - hunger ${formatNumber(agent.needs.hunger)}`,
+          detail: `${dead ? "Corpse" : "Agent"} - hunger ${formatNumber(agent.needs.hunger)} thirst ${formatNumber(agent.needs.thirst)}`,
           x: event.global.x,
           y: event.global.y
         })

@@ -11,5 +11,6 @@ namespace TabulaRasa.World.Entities
         public required WorldPosition Position { get; set; }
         public EntityFootprint Footprint { get; init; } = new(0.8f, 0.8f);
         public EntityHealth Health { get; init; } = new(maximum: 10);
+        public bool IsDead { get; set; }
     }
 }

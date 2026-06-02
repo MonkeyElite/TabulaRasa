@@ -19,7 +19,8 @@ namespace TabulaRasa.Api.Contracts
     public sealed record NeedDecayConfigDto(
         float HungerDelta,
         float ThirstDelta,
-        float EnergyDelta);
+        float EnergyDelta,
+        float FatigueDelta = 1);
 
     public sealed record PathfindingConfigDto(
         bool AllowDiagonalMovement,
@@ -49,6 +50,8 @@ namespace TabulaRasa.Api.Contracts
         int GridWidth,
         int GridHeight,
         int AgentCount,
+        int AliveAgentCount,
+        int DeadAgentCount,
         int FoodCount,
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt);
@@ -66,6 +69,8 @@ namespace TabulaRasa.Api.Contracts
         int GridWidth,
         int GridHeight,
         int AgentCount,
+        int AliveAgentCount,
+        int DeadAgentCount,
         int FoodCount,
         SimulationConfigDto Config,
         SimulationTickSummaryDto? LatestTickSummary,
@@ -85,6 +90,9 @@ namespace TabulaRasa.Api.Contracts
         int PendingActionRequestCount,
         IReadOnlyList<SimulationEventDto> Events,
         IReadOnlyList<SimulationEventDto> RecentEvents,
+        int PopulationCount,
+        int AliveAgentCount,
+        int DeadAgentCount,
         SimulationTickDiagnosticsDto? Diagnostics);
 
     public sealed record SimulationEventDto(
@@ -153,11 +161,12 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<GridCellDto> OccupiedCells,
         bool OccupiesSpace,
         EntityHealthDto? Health,
+        bool IsDead,
         AgentNeedsDto Needs,
         MovementSnapshotDto? Movement,
         AgentPerceptionSnapshotDto Perception);
 
-    public sealed record AgentNeedsDto(float Hunger, float Thirst, float Energy);
+    public sealed record AgentNeedsDto(float Hunger, float Thirst, float Energy, float Fatigue = 0);
 
     public sealed record AgentPerceptionSnapshotDto(
         IReadOnlyList<PerceivedEntitySnapshotDto> NearbyEntities,

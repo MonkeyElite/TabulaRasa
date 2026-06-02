@@ -132,7 +132,8 @@ const snapshot: SimulationSnapshot = {
       occupiedCells: [{ x: 0, y: 0 }],
       occupiesSpace: true,
       health: null,
-      needs: { hunger: 1, thirst: 0, energy: 2 },
+      isDead: false,
+      needs: { hunger: 1, thirst: 0, energy: 2, fatigue: 0 },
       movement: {
         agentId: "agent-1",
         requestedAction: "Wander",
@@ -187,6 +188,9 @@ const snapshot: SimulationSnapshot = {
   pendingActionRequestCount: 0,
   events: [],
   recentEvents: [],
+  populationCount: 1,
+  aliveAgentCount: 1,
+  deadAgentCount: 0,
   diagnostics: null
 };
 

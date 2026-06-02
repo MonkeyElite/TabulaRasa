@@ -4,6 +4,7 @@ using TabulaRasa.Simulation.Actions.Resolution;
 using TabulaRasa.Simulation.Actions.Validation;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.State;
+using TabulaRasa.World.Entities;
 
 namespace TabulaRasa.Simulation.Systems
 {
@@ -34,6 +35,12 @@ namespace TabulaRasa.Simulation.Systems
 
             foreach (ActionRequest request in requests)
             {
+                AgentEntity? agent = state.World.Agents.FirstOrDefault(agent => agent.Id == request.AgentId);
+                if (agent is not null && agent.IsDead)
+                {
+                    continue;
+                }
+
                 ActionValidationResult validation = _validator.Validate(state, request);
 
                 if (!validation.IsValid)

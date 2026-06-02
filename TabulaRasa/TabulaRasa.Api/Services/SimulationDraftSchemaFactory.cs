@@ -30,7 +30,8 @@ namespace TabulaRasa.Api.Services
                     Field<AgentEntity>("position.y", "Y", "number", nameof(AgentEntity.Position)),
                     Field<AgentNeedState>("needs.hunger", "Hunger", "number", nameof(AgentNeedState.Hunger)),
                     Field<AgentNeedState>("needs.thirst", "Thirst", "number", nameof(AgentNeedState.Thirst)),
-                    Field<AgentNeedState>("needs.energy", "Energy", "number", nameof(AgentNeedState.Energy))
+                    Field<AgentNeedState>("needs.energy", "Energy", "number", nameof(AgentNeedState.Energy)),
+                    Field<AgentNeedState>("needs.fatigue", "Fatigue", "number", nameof(AgentNeedState.Fatigue))
                 ],
                 FoodFields:
                 [

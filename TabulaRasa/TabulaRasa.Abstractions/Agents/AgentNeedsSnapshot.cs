@@ -1,4 +1,4 @@
 namespace TabulaRasa.Abstractions.Agents
 {
-    public sealed record AgentNeedsSnapshot(float Hunger, float Thirst, float Energy);
+    public sealed record AgentNeedsSnapshot(float Hunger, float Thirst, float Energy, float Fatigue = 0);
 }

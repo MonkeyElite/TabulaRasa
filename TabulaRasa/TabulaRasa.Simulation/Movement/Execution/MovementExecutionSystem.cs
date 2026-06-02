@@ -51,6 +51,12 @@ namespace TabulaRasa.Simulation.Movement.Execution
                     continue;
                 }
 
+                if (agent.IsDead)
+                {
+                    CancelMovementForDeadAgent(state, movement);
+                    continue;
+                }
+
                 if (movement.Status == MovementStatus.Repathing)
                 {
                     movement.Status = MovementStatus.InProgress;
@@ -326,6 +332,24 @@ namespace TabulaRasa.Simulation.Movement.Execution
                     ["actionType"] = result.ActionType.ToString(),
                     ["succeeded"] = result.Succeeded.ToString(),
                     ["reason"] = reason
+                });
+        }
+
+        private static void CancelMovementForDeadAgent(SimulationState state, ActiveMovement movement)
+        {
+            movement.Status = MovementStatus.Failed;
+            movement.FailureReason = "Agent is dead.";
+            state.ActiveMovements.Remove(movement);
+            state.EmitEvent(
+                "movement.cancelled",
+                SourceSystem,
+                $"{movement.AgentId} movement cancelled: agent is dead.",
+                movement.AgentId,
+                new Dictionary<string, string>
+                {
+                    ["actionType"] = movement.RequestedAction.ToString(),
+                    ["targetId"] = movement.TargetId ?? "",
+                    ["reason"] = "Agent is dead."
                 });
         }
     }

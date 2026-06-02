@@ -73,6 +73,7 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
 
             return state.Agents
                 .Where(agent => !busyAgentIds.Contains(agent.Id))
+                .Where(agent => state.World.Agents.FirstOrDefault(entity => entity.Id == agent.Id)?.IsDead != true)
                 .Select(agent => agent.Id)
                 .FirstOrDefault();
         }

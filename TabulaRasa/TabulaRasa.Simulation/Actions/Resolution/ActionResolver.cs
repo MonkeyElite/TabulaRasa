@@ -1,6 +1,7 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Models;
+using TabulaRasa.Agents.Needs;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Mutation;
@@ -27,6 +28,8 @@ namespace TabulaRasa.Simulation.Actions.Resolution
             return request.ActionType switch
             {
                 AgentActionType.Eat => ResolveEat(state, request),
+                AgentActionType.Drink => ResolveDrink(state, request),
+                AgentActionType.Rest => ResolveRest(state, request),
                 AgentActionType.Wander => ResolveWander(state, request),
                 AgentActionType.None => new ActionResult(request.AgentId, request.ActionType, true),
                 _ => new ActionResult(request.AgentId, request.ActionType, false, "Unsupported action type.")
@@ -68,7 +71,35 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                     mutation.Reason ?? "Target food could not be consumed.");
             }
 
-            agentState.NeedState.Hunger = Math.Max(0, agentState.NeedState.Hunger - 5);
+            NeedSystem.ApplyEat(agentState.NeedState);
+
+            return new ActionResult(request.AgentId, request.ActionType, true);
+        }
+
+        private static ActionResult ResolveDrink(SimulationState state, ActionRequest request)
+        {
+            AgentState? agentState = state.GetAgentById(request.AgentId);
+
+            if (agentState is null)
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, "Drink action could not be resolved.");
+            }
+
+            NeedSystem.ApplyDrink(agentState.NeedState);
+
+            return new ActionResult(request.AgentId, request.ActionType, true);
+        }
+
+        private static ActionResult ResolveRest(SimulationState state, ActionRequest request)
+        {
+            AgentState? agentState = state.GetAgentById(request.AgentId);
+
+            if (agentState is null)
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, "Rest action could not be resolved.");
+            }
+
+            NeedSystem.ApplyRest(agentState.NeedState);
 
             return new ActionResult(request.AgentId, request.ActionType, true);
         }

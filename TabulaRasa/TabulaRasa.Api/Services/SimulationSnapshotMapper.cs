@@ -26,6 +26,9 @@ namespace TabulaRasa.Api.Services
             Dictionary<string, ActiveMovement> movementsByAgent = state.ActiveMovements
                 .GroupBy(movement => movement.AgentId)
                 .ToDictionary(group => group.Key, group => group.First());
+            int populationCount = state.World.Agents.Count;
+            int deadAgentCount = state.World.Agents.Count(agent => agent.IsDead);
+            int aliveAgentCount = populationCount - deadAgentCount;
 
             return new SimulationSnapshotDto(
                 state.Time.Tick,
@@ -40,6 +43,9 @@ namespace TabulaRasa.Api.Services
                 state.PendingActionRequests.Count,
                 state.GetEventsForTick(state.Time.Tick).Select(ToEvent).ToList(),
                 state.GetRecentEvents().Select(ToEvent).ToList(),
+                populationCount,
+                aliveAgentCount,
+                deadAgentCount,
                 ToDiagnostics(state.GetDiagnosticsForTick(state.Time.Tick)));
         }
 
@@ -77,7 +83,8 @@ namespace TabulaRasa.Api.Services
                 new NeedDecayConfigDto(
                     config.EffectiveNeedDecay.HungerDelta,
                     config.EffectiveNeedDecay.ThirstDelta,
-                    config.EffectiveNeedDecay.EnergyDelta),
+                    config.EffectiveNeedDecay.EnergyDelta,
+                    config.EffectiveNeedDecay.FatigueDelta),
                 config.PerceptionRadius,
                 config.MovementSpeedPerTick,
                 new PathfindingConfigDto(
@@ -103,7 +110,8 @@ namespace TabulaRasa.Api.Services
                     new NeedDecayConfig(
                         dto.NeedDecay.HungerDelta,
                         dto.NeedDecay.ThirstDelta,
-                        dto.NeedDecay.EnergyDelta),
+                        dto.NeedDecay.EnergyDelta,
+                        dto.NeedDecay.FatigueDelta),
                     dto.PerceptionRadius,
                     dto.MovementSpeedPerTick,
                     new PathfindingConfig(
@@ -161,6 +169,7 @@ namespace TabulaRasa.Api.Services
                 SpatialQueries.GetOccupiedCellsForEntity(agent).Select(ToGridCell).ToList(),
                 SpatialQueries.OccupiesSpace(agent),
                 ToHealth(agent),
+                agent.IsDead,
                 ToNeeds(state.GetAgentById(agent.Id)?.NeedState),
                 movement is null ? null : ToMovement(movement),
                 ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)));
@@ -314,7 +323,8 @@ namespace TabulaRasa.Api.Services
             return new AgentNeedsDto(
                 needs?.Hunger ?? 0,
                 needs?.Thirst ?? 0,
-                needs?.Energy ?? 0);
+                needs?.Energy ?? 0,
+                needs?.Fatigue ?? 0);
         }
 
         private static PositionDto ToPosition(WorldPosition position)

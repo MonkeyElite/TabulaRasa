@@ -482,6 +482,51 @@ select {
   margin: 0;
 }
 
+.vitals {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 12px;
+}
+
+.vital {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 58px minmax(0, 1fr) 34px;
+}
+
+.vital span,
+.vital strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.vital strong {
+  color: var(--text);
+  text-align: right;
+}
+
+.vital-track {
+  background: #12151a;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  height: 9px;
+  overflow: hidden;
+}
+
+.vital-track div {
+  background: var(--green);
+  height: 100%;
+}
+
+.vital.warn .vital-track div {
+  background: var(--amber);
+}
+
+.vital.bad .vital-track div {
+  background: var(--red);
+}
+
 .perception-details {
   border-top: 1px solid var(--line);
   display: grid;
@@ -625,6 +670,10 @@ select {
 
 .entity-dot.food {
   background: var(--amber);
+}
+
+.entity-dot.corpse {
+  background: var(--red);
 }
 
 @media (max-width: 900px) {

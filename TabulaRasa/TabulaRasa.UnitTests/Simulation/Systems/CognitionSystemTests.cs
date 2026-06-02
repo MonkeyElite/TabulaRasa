@@ -1,5 +1,6 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
+using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Agents.Minds;
@@ -189,6 +190,28 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         }
 
         [Fact]
+        public void ActionExecutionSystem_DrinkingAndRestingRecoverCorrectNeeds()
+        {
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(1, 1) };
+            WorldState world = WorldFactory.Create([agent], []);
+            var agentState = new AgentState(
+                "agent-1",
+                new AgentNeedState { Hunger = 6, Thirst = 8, Energy = 2, Fatigue = 9 },
+                new DefaultAgentMind());
+            var state = new SimulationState(world, new SimulationTime(0), [agentState]);
+            state.PendingActionRequests.Add(new ActionRequest("agent-1", AgentActionType.Drink, null));
+            state.PendingActionRequests.Add(new ActionRequest("agent-1", AgentActionType.Rest, null));
+
+            new ActionExecutionSystem().Execute(state);
+
+            Assert.Equal(6, agentState.NeedState.Hunger);
+            Assert.Equal(3, agentState.NeedState.Thirst);
+            Assert.Equal(6, agentState.NeedState.Energy);
+            Assert.Equal(4, agentState.NeedState.Fatigue);
+            Assert.All(state.ActionResults, result => Assert.True(result.Succeeded));
+        }
+
+        [Fact]
         public void ActionExecutionSystem_InvalidRequestProducesFailureResult()
         {
             var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(1, 1) };
@@ -216,7 +239,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
             WorldState world = WorldFactory.Create([agent], []);
             var agentState = new AgentState(
                 "agent-1",
-                new AgentNeedState { Hunger = 1, Thirst = 2, Energy = 10 },
+                new AgentNeedState { Hunger = 1, Thirst = 2, Energy = 10, Fatigue = 3 },
                 new DefaultAgentMind());
             var state = new SimulationState(world, new SimulationTime(0), [agentState]);
 
@@ -225,6 +248,85 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
             Assert.Equal(2, agentState.NeedState.Hunger);
             Assert.Equal(3, agentState.NeedState.Thirst);
             Assert.Equal(9, agentState.NeedState.Energy);
+            Assert.Equal(4, agentState.NeedState.Fatigue);
+        }
+
+        [Fact]
+        public void NeedDecaySystem_ExtremeNeedsDamageHealthAndEmitCriticalEvents()
+        {
+            var agent = new AgentEntity
+            {
+                Id = "agent-1",
+                Position = new WorldPosition(1, 1),
+                Health = new EntityHealth(maximum: 10, current: 10)
+            };
+            WorldState world = WorldFactory.Create([agent], []);
+            var agentState = new AgentState(
+                "agent-1",
+                new AgentNeedState { Hunger = 10, Thirst = 10, Energy = 0, Fatigue = 10 },
+                new DefaultAgentMind());
+            var state = new SimulationState(world, new SimulationTime(0), [agentState]);
+            state.BeginTickObservability(1);
+
+            new NeedDecaySystem().Execute(state);
+
+            Assert.Equal(7, agent.Health.Current);
+            Assert.False(agent.IsDead);
+            Assert.Contains(state.CurrentTickEvents, simulationEvent => simulationEvent.Type == "agent.need_critical");
+            Assert.Contains(state.CurrentTickEvents, simulationEvent => simulationEvent.Type == "agent.health_damaged");
+        }
+
+        [Fact]
+        public void NeedDecaySystem_HealthDepletionMarksAgentDeadAndStopsBufferedWork()
+        {
+            var agent = new AgentEntity
+            {
+                Id = "agent-1",
+                Position = new WorldPosition(1, 1),
+                Health = new EntityHealth(maximum: 10, current: 1)
+            };
+            WorldState world = WorldFactory.Create([agent], []);
+            var agentState = new AgentState(
+                "agent-1",
+                new AgentNeedState { Hunger = 10, Thirst = 10, Energy = 0, Fatigue = 10 },
+                new DefaultAgentMind());
+            var state = new SimulationState(world, new SimulationTime(0), [agentState]);
+            state.PendingIntents.Add(new AgentIntent("agent-1", AgentActionType.Wander, null));
+            state.PendingActionRequests.Add(new ActionRequest("agent-1", AgentActionType.Wander, null));
+            state.ActiveMovements.Add(new TabulaRasa.Simulation.Movement.Execution.ActiveMovement(
+                "agent-1",
+                AgentActionType.Wander,
+                null,
+                new TabulaRasa.Simulation.Movement.Planning.MovementRoute([new WorldPosition(2, 1)]),
+                speedPerTick: 1,
+                arrivalTolerance: 0.1f));
+            state.BeginTickObservability(1);
+
+            new NeedDecaySystem().Execute(state);
+
+            Assert.True(agent.IsDead);
+            Assert.True(agent.Health.IsDepleted);
+            Assert.Empty(state.PendingIntents);
+            Assert.Empty(state.PendingActionRequests);
+            Assert.Empty(state.ActiveMovements);
+            Assert.Contains(state.CurrentTickEvents, simulationEvent => simulationEvent.Type == "agent.died");
+        }
+
+        [Fact]
+        public void PlanningSystem_DeadAgentsDoNotCreateIntents()
+        {
+            var agent = new AgentEntity { Id = "agent-1", Position = new WorldPosition(1, 1), IsDead = true };
+            WorldState world = WorldFactory.Create([agent], []);
+            var agentState = new AgentState(
+                "agent-1",
+                new AgentNeedState { Hunger = 1, Thirst = 1, Energy = 10, Fatigue = 0 },
+                new DefaultAgentMind());
+            var state = new SimulationState(world, new SimulationTime(0), [agentState]);
+
+            new PlanningSystem().Execute(state);
+
+            Assert.Empty(state.PendingIntents);
+            Assert.Empty(state.LatestPerceptionsByAgentId);
         }
     }
 }

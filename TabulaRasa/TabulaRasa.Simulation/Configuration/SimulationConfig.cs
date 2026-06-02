@@ -3,7 +3,8 @@ namespace TabulaRasa.Simulation.Configuration
     public sealed record NeedDecayConfig(
         float HungerDelta = 1,
         float ThirstDelta = 1,
-        float EnergyDelta = -1);
+        float EnergyDelta = -1,
+        float FatigueDelta = 1);
 
     public sealed record PathfindingConfig(
         bool AllowDiagonalMovement = false,

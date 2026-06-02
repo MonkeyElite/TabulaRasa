@@ -61,7 +61,8 @@ export function addAgentDraft(draft: SimulationDraft): SimulationDraft {
     needs: {
       hunger: 1,
       thirst: 0,
-      energy: 0
+      energy: 10,
+      fatigue: 0
     }
   };
 

@@ -3,6 +3,7 @@ using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Simulation.Actions.Requests;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.State;
+using TabulaRasa.World.Entities;
 
 namespace TabulaRasa.Simulation.Systems
 {
@@ -16,6 +17,12 @@ namespace TabulaRasa.Simulation.Systems
         {
             foreach (AgentIntent intent in state.PendingIntents)
             {
+                AgentEntity? agent = state.World.Agents.FirstOrDefault(agent => agent.Id == intent.AgentId);
+                if (agent?.IsDead == true)
+                {
+                    continue;
+                }
+
                 state.PendingActionRequests.Add(ActionRequestFactory.Create(intent));
             }
 

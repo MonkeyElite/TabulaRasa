@@ -22,9 +22,16 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 return ActionValidationResult.Invalid("Agent state does not exist.");
             }
 
+            if (agentEntity.IsDead)
+            {
+                return ActionValidationResult.Invalid("Agent is dead.");
+            }
+
             return request.ActionType switch
             {
                 AgentActionType.Eat => ValidateEat(state, agentEntity, request),
+                AgentActionType.Drink => ActionValidationResult.Valid,
+                AgentActionType.Rest => ActionValidationResult.Valid,
                 AgentActionType.Wander => ValidateWander(state, agentEntity),
                 AgentActionType.None => ActionValidationResult.Valid,
                 _ => ActionValidationResult.Invalid("Unsupported action type.")

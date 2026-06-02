@@ -72,6 +72,8 @@ namespace TabulaRasa.Api.Services
                     _state.World.Grid.Width,
                     _state.World.Grid.Height,
                     _state.World.Agents.Count,
+                    _state.World.Agents.Count(agent => !agent.IsDead),
+                    _state.World.Agents.Count(agent => agent.IsDead),
                     _state.World.Foods.Count,
                     CreatedAt,
                     UpdatedAt);
@@ -335,6 +337,8 @@ namespace TabulaRasa.Api.Services
                 _state.World.Grid.Width,
                 _state.World.Grid.Height,
                 _state.World.Agents.Count,
+                _state.World.Agents.Count(agent => !agent.IsDead),
+                _state.World.Agents.Count(agent => agent.IsDead),
                 _state.World.Foods.Count,
                 SimulationSnapshotMapper.ToConfig(_config),
                 ToLatestTickSummary(),
@@ -443,7 +447,8 @@ namespace TabulaRasa.Api.Services
                 {
                     Hunger = agent.Needs.Hunger,
                     Thirst = agent.Needs.Thirst,
-                    Energy = agent.Needs.Energy
+                    Energy = agent.Needs.Energy,
+                    Fatigue = agent.Needs.Fatigue
                 },
                 new DefaultAgentMind())).ToList();
 
@@ -525,6 +530,7 @@ namespace TabulaRasa.Api.Services
                 ValidateFinite(agent.Needs.Hunger, $"{prefix}.needs.hunger");
                 ValidateFinite(agent.Needs.Thirst, $"{prefix}.needs.thirst");
                 ValidateFinite(agent.Needs.Energy, $"{prefix}.needs.energy");
+                ValidateFinite(agent.Needs.Fatigue, $"{prefix}.needs.fatigue");
             }
 
             for (int i = 0; i < draft.Food.Count; i++)

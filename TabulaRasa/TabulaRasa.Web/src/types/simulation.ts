@@ -6,6 +6,8 @@ export type SimulationSummary = {
   gridWidth: number;
   gridHeight: number;
   agentCount: number;
+  aliveAgentCount: number;
+  deadAgentCount: number;
   foodCount: number;
   createdAt: string;
   updatedAt: string;
@@ -26,6 +28,8 @@ export type SimulationStatus = {
   gridWidth: number;
   gridHeight: number;
   agentCount: number;
+  aliveAgentCount: number;
+  deadAgentCount: number;
   foodCount: number;
   config: SimulationConfig;
   latestTickSummary: SimulationTickSummary | null;
@@ -46,6 +50,7 @@ export type SimulationConfig = {
     hungerDelta: number;
     thirstDelta: number;
     energyDelta: number;
+    fatigueDelta: number;
   };
   perceptionRadius: number;
   movementSpeedPerTick: number;
@@ -108,6 +113,7 @@ export type AgentNeeds = {
   hunger: number;
   thirst: number;
   energy: number;
+  fatigue: number;
 };
 
 export type SimulationSnapshot = {
@@ -129,6 +135,9 @@ export type SimulationSnapshot = {
   pendingActionRequestCount: number;
   events: SimulationEvent[];
   recentEvents: SimulationEvent[];
+  populationCount: number;
+  aliveAgentCount: number;
+  deadAgentCount: number;
   diagnostics: SimulationTickDiagnostics | null;
 };
 
@@ -168,6 +177,7 @@ export type AgentSnapshot = {
   occupiedCells: GridCell[];
   occupiesSpace: boolean;
   health: EntityHealth | null;
+  isDead: boolean;
   needs: AgentNeeds;
   movement: MovementSnapshot | null;
   perception: AgentPerceptionSnapshot;

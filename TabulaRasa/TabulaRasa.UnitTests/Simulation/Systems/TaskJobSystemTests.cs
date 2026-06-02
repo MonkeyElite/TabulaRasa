@@ -89,6 +89,25 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         }
 
         [Fact]
+        public void TaskAssignmentSystem_DoesNotAssignTasksToDeadAgents()
+        {
+            AgentEntity agent = new() { Id = "agent-1", Position = new WorldPosition(0.5f, 0.5f), IsDead = true };
+            WorldState world = WorldFactory.Create([agent], []);
+            SimulationState state = CreateState(world, ["agent-1"]);
+            TaskDefinition taskDefinition = new("restock", "Restock", requiredProgressTicks: 1);
+            JobInstance job = new(
+                "job-1",
+                new JobDefinition("restock-job", "Restock Job", [new JobStepDefinition("restock", taskDefinition)]));
+            state.PendingJobs.Add(job);
+
+            new JobActivationSystem().Execute(state);
+            new TaskAssignmentSystem().Execute(state);
+
+            Assert.Equal(TaskStatus.Pending, job.Tasks[0].Status);
+            Assert.Null(job.Tasks[0].AssignedAgentId);
+        }
+
+        [Fact]
         public void TaskExecutionSystem_ReleasesReservationWhenTaskCompletes()
         {
             WorldState world = WorldFactory.Create([], []);

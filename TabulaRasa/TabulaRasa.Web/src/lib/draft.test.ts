@@ -15,13 +15,13 @@ import type { SimulationDraft } from "@/types/simulation";
 const draft: SimulationDraft = {
   tick: 0,
   grid: { width: 10, height: 10, blockedCells: [], terrainCells: [] },
-  agents: [{ id: "agent-1", position: { x: 0.5, y: 1 }, needs: { hunger: 1, thirst: 2, energy: 3 } }],
+  agents: [{ id: "agent-1", position: { x: 0.5, y: 1 }, needs: { hunger: 1, thirst: 2, energy: 3, fatigue: 4 } }],
   food: [{ id: "food-1", position: { x: 1, y: 1 }, isConsumed: false }]
 };
 
 describe("draft helpers", () => {
   it("updates agent fields immutably", () => {
-    const next = updateAgentDraft(draft, "agent-1", { needs: { hunger: 4, thirst: 5, energy: 6 } });
+    const next = updateAgentDraft(draft, "agent-1", { needs: { hunger: 4, thirst: 5, energy: 6, fatigue: 7 } });
 
     expect(next).not.toBe(draft);
     expect(next.agents[0].needs.hunger).toBe(4);

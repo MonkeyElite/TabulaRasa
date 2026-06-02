@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { AgentSnapshot, EditableField, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
+import type { AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
 import { addAgentDraft, addFoodDraft, removeAgentDraft, removeFoodDraft, updateAgentDraft, updateFoodDraft } from "@/lib/draft";
 import { getValue, setValue } from "@/lib/objectPath";
@@ -54,7 +54,9 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             </span>
           </div>
           <div className="row">
-            <span className="pill">{snapshot?.agents.length ?? 0} agents</span>
+            <span className="pill">{snapshot?.populationCount ?? snapshot?.agents.length ?? 0} population</span>
+            <span className="pill">{snapshot?.aliveAgentCount ?? snapshot?.agents.filter((item) => !item.isDead).length ?? 0} alive</span>
+            <span className="pill">{snapshot?.deadAgentCount ?? snapshot?.agents.filter((item) => item.isDead).length ?? 0} dead</span>
             <span className="pill">{snapshot?.food.length ?? 0} food</span>
           </div>
           {editing && draft && schema && (
@@ -121,11 +123,11 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               className={selection?.type === "agent" && selection.id === item.id ? "entity-row selected" : "entity-row"}
               onClick={() => onSelect({ type: "agent", id: item.id })}
             >
-              <span className="entity-dot agent" />
+              <span className={`entity-dot ${isDeadAgent(item) ? "corpse" : "agent"}`} />
               <span>
                 <strong>{item.id}</strong>
                 <small>
-                  AgentEntity - cell {Math.floor(item.position.x)}, {Math.floor(item.position.y)}
+                  {isDeadAgent(item) ? "Corpse" : "AgentEntity"} - cell {Math.floor(item.position.x)}, {Math.floor(item.position.y)}
                 </small>
               </span>
             </button>
@@ -162,7 +164,8 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               ["Occupies", occupiesSpace(agent, true)],
               ["Occupied cells", occupiedCells(agent)],
               ["Health", health(agent)],
-              ["Needs", `H ${formatNumber(agent.needs.hunger)} / T ${formatNumber(agent.needs.thirst)} / E ${formatNumber(agent.needs.energy)}`],
+              ["Status", isDeadAgent(agent) ? "dead" : "alive"],
+              ["Needs", `H ${formatNumber(agent.needs.hunger)} / T ${formatNumber(agent.needs.thirst)} / E ${formatNumber(agent.needs.energy)} / F ${formatNumber(agent.needs.fatigue)}`],
               ["Movement", movement?.status ?? "idle"],
               ["Route target", movement?.targetId ?? "none"],
               ["Destination", movement ? `${formatNumber(movement.destination.x)}, ${formatNumber(movement.destination.y)}` : "none"],
@@ -176,6 +179,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           />
             );
           })()}
+          <AgentVitals needs={agent.needs} health={selectedSnapshotAgent?.health ?? healthValue(agent)} isDead={isDeadAgent(agent)} />
           <GenericEntityEditor
             fields={schema?.agentFields}
             entity={agent}
@@ -408,6 +412,45 @@ function EntitySummary({ rows }: { rows: Array<[string, string]> }) {
   );
 }
 
+function AgentVitals({ needs, health, isDead }: { needs: AgentNeeds; health: EntityHealth | null; isDead: boolean }) {
+  return (
+    <div className="vitals">
+      <NeedBar label="Health" value={health?.current ?? (isDead ? 0 : 10)} maximum={health?.maximum ?? 10} tone={isDead ? "bad" : "good"} />
+      <NeedBar label="Hunger" value={needs.hunger} maximum={10} tone={needs.hunger >= 8 ? "bad" : needs.hunger >= 5 ? "warn" : "good"} invert />
+      <NeedBar label="Thirst" value={needs.thirst} maximum={10} tone={needs.thirst >= 8 ? "bad" : needs.thirst >= 5 ? "warn" : "good"} invert />
+      <NeedBar label="Energy" value={needs.energy} maximum={10} tone={needs.energy <= 2 ? "bad" : needs.energy <= 5 ? "warn" : "good"} />
+      <NeedBar label="Fatigue" value={needs.fatigue} maximum={10} tone={needs.fatigue >= 8 ? "bad" : needs.fatigue >= 5 ? "warn" : "good"} invert />
+    </div>
+  );
+}
+
+function NeedBar({
+  label,
+  value,
+  maximum,
+  tone,
+  invert
+}: {
+  label: string;
+  value: number;
+  maximum: number;
+  tone: "good" | "warn" | "bad";
+  invert?: boolean;
+}) {
+  const clamped = Math.max(0, Math.min(maximum, value));
+  const percent = maximum <= 0 ? 0 : (clamped / maximum) * 100;
+
+  return (
+    <div className={`vital ${tone}${invert ? " inverted" : ""}`}>
+      <span>{label}</span>
+      <div className="vital-track">
+        <div style={{ width: `${percent}%` }} />
+      </div>
+      <strong>{formatNumber(value)}</strong>
+    </div>
+  );
+}
+
 function formatNumber(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(2);
 }
@@ -495,6 +538,28 @@ function health(entity: unknown) {
   }
 
   return "n/a";
+}
+
+function healthValue(entity: unknown): EntityHealth | null {
+  if (
+    entity
+    && typeof entity === "object"
+    && "health" in entity
+    && entity.health
+    && typeof entity.health === "object"
+    && "current" in entity.health
+    && "maximum" in entity.health
+    && typeof entity.health.current === "number"
+    && typeof entity.health.maximum === "number"
+  ) {
+    return entity.health as EntityHealth;
+  }
+
+  return null;
+}
+
+function isDeadAgent(entity: unknown) {
+  return Boolean(entity && typeof entity === "object" && "isDead" in entity && entity.isDead === true);
 }
 
 function getCellOccupants(

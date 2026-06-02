@@ -29,6 +29,23 @@ namespace TabulaRasa.Simulation.Tasks.Execution
                 foreach (TaskInstance task in job.Tasks.Where(task =>
                     task.Status is TaskStatus.Assigned or TaskStatus.InProgress).ToList())
                 {
+                    if (task.AssignedAgentId is not null
+                        && state.World.Agents.FirstOrDefault(agent => agent.Id == task.AssignedAgentId)?.IsDead == true)
+                    {
+                        task.Interrupt("Assigned agent is dead.");
+                        ReleaseTaskReservations(state, task);
+                        state.EmitEvent(
+                            "task.interrupted",
+                            SourceSystem,
+                            $"{task.Id} interrupted: assigned agent is dead.",
+                            task.Id,
+                            new Dictionary<string, string>
+                            {
+                                ["assignedAgentId"] = task.AssignedAgentId
+                            });
+                        continue;
+                    }
+
                     if (!PreconditionsPass(state, task))
                     {
                         ReleaseTaskReservations(state, task);

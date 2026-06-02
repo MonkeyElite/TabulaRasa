@@ -174,7 +174,8 @@ namespace TabulaRasa.Simulation.State
                 NeedDecay = new NeedDecayConfig(
                     ClampFinite(needDecay.HungerDelta, -100, 100),
                     ClampFinite(needDecay.ThirstDelta, -100, 100),
-                    ClampFinite(needDecay.EnergyDelta, -100, 100)),
+                    ClampFinite(needDecay.EnergyDelta, -100, 100),
+                    ClampFinite(needDecay.FatigueDelta, -100, 100)),
                 PerceptionRadius = ClampFinite(config.PerceptionRadius, 0, 1_000),
                 MovementSpeedPerTick = ClampFinite(config.MovementSpeedPerTick, 0.01f, 100),
                 Pathfinding = new PathfindingConfig(

@@ -60,7 +60,8 @@ namespace TabulaRasa.Simulation.Composition
                 {
                     Hunger = 1,
                     Thirst = 0,
-                    Energy = 10
+                    Energy = 10,
+                    Fatigue = 0
                 }, new DefaultAgentMind()));
             }
 
