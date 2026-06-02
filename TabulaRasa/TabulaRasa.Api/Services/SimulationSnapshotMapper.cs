@@ -181,6 +181,7 @@ namespace TabulaRasa.Api.Services
             IReadOnlyDictionary<string, ActiveMovement> movementsByAgent)
         {
             movementsByAgent.TryGetValue(agent.Id, out ActiveMovement? movement);
+            AgentState? agentState = state.GetAgentById(agent.Id);
 
             return new AgentSnapshotDto(
                 agent.Id,
@@ -192,10 +193,12 @@ namespace TabulaRasa.Api.Services
                 SpatialQueries.OccupiesSpace(agent),
                 ToHealth(agent),
                 agent.IsDead,
-                ToNeeds(state.GetAgentById(agent.Id)?.NeedState),
+                ToNeeds(agentState?.NeedState),
                 movement is null ? null : ToMovement(movement),
                 ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)),
-                ToMemory(state.MemoryStoresByAgentId.GetValueOrDefault(agent.Id)));
+                ToMemory(state.MemoryStoresByAgentId.GetValueOrDefault(agent.Id)),
+                ToDecision(agentState?.Learning.LatestDecision),
+                ToLearning(agentState?.Learning));
         }
 
         private static AgentPerceptionSnapshotDto ToPerception(AgentPerception? perception)
@@ -257,6 +260,60 @@ namespace TabulaRasa.Api.Services
                 memory.Summary,
                 memory.Metadata);
         }
+
+        private static AgentDecisionSnapshotDto? ToDecision(AgentDecisionExplanation? decision)
+        {
+            if (decision is null)
+            {
+                return null;
+            }
+
+            return new AgentDecisionSnapshotDto(
+                decision.NeedPressures,
+                decision.ActionScores.Select(ToActionScore).ToList(),
+                decision.SelectedGoal,
+                decision.SelectedAction.ToString(),
+                decision.TargetId,
+                decision.ContextKey,
+                decision.Explored);
+        }
+
+        private static AgentActionScoreSnapshotDto ToActionScore(AgentActionScore score)
+        {
+            return new AgentActionScoreSnapshotDto(
+                score.ActionType.ToString(),
+                score.TargetId,
+                score.SelectedGoal,
+                score.ContextKey,
+                score.TargetType,
+                score.Channel,
+                score.NeedPressure,
+                score.OpportunityRelevance,
+                score.LearnedWeight,
+                score.Score);
+        }
+
+        private static AgentLearningSnapshotDto ToLearning(AgentLearningProfile? learning)
+        {
+            return new AgentLearningSnapshotDto(
+                (learning?.Entries ?? [])
+                    .Select(ToLearningEntry)
+                    .ToList());
+        }
+
+        private static AgentLearningEntrySnapshotDto ToLearningEntry(AgentLearningEntry entry)
+        {
+            return new AgentLearningEntrySnapshotDto(
+                entry.ContextKey,
+                entry.ActionType.ToString(),
+                entry.Attempts,
+                entry.Successes,
+                entry.Failures,
+                entry.LastOutcomeScore,
+                entry.AverageOutcomeScore,
+                entry.LearnedWeight);
+        }
+
 
         private static FoodSnapshotDto ToFood(FoodEntity food)
         {
@@ -327,7 +384,10 @@ namespace TabulaRasa.Api.Services
                 result.AgentId,
                 result.ActionType.ToString(),
                 result.Succeeded,
-                result.Reason);
+                result.Reason,
+                result.TargetId,
+                result.ContextKey,
+                result.OutcomeScore);
         }
 
         private static SimulationEventDto ToEvent(SimulationEvent simulationEvent)

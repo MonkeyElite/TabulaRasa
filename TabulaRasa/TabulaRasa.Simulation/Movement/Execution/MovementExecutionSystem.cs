@@ -5,6 +5,7 @@ using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Learning;
 using TabulaRasa.Simulation.Movement.Planning;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
@@ -285,18 +286,12 @@ namespace TabulaRasa.Simulation.Movement.Execution
                 ActionResult result = new(
                     movement.AgentId,
                     movement.RequestedAction,
-                    true);
-                state.ActionResults.Add(result);
-                state.EmitEvent(
-                    "action.result",
-                    SourceSystem,
-                    $"{result.AgentId} {result.ActionType} succeeded.",
-                    result.AgentId,
-                    new Dictionary<string, string>
-                    {
-                        ["actionType"] = result.ActionType.ToString(),
-                        ["succeeded"] = result.Succeeded.ToString()
-                    });
+                    true,
+                    TargetId: movement.TargetId,
+                    ContextKey: movement.ContextKey,
+                    SelectedGoal: movement.SelectedGoal,
+                    NeedsBefore: movement.NeedsBefore);
+                AgentLearningService.RecordActionResult(state, result, SourceSystem);
             }
         }
 
@@ -320,19 +315,12 @@ namespace TabulaRasa.Simulation.Movement.Execution
                 movement.AgentId,
                 movement.RequestedAction,
                 false,
-                reason);
-            state.ActionResults.Add(result);
-            state.EmitEvent(
-                "action.result",
-                SourceSystem,
-                $"{result.AgentId} {result.ActionType} failed: {reason}",
-                result.AgentId,
-                new Dictionary<string, string>
-                {
-                    ["actionType"] = result.ActionType.ToString(),
-                    ["succeeded"] = result.Succeeded.ToString(),
-                    ["reason"] = reason
-                });
+                reason,
+                movement.TargetId,
+                movement.ContextKey,
+                movement.SelectedGoal,
+                movement.NeedsBefore);
+            AgentLearningService.RecordActionResult(state, result, SourceSystem);
         }
 
         private static void CancelMovementForDeadAgent(SimulationState state, ActiveMovement movement)

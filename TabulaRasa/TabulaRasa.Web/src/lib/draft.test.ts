@@ -16,7 +16,8 @@ const draft: SimulationDraft = {
   tick: 0,
   grid: { width: 10, height: 10, blockedCells: [], terrainCells: [] },
   agents: [{ id: "agent-1", position: { x: 0.5, y: 1 }, needs: { hunger: 1, thirst: 2, energy: 3, fatigue: 4 } }],
-  food: [{ id: "food-1", position: { x: 1, y: 1 }, isConsumed: false }]
+  food: [{ id: "food-1", position: { x: 1, y: 1 }, isConsumed: false }],
+  config: null
 };
 
 describe("draft helpers", () => {

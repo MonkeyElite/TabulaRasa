@@ -3,7 +3,7 @@ using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Simulation.Actions.Resolution;
 using TabulaRasa.Simulation.Actions.Validation;
 using TabulaRasa.Simulation.Interfaces;
-using TabulaRasa.Simulation.Memory;
+using TabulaRasa.Simulation.Learning;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 
@@ -50,34 +50,25 @@ namespace TabulaRasa.Simulation.Systems
                         request.AgentId,
                         request.ActionType,
                         false,
-                        validation.FailureReason);
-                    state.ActionResults.Add(result);
-                    AgentMemoryService.RememberActionOutcome(state, result);
-                    EmitActionResultEvent(state, result);
+                        validation.FailureReason,
+                        request.TargetId,
+                        request.ContextKey,
+                        request.SelectedGoal,
+                        request.NeedsBefore);
+                    AgentLearningService.RecordActionResult(state, result, Name);
 
                     continue;
                 }
 
-                ActionResult resolved = _resolver.Resolve(state, request);
-                state.ActionResults.Add(resolved);
-                AgentMemoryService.RememberActionOutcome(state, resolved);
-                EmitActionResultEvent(state, resolved);
-            }
-        }
-
-        private void EmitActionResultEvent(SimulationState state, ActionResult result)
-        {
-            string outcome = result.Succeeded ? "succeeded" : $"failed: {result.Reason ?? "unknown"}";
-            state.EmitEvent(
-                "action.result",
-                Name,
-                $"{result.AgentId} {result.ActionType} {outcome}.",
-                result.AgentId,
-                new Dictionary<string, string>
+                ActionResult resolved = _resolver.Resolve(state, request) with
                 {
-                    ["actionType"] = result.ActionType.ToString(),
-                    ["succeeded"] = result.Succeeded.ToString()
-                });
+                    TargetId = request.TargetId,
+                    ContextKey = request.ContextKey,
+                    SelectedGoal = request.SelectedGoal,
+                    NeedsBefore = request.NeedsBefore
+                };
+                AgentLearningService.RecordActionResult(state, resolved, Name);
+            }
         }
     }
 }

@@ -130,6 +130,10 @@ namespace TabulaRasa.Simulation.Memory
             memory.Metadata["actionType"] = result.ActionType.ToString();
             memory.Metadata["succeeded"] = result.Succeeded.ToString();
             memory.Metadata["reason"] = result.Reason ?? "";
+            memory.Metadata["targetId"] = result.TargetId ?? "";
+            memory.Metadata["contextKey"] = result.ContextKey ?? "";
+            memory.Metadata["selectedGoal"] = result.SelectedGoal ?? "";
+            memory.Metadata["outcomeScore"] = result.OutcomeScore?.ToString("0.###", CultureInfo.InvariantCulture) ?? "";
 
             store.Add(memory);
             store.TrimTo(config.MaxMemoriesPerAgent);
@@ -313,7 +317,7 @@ namespace TabulaRasa.Simulation.Memory
 
         private static string TargetKey(this ActionResult result)
         {
-            return $"{result.ActionType}:{result.Succeeded}:{result.Reason ?? ""}";
+            return $"{result.ActionType}:{result.TargetId ?? ""}:{result.Succeeded}:{result.Reason ?? ""}";
         }
     }
 }

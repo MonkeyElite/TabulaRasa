@@ -129,6 +129,30 @@ describe("Inspector", () => {
     expect(screen.getByText("Remembered locations and entities")).toBeTruthy();
     expect(screen.getByText("Location / Food / strength 0.85 / certainty 0.90")).toBeTruthy();
   });
+
+  it("renders selected agent decision scores and learned outcomes", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Decision"));
+
+    expect(screen.getByText("Decision explanation")).toBeTruthy();
+    expect(screen.getAllByText("Hunger|Food|Sight").length).toBeGreaterThan(1);
+    expect(screen.getByText("score 0.93 / weight 0.25 / need 0.70")).toBeTruthy();
+    expect(screen.getByText("Learned outcomes")).toBeTruthy();
+    expect(screen.getByText("Eat / weight 0.25 / avg 1 / last 1")).toBeTruthy();
+  });
 });
 
 const snapshot: SimulationSnapshot = {
@@ -217,6 +241,59 @@ const snapshot: SimulationSnapshot = {
             expiresAtTick: 83,
             summary: "Remembered Food location for food-1.",
             metadata: {}
+          }
+        ]
+      },
+      decision: {
+        needPressures: {
+          Hunger: 0.7,
+          Thirst: 0.1,
+          Fatigue: 0,
+          LowEnergy: 0.8
+        },
+        actionScores: [
+          {
+            actionType: "Eat",
+            targetId: "food-1",
+            selectedGoal: "Hunger",
+            contextKey: "Hunger|Food|Sight",
+            targetType: "Food",
+            channel: "Sight",
+            needPressure: 0.7,
+            opportunityRelevance: 0.5,
+            learnedWeight: 0.25,
+            score: 0.925
+          },
+          {
+            actionType: "Rest",
+            targetId: null,
+            selectedGoal: "LowEnergy",
+            contextKey: "LowEnergy|Self|Internal",
+            targetType: "Self",
+            channel: "Internal",
+            needPressure: 0.8,
+            opportunityRelevance: 0,
+            learnedWeight: 0,
+            score: 0.92
+          }
+        ],
+        selectedGoal: "Hunger",
+        selectedAction: "Eat",
+        targetId: "food-1",
+        contextKey: "Hunger|Food|Sight",
+        explored: false
+      },
+      learning: {
+        entries: [
+          {
+            contextKey: "Hunger|Food|Sight",
+            actionType: "Eat",
+            attempts: 1,
+            successes: 1,
+            failures: 0,
+            lastOutcomeScore: 1,
+            averageOutcomeScore: 1,
+            learnedWeight: 0.25
           }
         ]
       }

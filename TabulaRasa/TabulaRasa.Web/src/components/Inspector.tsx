@@ -20,7 +20,7 @@ type Props = {
 
 export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange, onTerrainChange }: Props) {
   const [inspectorTab, setInspectorTab] = React.useState<"state" | "entities" | "selection">("selection");
-  const [agentTab, setAgentTab] = React.useState<"overview" | "perception" | "memory">("overview");
+  const [agentTab, setAgentTab] = React.useState<"overview" | "perception" | "memory" | "learning">("overview");
   const editable = editing && canEdit && draft;
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
   const listedFood = editable ? draft.food : snapshot?.food ?? [];
@@ -170,6 +170,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               <button className={agentTab === "overview" ? "selected" : ""} onClick={() => setAgentTab("overview")}>Overview</button>
               <button className={agentTab === "perception" ? "selected" : ""} onClick={() => setAgentTab("perception")}>Perception</button>
               <button className={agentTab === "memory" ? "selected" : ""} onClick={() => setAgentTab("memory")}>Memory</button>
+              <button className={agentTab === "learning" ? "selected" : ""} onClick={() => setAgentTab("learning")}>Decision</button>
             </div>
           )}
           {(editing || agentTab === "overview") && (
@@ -218,6 +219,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           )}
           {!editing && selectedSnapshotAgent && agentTab === "perception" && <PerceptionDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "memory" && <MemoryDetails agent={selectedSnapshotAgent} />}
+          {!editing && selectedSnapshotAgent && agentTab === "learning" && <LearningDetails agent={selectedSnapshotAgent} />}
           {editable && (
             <button
               className="danger"
@@ -307,6 +309,74 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
       </>
       )}
     </aside>
+  );
+}
+
+function LearningDetails({ agent }: { agent: AgentSnapshot }) {
+  const decision = agent.decision;
+  const entries = agent.learning.entries;
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Decision explanation</div>
+      {decision ? (
+        <>
+          <EntitySummary
+            rows={[
+              ["Selected goal", decision.selectedGoal],
+              ["Selected action", decision.selectedAction],
+              ["Target", decision.targetId ?? "none"],
+              ["Context", decision.contextKey],
+              ["Explored", decision.explored ? "yes" : "no"]
+            ]}
+          />
+          <div className="perception-list">
+            {Object.entries(decision.needPressures).map(([need, pressure]) => (
+              <div className="perception-row" key={need}>
+                <strong>{need}</strong>
+                <small>pressure {formatNumber(pressure)}</small>
+              </div>
+            ))}
+          </div>
+          <div className="subsection-title">Action scores</div>
+          <div className="perception-list">
+            {decision.actionScores.map((score) => (
+              <div className="perception-row" key={`${score.contextKey}:${score.actionType}:${score.targetId ?? "none"}`}>
+                <strong>{score.actionType}</strong>
+                <small>
+                  score {formatNumber(score.score)} / weight {formatNumber(score.learnedWeight)} / need {formatNumber(score.needPressure)}
+                </small>
+                <small>
+                  goal {score.selectedGoal} / target {score.targetId ?? "none"} / {score.targetType} / {score.channel}
+                </small>
+                <small>context {score.contextKey}</small>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <span className="empty-state">No decision yet.</span>
+      )}
+
+      <div className="subsection-title">Learned outcomes</div>
+      {entries.length === 0 ? (
+        <span className="empty-state">No learned outcomes.</span>
+      ) : (
+        <div className="perception-list">
+          {entries.map((entry) => (
+            <div className="perception-row" key={`${entry.contextKey}:${entry.actionType}`}>
+              <strong>{entry.contextKey}</strong>
+              <small>
+                {entry.actionType} / weight {formatNumber(entry.learnedWeight)} / avg {formatNumber(entry.averageOutcomeScore)} / last {formatNumber(entry.lastOutcomeScore)}
+              </small>
+              <small>
+                attempts {entry.attempts} / success {entry.successes} / fail {entry.failures}
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

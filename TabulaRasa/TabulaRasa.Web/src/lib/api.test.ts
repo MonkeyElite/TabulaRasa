@@ -86,6 +86,14 @@ const config = {
     maxVisitedCells: 1000,
     maxRepathAttempts: 3
   },
+  memory: {
+    enabled: true,
+    maxMemoriesPerAgent: 100,
+    retentionTicks: 80,
+    decayPerTick: 0.02,
+    minimumStrength: 0.2,
+    recallThreshold: 0.35
+  },
   enabledSystems: ["need-decay", "planning"]
 };
 

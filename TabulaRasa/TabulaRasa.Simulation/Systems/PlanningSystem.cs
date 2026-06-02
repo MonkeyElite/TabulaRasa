@@ -43,7 +43,11 @@ namespace TabulaRasa.Simulation.Systems
                     agentState.NeedState.ToSnapshot(),
                     agentEntity.Position);
 
-                state.PendingIntents.Add(agentState.Mind.Decide(enrichedPerception, snapshot));
+                state.PendingIntents.Add(agentState.Mind.Decide(
+                    enrichedPerception,
+                    snapshot,
+                    agentState.Learning,
+                    state.Random));
             }
         }
     }

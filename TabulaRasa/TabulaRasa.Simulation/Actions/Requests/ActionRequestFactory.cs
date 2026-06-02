@@ -7,7 +7,15 @@ namespace TabulaRasa.Simulation.Actions.Requests
     {
         public static ActionRequest Create(AgentIntent intent)
         {
-            return new ActionRequest(intent.AgentId, intent.ActionType, intent.TargetId);
+            return new ActionRequest(
+                intent.AgentId,
+                intent.ActionType,
+                intent.TargetId,
+                intent.ContextKey,
+                intent.SelectedGoal,
+                intent.TargetType,
+                intent.Channel,
+                intent.NeedsBefore);
         }
     }
 }

@@ -1,6 +1,7 @@
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Learning;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.State;
 
@@ -54,20 +55,12 @@ namespace TabulaRasa.Simulation.Movement.Planning
                         request.AgentId,
                         request.ActionType,
                         false,
-                        result.FailureReason);
-                    state.ActionResults.Add(actionResult);
-                    AgentMemoryService.RememberActionOutcome(state, actionResult);
-                    state.EmitEvent(
-                        "action.result",
-                        Name,
-                        $"{request.AgentId} {request.ActionType} failed during route planning: {result.FailureReason ?? "unknown"}",
-                        request.AgentId,
-                        new Dictionary<string, string>
-                        {
-                            ["actionType"] = request.ActionType.ToString(),
-                            ["succeeded"] = "False",
-                            ["reason"] = result.FailureReason ?? ""
-                        });
+                        result.FailureReason,
+                        request.TargetId,
+                        request.ContextKey,
+                        request.SelectedGoal,
+                        request.NeedsBefore);
+                    AgentLearningService.RecordActionResult(state, actionResult, Name);
                     continue;
                 }
 

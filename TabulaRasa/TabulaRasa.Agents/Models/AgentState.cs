@@ -8,6 +8,7 @@ namespace TabulaRasa.Agents.Models
         public required string Id { get; init; }
         public required AgentNeedState NeedState { get; init; }
         public required IAgentMind Mind { get; init; } = default!;
+        public AgentLearningProfile Learning { get; } = new();
 
         [SetsRequiredMembers]
         public AgentState(string agentId, AgentNeedState needState, IAgentMind mind)

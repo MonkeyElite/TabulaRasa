@@ -12,7 +12,10 @@ namespace TabulaRasa.Simulation.Movement.Execution
             MovementRoute route,
             float speedPerTick,
             float arrivalTolerance,
-            int maxRepathAttempts = 3)
+            int maxRepathAttempts = 3,
+            string? contextKey = null,
+            string? selectedGoal = null,
+            AgentNeedsSnapshot? needsBefore = null)
         {
             AgentId = agentId;
             RequestedAction = requestedAction;
@@ -21,11 +24,17 @@ namespace TabulaRasa.Simulation.Movement.Execution
             SpeedPerTick = speedPerTick;
             ArrivalTolerance = arrivalTolerance;
             MaxRepathAttempts = maxRepathAttempts;
+            ContextKey = contextKey;
+            SelectedGoal = selectedGoal;
+            NeedsBefore = needsBefore;
         }
 
         public string AgentId { get; }
         public AgentActionType RequestedAction { get; }
         public string? TargetId { get; }
+        public string? ContextKey { get; }
+        public string? SelectedGoal { get; }
+        public AgentNeedsSnapshot? NeedsBefore { get; }
         public MovementRoute Route { get; set; }
         public float SpeedPerTick { get; }
         public float ArrivalTolerance { get; }

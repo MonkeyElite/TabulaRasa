@@ -190,6 +190,8 @@ export type AgentSnapshot = {
   movement: MovementSnapshot | null;
   perception: AgentPerceptionSnapshot;
   memory: AgentMemorySnapshot;
+  decision: AgentDecisionSnapshot | null;
+  learning: AgentLearningSnapshot;
 };
 
 export type AgentPerceptionSnapshot = {
@@ -234,6 +236,44 @@ export type AgentMemoryRecordSnapshot = {
   expiresAtTick: number | null;
   summary: string;
   metadata: Record<string, string>;
+};
+
+export type AgentDecisionSnapshot = {
+  needPressures: Record<string, number>;
+  actionScores: AgentActionScoreSnapshot[];
+  selectedGoal: string;
+  selectedAction: string;
+  targetId: string | null;
+  contextKey: string;
+  explored: boolean;
+};
+
+export type AgentActionScoreSnapshot = {
+  actionType: string;
+  targetId: string | null;
+  selectedGoal: string;
+  contextKey: string;
+  targetType: string;
+  channel: string;
+  needPressure: number;
+  opportunityRelevance: number;
+  learnedWeight: number;
+  score: number;
+};
+
+export type AgentLearningSnapshot = {
+  entries: AgentLearningEntrySnapshot[];
+};
+
+export type AgentLearningEntrySnapshot = {
+  contextKey: string;
+  actionType: string;
+  attempts: number;
+  successes: number;
+  failures: number;
+  lastOutcomeScore: number;
+  averageOutcomeScore: number;
+  learnedWeight: number;
 };
 
 export type FoodSnapshot = {
@@ -296,6 +336,9 @@ export type ActionResultSnapshot = {
   actionType: string;
   succeeded: boolean;
   reason: string | null;
+  targetId: string | null;
+  contextKey: string | null;
+  outcomeScore: number | null;
 };
 
 export type SimulationDraft = {

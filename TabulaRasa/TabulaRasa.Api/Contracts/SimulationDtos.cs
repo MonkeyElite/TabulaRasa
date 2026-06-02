@@ -174,7 +174,9 @@ namespace TabulaRasa.Api.Contracts
         AgentNeedsDto Needs,
         MovementSnapshotDto? Movement,
         AgentPerceptionSnapshotDto Perception,
-        AgentMemorySnapshotDto Memory);
+        AgentMemorySnapshotDto Memory,
+        AgentDecisionSnapshotDto? Decision,
+        AgentLearningSnapshotDto Learning);
 
     public sealed record AgentNeedsDto(float Hunger, float Thirst, float Energy, float Fatigue = 0);
 
@@ -216,6 +218,40 @@ namespace TabulaRasa.Api.Contracts
         long? ExpiresAtTick,
         string Summary,
         IReadOnlyDictionary<string, string> Metadata);
+
+    public sealed record AgentDecisionSnapshotDto(
+        IReadOnlyDictionary<string, float> NeedPressures,
+        IReadOnlyList<AgentActionScoreSnapshotDto> ActionScores,
+        string SelectedGoal,
+        string SelectedAction,
+        string? TargetId,
+        string ContextKey,
+        bool Explored);
+
+    public sealed record AgentActionScoreSnapshotDto(
+        string ActionType,
+        string? TargetId,
+        string SelectedGoal,
+        string ContextKey,
+        string TargetType,
+        string Channel,
+        float NeedPressure,
+        float OpportunityRelevance,
+        float LearnedWeight,
+        float Score);
+
+    public sealed record AgentLearningSnapshotDto(
+        IReadOnlyList<AgentLearningEntrySnapshotDto> Entries);
+
+    public sealed record AgentLearningEntrySnapshotDto(
+        string ContextKey,
+        string ActionType,
+        int Attempts,
+        int Successes,
+        int Failures,
+        float LastOutcomeScore,
+        float AverageOutcomeScore,
+        float LearnedWeight);
 
     public sealed record FoodSnapshotDto(
         string Id,
@@ -272,7 +308,10 @@ namespace TabulaRasa.Api.Contracts
         string AgentId,
         string ActionType,
         bool Succeeded,
-        string? Reason);
+        string? Reason,
+        string? TargetId,
+        string? ContextKey,
+        float? OutcomeScore);
 
     public sealed record SimulationDraftDto(
         long Tick,

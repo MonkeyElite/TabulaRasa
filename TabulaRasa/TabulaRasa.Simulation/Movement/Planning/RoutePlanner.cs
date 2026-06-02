@@ -239,7 +239,10 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 route,
                 speedPerTick,
                 arrivalTolerance,
-                maxRepathAttempts);
+                maxRepathAttempts,
+                request.ContextKey,
+                request.SelectedGoal,
+                request.NeedsBefore);
         }
 
         private static MovementRoute CreateRoute(GridPath path, WorldPosition exactDestination)
