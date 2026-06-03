@@ -35,6 +35,20 @@ namespace TabulaRasa.Api.Contracts
         float MinimumStrength,
         float RecallThreshold);
 
+    public sealed record EnvironmentConfigDto(
+        int DayLengthTicks,
+        int WeatherChangeIntervalTicks,
+        float BaseTemperature);
+
+    public sealed record EcologyConfigDto(
+        int InitialPlantCount,
+        int InitialWaterSourceCount,
+        int InitialResourceDepositCount,
+        int PlantRegrowthTicks,
+        int PlantDecayTicksAfterDepleted,
+        float WaterRefillPerRainTick,
+        float WaterEvaporationPerHeatTick);
+
     public sealed record SimulationConfigDto(
         int Seed,
         int WorldWidth,
@@ -49,7 +63,9 @@ namespace TabulaRasa.Api.Contracts
         float MovementSpeedPerTick,
         PathfindingConfigDto Pathfinding,
         IReadOnlyList<string> EnabledSystems,
-        MemoryConfigDto? Memory = null);
+        MemoryConfigDto? Memory = null,
+        EnvironmentConfigDto? Environment = null,
+        EcologyConfigDto? Ecology = null);
 
     public sealed record SimulationSummaryDto(
         string SimulationId,
@@ -104,7 +120,29 @@ namespace TabulaRasa.Api.Contracts
         int PopulationCount,
         int AliveAgentCount,
         int DeadAgentCount,
-        SimulationTickDiagnosticsDto? Diagnostics);
+        SimulationTickDiagnosticsDto? Diagnostics,
+        EnvironmentStateDto? Environment = null,
+        EcologyStatsDto? EcologyStats = null,
+        IReadOnlyList<PlantSnapshotDto>? Plants = null,
+        IReadOnlyList<WaterSourceSnapshotDto>? WaterSources = null,
+        IReadOnlyList<ResourceDepositSnapshotDto>? ResourceDeposits = null);
+
+    public sealed record EnvironmentStateDto(
+        int DayLengthTicks,
+        int TickOfDay,
+        int Day,
+        string Phase,
+        string Weather,
+        float Temperature);
+
+    public sealed record EcologyStatsDto(
+        int PlantCount,
+        int HarvestablePlantCount,
+        int TotalPlantYield,
+        int WaterSourceCount,
+        float TotalWaterVolume,
+        int ResourceDepositCount,
+        int TotalDepositQuantity);
 
     public sealed record SimulationEventDto(
         long Tick,
@@ -143,7 +181,12 @@ namespace TabulaRasa.Api.Contracts
         GridCellDto Cell,
         string TerrainType,
         float TraversalCost,
-        float SpeedMultiplier);
+        float SpeedMultiplier,
+        float PerceptionMultiplier = 1,
+        float HungerDeltaMultiplier = 1,
+        float ThirstDeltaMultiplier = 1,
+        float FatigueDeltaMultiplier = 1,
+        bool IsWater = false);
 
     public sealed record EditableGridTerrainCellDto(
         GridCellDto Cell,
@@ -265,7 +308,9 @@ namespace TabulaRasa.Api.Contracts
         float UnitWeight,
         int MaxStackQuantity,
         bool IsConsumable,
-        ResourceNeedEffectsDto NeedEffects);
+        ResourceNeedEffectsDto NeedEffects,
+        string Renewability = "Renewable",
+        string Category = "general");
 
     public sealed record ResourceNeedEffectsDto(
         float HungerDelta,
@@ -295,6 +340,49 @@ namespace TabulaRasa.Api.Contracts
         bool OccupiesSpace,
         EntityHealthDto? Health,
         InventoryDto Inventory);
+
+    public sealed record PlantSnapshotDto(
+        string Id,
+        string EntityType,
+        PositionDto Position,
+        GridCellDto Cell,
+        FootprintDto Footprint,
+        IReadOnlyList<GridCellDto> OccupiedCells,
+        bool OccupiesSpace,
+        EntityHealthDto? Health,
+        string ResourceId,
+        int Yield,
+        int MaxYield,
+        int RegrowthTicks,
+        int TicksUntilRegrowth,
+        int DecayTicksAfterDepleted,
+        int DepletedTicks,
+        bool IsDecayed);
+
+    public sealed record WaterSourceSnapshotDto(
+        string Id,
+        string EntityType,
+        PositionDto Position,
+        GridCellDto Cell,
+        FootprintDto Footprint,
+        IReadOnlyList<GridCellDto> OccupiedCells,
+        bool OccupiesSpace,
+        float CurrentVolume,
+        float MaxVolume,
+        float RefillPerRainTick,
+        float EvaporationPerHeatTick);
+
+    public sealed record ResourceDepositSnapshotDto(
+        string Id,
+        string EntityType,
+        PositionDto Position,
+        GridCellDto Cell,
+        FootprintDto Footprint,
+        IReadOnlyList<GridCellDto> OccupiedCells,
+        bool OccupiesSpace,
+        string ResourceId,
+        int Quantity,
+        int MaxQuantity);
 
     public sealed record MovementSnapshotDto(
         string AgentId,
@@ -388,7 +476,10 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<EditableAgentDto> Agents,
         IReadOnlyList<EditableResourceDefinitionDto> ResourceDefinitions,
         IReadOnlyList<EditableResourceContainerDto> ResourceContainers,
-        SimulationConfigDto? Config = null);
+        SimulationConfigDto? Config = null,
+        IReadOnlyList<EditablePlantDto>? Plants = null,
+        IReadOnlyList<EditableWaterSourceDto>? WaterSources = null,
+        IReadOnlyList<EditableResourceDepositDto>? ResourceDeposits = null);
 
     public sealed record SimulationDraftSchemaDto(
         IReadOnlyList<EditableFieldDto> StateFields,
@@ -396,6 +487,9 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<EditableFieldDto> AgentFields,
         IReadOnlyList<EditableFieldDto> ResourceDefinitionFields,
         IReadOnlyList<EditableFieldDto> ResourceContainerFields,
+        IReadOnlyList<EditableFieldDto> PlantFields,
+        IReadOnlyList<EditableFieldDto> WaterSourceFields,
+        IReadOnlyList<EditableFieldDto> ResourceDepositFields,
         IReadOnlyList<EditableFieldDto> InventoryFields,
         IReadOnlyList<EditableFieldDto> ResourceStackFields);
 
@@ -426,7 +520,9 @@ namespace TabulaRasa.Api.Contracts
         float UnitWeight,
         int MaxStackQuantity,
         bool IsConsumable,
-        ResourceNeedEffectsDto NeedEffects);
+        ResourceNeedEffectsDto NeedEffects,
+        string Renewability = "Renewable",
+        string Category = "general");
 
     public sealed record EditableInventoryDto(
         int MaxSlots,
@@ -442,4 +538,31 @@ namespace TabulaRasa.Api.Contracts
         string Id,
         PositionDto Position,
         EditableInventoryDto Inventory);
+
+    public sealed record EditablePlantDto(
+        string Id,
+        PositionDto Position,
+        string ResourceId,
+        int Yield,
+        int MaxYield,
+        int RegrowthTicks,
+        int TicksUntilRegrowth,
+        int DecayTicksAfterDepleted,
+        int DepletedTicks,
+        bool IsDecayed);
+
+    public sealed record EditableWaterSourceDto(
+        string Id,
+        PositionDto Position,
+        float CurrentVolume,
+        float MaxVolume,
+        float RefillPerRainTick,
+        float EvaporationPerHeatTick);
+
+    public sealed record EditableResourceDepositDto(
+        string Id,
+        PositionDto Position,
+        string ResourceId,
+        int Quantity,
+        int MaxQuantity);
 }

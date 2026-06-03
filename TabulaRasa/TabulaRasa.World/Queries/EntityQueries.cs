@@ -27,6 +27,21 @@ namespace TabulaRasa.World.Queries
             return worldState.ResourceContainers.FirstOrDefault(container => container.Id == containerId);
         }
 
+        public static PlantEntity? GetPlant(WorldState worldState, string plantId)
+        {
+            return worldState.Plants.FirstOrDefault(plant => plant.Id == plantId);
+        }
+
+        public static WaterSourceEntity? GetWaterSource(WorldState worldState, string waterSourceId)
+        {
+            return worldState.WaterSources.FirstOrDefault(water => water.Id == waterSourceId);
+        }
+
+        public static ResourceDepositEntity? GetResourceDeposit(WorldState worldState, string depositId)
+        {
+            return worldState.ResourceDeposits.FirstOrDefault(deposit => deposit.Id == depositId);
+        }
+
         public static IDamageableEntity? GetDamageableEntity(WorldState worldState, string entityId)
         {
             return GetSpatialEntity(worldState, entityId) as IDamageableEntity;

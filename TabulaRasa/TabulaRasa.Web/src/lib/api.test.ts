@@ -94,6 +94,20 @@ const config = {
     minimumStrength: 0.2,
     recallThreshold: 0.35
   },
+  environment: {
+    dayLengthTicks: 100,
+    weatherChangeIntervalTicks: 50,
+    baseTemperature: 20
+  },
+  ecology: {
+    initialPlantCount: 3,
+    initialWaterSourceCount: 1,
+    initialResourceDepositCount: 1,
+    plantRegrowthTicks: 5,
+    plantDecayTicksAfterDepleted: 20,
+    waterRefillPerRainTick: 0.5,
+    waterEvaporationPerHeatTick: 0.25
+  },
   enabledSystems: ["need-decay", "planning"]
 };
 

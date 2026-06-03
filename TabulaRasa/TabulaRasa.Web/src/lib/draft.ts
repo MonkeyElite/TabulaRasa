@@ -1,4 +1,14 @@
-import type { EditableAgent, EditableResourceContainer, EditableResourceDefinition, GridCell, SimulationDraft, TerrainType } from "@/types/simulation";
+import type {
+  EditableAgent,
+  EditablePlant,
+  EditableResourceContainer,
+  EditableResourceDefinition,
+  EditableResourceDeposit,
+  EditableWaterSource,
+  GridCell,
+  SimulationDraft,
+  TerrainType
+} from "@/types/simulation";
 
 export function updateAgentDraft(
   draft: SimulationDraft,
@@ -30,6 +40,39 @@ export function updateResourceDefinitionDraft(
   return {
     ...draft,
     resourceDefinitions: draft.resourceDefinitions.map((definition) => (definition.id === id ? { ...definition, ...patch } : definition))
+  };
+}
+
+export function updatePlantDraft(
+  draft: SimulationDraft,
+  id: string,
+  patch: Partial<SimulationDraft["plants"][number]>
+): SimulationDraft {
+  return {
+    ...draft,
+    plants: draft.plants.map((plant) => (plant.id === id ? { ...plant, ...patch } : plant))
+  };
+}
+
+export function updateWaterSourceDraft(
+  draft: SimulationDraft,
+  id: string,
+  patch: Partial<SimulationDraft["waterSources"][number]>
+): SimulationDraft {
+  return {
+    ...draft,
+    waterSources: draft.waterSources.map((waterSource) => (waterSource.id === id ? { ...waterSource, ...patch } : waterSource))
+  };
+}
+
+export function updateResourceDepositDraft(
+  draft: SimulationDraft,
+  id: string,
+  patch: Partial<SimulationDraft["resourceDeposits"][number]>
+): SimulationDraft {
+  return {
+    ...draft,
+    resourceDeposits: draft.resourceDeposits.map((deposit) => (deposit.id === id ? { ...deposit, ...patch } : deposit))
   };
 }
 
@@ -119,6 +162,8 @@ export function addResourceDefinitionDraft(draft: SimulationDraft): SimulationDr
     unitWeight: 1,
     maxStackQuantity: 10,
     isConsumable: false,
+    renewability: "Renewable",
+    category: "general",
     needEffects: {
       hungerDelta: 0,
       thirstDelta: 0,
@@ -130,6 +175,60 @@ export function addResourceDefinitionDraft(draft: SimulationDraft): SimulationDr
   return {
     ...draft,
     resourceDefinitions: [...draft.resourceDefinitions, definition]
+  };
+}
+
+export function addPlantDraft(draft: SimulationDraft): SimulationDraft {
+  const id = nextId("plant", draft.plants.map((plant) => plant.id));
+  const plant: EditablePlant = {
+    id,
+    position: firstOpenPosition(draft),
+    resourceId: "food",
+    yield: 2,
+    maxYield: 3,
+    regrowthTicks: 5,
+    ticksUntilRegrowth: 0,
+    decayTicksAfterDepleted: 20,
+    depletedTicks: 0,
+    isDecayed: false
+  };
+
+  return {
+    ...draft,
+    plants: [...draft.plants, plant]
+  };
+}
+
+export function addWaterSourceDraft(draft: SimulationDraft): SimulationDraft {
+  const id = nextId("water-source", draft.waterSources.map((waterSource) => waterSource.id));
+  const waterSource: EditableWaterSource = {
+    id,
+    position: firstOpenPosition(draft),
+    currentVolume: 8,
+    maxVolume: 10,
+    refillPerRainTick: 0.5,
+    evaporationPerHeatTick: 0.25
+  };
+
+  return {
+    ...draft,
+    waterSources: [...draft.waterSources, waterSource]
+  };
+}
+
+export function addResourceDepositDraft(draft: SimulationDraft): SimulationDraft {
+  const id = nextId("resource-deposit", draft.resourceDeposits.map((deposit) => deposit.id));
+  const deposit: EditableResourceDeposit = {
+    id,
+    position: firstOpenPosition(draft),
+    resourceId: "stone",
+    quantity: 5,
+    maxQuantity: 5
+  };
+
+  return {
+    ...draft,
+    resourceDeposits: [...draft.resourceDeposits, deposit]
   };
 }
 
@@ -154,6 +253,27 @@ export function removeResourceDefinitionDraft(draft: SimulationDraft, id: string
   };
 }
 
+export function removePlantDraft(draft: SimulationDraft, id: string): SimulationDraft {
+  return {
+    ...draft,
+    plants: draft.plants.filter((plant) => plant.id !== id)
+  };
+}
+
+export function removeWaterSourceDraft(draft: SimulationDraft, id: string): SimulationDraft {
+  return {
+    ...draft,
+    waterSources: draft.waterSources.filter((waterSource) => waterSource.id !== id)
+  };
+}
+
+export function removeResourceDepositDraft(draft: SimulationDraft, id: string): SimulationDraft {
+  return {
+    ...draft,
+    resourceDeposits: draft.resourceDeposits.filter((deposit) => deposit.id !== id)
+  };
+}
+
 function nextId(prefix: string, existingIds: string[]) {
   const existing = new Set(existingIds);
   let index = existingIds.length + 1;
@@ -172,7 +292,14 @@ function firstOpenPosition(draft: SimulationDraft) {
     ...draft.agents.map((agent) => `${Math.floor(agent.position.x)}:${Math.floor(agent.position.y)}`),
     ...draft.resourceContainers
       .filter((container) => container.inventory.stacks.length > 0)
-      .map((container) => `${Math.floor(container.position.x)}:${Math.floor(container.position.y)}`)
+      .map((container) => `${Math.floor(container.position.x)}:${Math.floor(container.position.y)}`),
+    ...draft.plants
+      .filter((plant) => !plant.isDecayed)
+      .map((plant) => `${Math.floor(plant.position.x)}:${Math.floor(plant.position.y)}`),
+    ...draft.waterSources.map((waterSource) => `${Math.floor(waterSource.position.x)}:${Math.floor(waterSource.position.y)}`),
+    ...draft.resourceDeposits
+      .filter((deposit) => deposit.quantity > 0)
+      .map((deposit) => `${Math.floor(deposit.position.x)}:${Math.floor(deposit.position.y)}`)
   ]);
   const blocked = new Set(draft.grid.blockedCells.map((cell) => `${cell.x}:${cell.y}`));
 

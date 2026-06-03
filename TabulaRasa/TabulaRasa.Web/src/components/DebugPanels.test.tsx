@@ -83,6 +83,20 @@ const status: SimulationStatus = {
       minimumStrength: 0.2,
       recallThreshold: 0.35
     },
+    environment: {
+      dayLengthTicks: 100,
+      weatherChangeIntervalTicks: 50,
+      baseTemperature: 20
+    },
+    ecology: {
+      initialPlantCount: 3,
+      initialWaterSourceCount: 1,
+      initialResourceDepositCount: 1,
+      plantRegrowthTicks: 5,
+      plantDecayTicksAfterDepleted: 20,
+      waterRefillPerRainTick: 0.5,
+      waterEvaporationPerHeatTick: 0.25
+    },
     enabledSystems: ["need-decay", "planning"]
   },
   latestTickSummary: {
@@ -183,6 +197,26 @@ const snapshot: SimulationSnapshot = {
   populationCount: 1,
   aliveAgentCount: 1,
   deadAgentCount: 0,
+  environment: {
+    dayLengthTicks: 100,
+    tickOfDay: 1,
+    day: 0,
+    phase: "Dawn",
+    weather: "Clear",
+    temperature: 18
+  },
+  ecologyStats: {
+    plantCount: 3,
+    harvestablePlantCount: 2,
+    totalPlantYield: 5,
+    waterSourceCount: 1,
+    totalWaterVolume: 8,
+    resourceDepositCount: 1,
+    totalDepositQuantity: 5
+  },
+  plants: [],
+  waterSources: [],
+  resourceDeposits: [],
   diagnostics: {
     tick: 1,
     startedAt: "2026-06-01T00:00:00Z",

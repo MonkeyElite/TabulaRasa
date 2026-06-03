@@ -1,5 +1,6 @@
 using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.World;
+using TabulaRasa.World.Environment;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Resources;
 using TabulaRasa.World.Spatial.Grid;
@@ -21,11 +22,24 @@ namespace TabulaRasa.World.State
         public GridMap Grid { get; }
         public List<AgentEntity> Agents { get; } = [];
         public List<ResourceContainerEntity> ResourceContainers { get; } = [];
-        public List<ResourceDefinition> ResourceDefinitions { get; } = [ResourceDefinition.CreateFood()];
+        public List<PlantEntity> Plants { get; } = [];
+        public List<WaterSourceEntity> WaterSources { get; } = [];
+        public List<ResourceDepositEntity> ResourceDeposits { get; } = [];
+        public List<ResourceDefinition> ResourceDefinitions { get; } =
+        [
+            ResourceDefinition.CreateFood(),
+            ResourceDefinition.CreateWater(),
+            ResourceDefinition.CreateWood(),
+            ResourceDefinition.CreateStone()
+        ];
+        public EnvironmentState Environment { get; } = new();
 
         public IEnumerable<ISpatialEntity> SpatialEntities => Agents
             .Cast<ISpatialEntity>()
-            .Concat(ResourceContainers);
+            .Concat(ResourceContainers)
+            .Concat(Plants)
+            .Concat(WaterSources)
+            .Concat(ResourceDeposits);
 
         public IReadOnlyDictionary<string, ResourceDefinition> ResourceDefinitionsById =>
             ResourceDefinitions.ToDictionary(definition => definition.Id, StringComparer.OrdinalIgnoreCase);

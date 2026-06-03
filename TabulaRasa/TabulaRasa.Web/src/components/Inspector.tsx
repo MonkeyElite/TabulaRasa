@@ -3,7 +3,25 @@
 import React from "react";
 import type { AgentMemoryRecordSnapshot, AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
-import { addAgentDraft, addResourceContainerDraft, addResourceDefinitionDraft, removeAgentDraft, removeResourceContainerDraft, updateAgentDraft, updateResourceContainerDraft, updateResourceDefinitionDraft } from "@/lib/draft";
+import {
+  addAgentDraft,
+  addPlantDraft,
+  addResourceContainerDraft,
+  addResourceDefinitionDraft,
+  addResourceDepositDraft,
+  addWaterSourceDraft,
+  removeAgentDraft,
+  removePlantDraft,
+  removeResourceContainerDraft,
+  removeResourceDepositDraft,
+  removeWaterSourceDraft,
+  updateAgentDraft,
+  updatePlantDraft,
+  updateResourceContainerDraft,
+  updateResourceDefinitionDraft,
+  updateResourceDepositDraft,
+  updateWaterSourceDraft
+} from "@/lib/draft";
 import { getValue, setValue } from "@/lib/objectPath";
 
 type Props = {
@@ -25,6 +43,9 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
   const listedResourceContainers = editable ? draft.resourceContainers : snapshot?.resourceContainers ?? [];
   const listedResourceDefinitions = editable ? draft.resourceDefinitions : snapshot?.resourceDefinitions ?? [];
+  const listedPlants = editable ? draft.plants : snapshot?.plants ?? [];
+  const listedWaterSources = editable ? draft.waterSources : snapshot?.waterSources ?? [];
+  const listedResourceDeposits = editable ? draft.resourceDeposits : snapshot?.resourceDeposits ?? [];
   const agent =
     selection?.type === "agent"
       ? (editable ? draft.agents : snapshot?.agents)?.find((candidate) => candidate.id === selection.id)
@@ -40,6 +61,18 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
   const resourceDefinition =
     selection?.type === "resourceDefinition"
       ? (editable ? draft.resourceDefinitions : snapshot?.resourceDefinitions)?.find((candidate) => candidate.id === selection.id)
+      : null;
+  const plant =
+    selection?.type === "plant"
+      ? (editable ? draft.plants : snapshot?.plants)?.find((candidate) => candidate.id === selection.id)
+      : null;
+  const waterSource =
+    selection?.type === "waterSource"
+      ? (editable ? draft.waterSources : snapshot?.waterSources)?.find((candidate) => candidate.id === selection.id)
+      : null;
+  const resourceDeposit =
+    selection?.type === "resourceDeposit"
+      ? (editable ? draft.resourceDeposits : snapshot?.resourceDeposits)?.find((candidate) => candidate.id === selection.id)
       : null;
   const selectedCell = selection?.type === "cell" ? selection.cell : null;
   const blockedCells = (editable ? draft.grid.blockedCells : snapshot?.grid.blockedCells) ?? [];
@@ -72,6 +105,9 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             <span className="pill">{snapshot?.aliveAgentCount ?? snapshot?.agents.filter((item) => !item.isDead).length ?? 0} alive</span>
             <span className="pill">{snapshot?.deadAgentCount ?? snapshot?.agents.filter((item) => item.isDead).length ?? 0} dead</span>
             <span className="pill">{snapshot?.resourceContainers.length ?? 0} containers</span>
+            <span className="pill">{snapshot?.ecologyStats?.plantCount ?? 0} plants</span>
+            <span className="pill">{snapshot?.ecologyStats?.waterSourceCount ?? 0} water</span>
+            <span className="pill">{snapshot?.environment ? `${snapshot.environment.weather} ${formatNumber(snapshot.environment.temperature)}C` : "weather -"}</span>
           </div>
           {editing && draft && schema && (
             <div className="field-grid">
@@ -142,6 +178,42 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             >
               Add resource
             </button>
+            <button
+              onClick={() => {
+                const nextDraft = addPlantDraft(draft);
+                const nextPlant = nextDraft.plants.at(-1);
+                onDraftChange(nextDraft);
+                if (nextPlant) {
+                  onSelect({ type: "plant", id: nextPlant.id });
+                }
+              }}
+            >
+              Add plant
+            </button>
+            <button
+              onClick={() => {
+                const nextDraft = addWaterSourceDraft(draft);
+                const nextWaterSource = nextDraft.waterSources.at(-1);
+                onDraftChange(nextDraft);
+                if (nextWaterSource) {
+                  onSelect({ type: "waterSource", id: nextWaterSource.id });
+                }
+              }}
+            >
+              Add water
+            </button>
+            <button
+              onClick={() => {
+                const nextDraft = addResourceDepositDraft(draft);
+                const nextDeposit = nextDraft.resourceDeposits.at(-1);
+                onDraftChange(nextDraft);
+                if (nextDeposit) {
+                  onSelect({ type: "resourceDeposit", id: nextDeposit.id });
+                }
+              }}
+            >
+              Add deposit
+            </button>
           </div>
         )}
         <div className="entity-list">
@@ -183,6 +255,45 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               <span>
                 <strong>{item.displayName}</strong>
                 <small>{item.id} - {item.isConsumable ? "consumable" : "resource"}</small>
+              </span>
+            </button>
+          ))}
+          {listedPlants.map((item) => (
+            <button
+              key={`plant:${item.id}`}
+              className={selection?.type === "plant" && selection.id === item.id ? "entity-row selected" : "entity-row"}
+              onClick={() => onSelect({ type: "plant", id: item.id })}
+            >
+              <span className="entity-dot plant" />
+              <span>
+                <strong>{item.id}</strong>
+                <small>Plant - {item.resourceId} {item.yield}/{item.maxYield}</small>
+              </span>
+            </button>
+          ))}
+          {listedWaterSources.map((item) => (
+            <button
+              key={`water-source:${item.id}`}
+              className={selection?.type === "waterSource" && selection.id === item.id ? "entity-row selected" : "entity-row"}
+              onClick={() => onSelect({ type: "waterSource", id: item.id })}
+            >
+              <span className="entity-dot water" />
+              <span>
+                <strong>{item.id}</strong>
+                <small>Water - {formatNumber(item.currentVolume)} / {formatNumber(item.maxVolume)}</small>
+              </span>
+            </button>
+          ))}
+          {listedResourceDeposits.map((item) => (
+            <button
+              key={`resource-deposit:${item.id}`}
+              className={selection?.type === "resourceDeposit" && selection.id === item.id ? "entity-row selected" : "entity-row"}
+              onClick={() => onSelect({ type: "resourceDeposit", id: item.id })}
+            >
+              <span className="entity-dot deposit" />
+              <span>
+                <strong>{item.id}</strong>
+                <small>{item.resourceId} - {item.quantity} / {item.maxQuantity}</small>
               </span>
             </button>
           ))}
@@ -331,6 +442,112 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
         </section>
       )}
 
+      {plant && (
+        <section className="section">
+          <h3>Plant - {plant.id}</h3>
+          <EntitySummary
+            rows={[
+              ["Cell", `${Math.floor(plant.position.x)}, ${Math.floor(plant.position.y)}`],
+              ["Position", `${formatNumber(plant.position.x)}, ${formatNumber(plant.position.y)}`],
+              ["Resource", plant.resourceId],
+              ["Yield", `${plant.yield} / ${plant.maxYield}`],
+              ["Regrowth", `${plant.ticksUntilRegrowth} / ${plant.regrowthTicks}`],
+              ["Depleted", `${plant.depletedTicks} / ${plant.decayTicksAfterDepleted}`],
+              ["Status", plant.isDecayed ? "decayed" : plant.yield > 0 ? "harvestable" : "depleted"]
+            ]}
+          />
+          <GenericEntityEditor
+            fields={schema?.plantFields}
+            entity={plant}
+            disabled={!editable}
+            onChange={(nextEntity) =>
+              draft &&
+              onDraftChange(updatePlantDraft(draft, plant.id, nextEntity as Partial<SimulationDraft["plants"][number]>))
+            }
+          />
+          {editable && (
+            <button
+              className="danger"
+              onClick={() => {
+                onDraftChange(removePlantDraft(draft, plant.id));
+                onSelect(null);
+              }}
+            >
+              Remove plant
+            </button>
+          )}
+        </section>
+      )}
+
+      {waterSource && (
+        <section className="section">
+          <h3>Water - {waterSource.id}</h3>
+          <EntitySummary
+            rows={[
+              ["Cell", `${Math.floor(waterSource.position.x)}, ${Math.floor(waterSource.position.y)}`],
+              ["Position", `${formatNumber(waterSource.position.x)}, ${formatNumber(waterSource.position.y)}`],
+              ["Volume", `${formatNumber(waterSource.currentVolume)} / ${formatNumber(waterSource.maxVolume)}`],
+              ["Rain refill", formatNumber(waterSource.refillPerRainTick)],
+              ["Heat evap", formatNumber(waterSource.evaporationPerHeatTick)]
+            ]}
+          />
+          <GenericEntityEditor
+            fields={schema?.waterSourceFields}
+            entity={waterSource}
+            disabled={!editable}
+            onChange={(nextEntity) =>
+              draft &&
+              onDraftChange(updateWaterSourceDraft(draft, waterSource.id, nextEntity as Partial<SimulationDraft["waterSources"][number]>))
+            }
+          />
+          {editable && (
+            <button
+              className="danger"
+              onClick={() => {
+                onDraftChange(removeWaterSourceDraft(draft, waterSource.id));
+                onSelect(null);
+              }}
+            >
+              Remove water
+            </button>
+          )}
+        </section>
+      )}
+
+      {resourceDeposit && (
+        <section className="section">
+          <h3>Deposit - {resourceDeposit.id}</h3>
+          <EntitySummary
+            rows={[
+              ["Cell", `${Math.floor(resourceDeposit.position.x)}, ${Math.floor(resourceDeposit.position.y)}`],
+              ["Position", `${formatNumber(resourceDeposit.position.x)}, ${formatNumber(resourceDeposit.position.y)}`],
+              ["Resource", resourceDeposit.resourceId],
+              ["Quantity", `${resourceDeposit.quantity} / ${resourceDeposit.maxQuantity}`]
+            ]}
+          />
+          <GenericEntityEditor
+            fields={schema?.resourceDepositFields}
+            entity={resourceDeposit}
+            disabled={!editable}
+            onChange={(nextEntity) =>
+              draft &&
+              onDraftChange(updateResourceDepositDraft(draft, resourceDeposit.id, nextEntity as Partial<SimulationDraft["resourceDeposits"][number]>))
+            }
+          />
+          {editable && (
+            <button
+              className="danger"
+              onClick={() => {
+                onDraftChange(removeResourceDepositDraft(draft, resourceDeposit.id));
+                onSelect(null);
+              }}
+            >
+              Remove deposit
+            </button>
+          )}
+        </section>
+      )}
+
       {selection?.type === "cell" && (
         <section className="section">
           <h3>Cell</h3>
@@ -359,7 +576,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
         </section>
       )}
 
-      {!agent && !resourceContainer && !resourceDefinition && selection?.type !== "cell" && (
+      {!agent && !resourceContainer && !resourceDefinition && !plant && !waterSource && !resourceDeposit && selection?.type !== "cell" && (
         <section className="section">
           <h3>Selection</h3>
           <span className="empty-state">No entity or cell selected.</span>
@@ -863,6 +1080,25 @@ function getCellOccupants(
           cell: { x: Math.floor(container.position.x), y: Math.floor(container.position.y) },
           entityId: container.id,
           entityType: "ResourceContainerEntity"
+        })),
+      ...draft.plants
+        .filter((plant) => !plant.isDecayed)
+        .map((plant) => ({
+          cell: { x: Math.floor(plant.position.x), y: Math.floor(plant.position.y) },
+          entityId: plant.id,
+          entityType: "PlantEntity"
+        })),
+      ...draft.waterSources.map((waterSource) => ({
+        cell: { x: Math.floor(waterSource.position.x), y: Math.floor(waterSource.position.y) },
+        entityId: waterSource.id,
+        entityType: "WaterSourceEntity"
+      })),
+      ...draft.resourceDeposits
+        .filter((deposit) => deposit.quantity > 0)
+        .map((deposit) => ({
+          cell: { x: Math.floor(deposit.position.x), y: Math.floor(deposit.position.y) },
+          entityId: deposit.id,
+          entityType: "ResourceDepositEntity"
         }))
     ].filter((occupant) => sameCell(occupant.cell, cell));
   }
@@ -870,7 +1106,7 @@ function getCellOccupants(
   return snapshot?.grid.occupiedCells.filter((occupant) => sameCell(occupant.cell, cell)) ?? [];
 }
 
-const terrainTypes: TerrainType[] = ["Plain", "Road", "Forest", "Mud"];
+const terrainTypes: TerrainType[] = ["Plain", "Road", "Forest", "Mud", "Water"];
 
 function getCellTerrain(
   snapshot: SimulationSnapshot | null,
@@ -905,6 +1141,8 @@ function terrainProfile(terrainType: string) {
       return { terrainType: "Forest" as const, traversalCost: 2, speedMultiplier: 0.75 };
     case "Mud":
       return { terrainType: "Mud" as const, traversalCost: 3, speedMultiplier: 0.5 };
+    case "Water":
+      return { terrainType: "Water" as const, traversalCost: 10, speedMultiplier: 0.25 };
     default:
       return { terrainType: "Plain" as const, traversalCost: 1, speedMultiplier: 1 };
   }

@@ -173,6 +173,8 @@ namespace TabulaRasa.Simulation.State
             NeedDecayConfig needDecay = config.EffectiveNeedDecay;
             PathfindingConfig pathfinding = config.EffectivePathfinding;
             MemoryConfig memory = config.EffectiveMemory;
+            EnvironmentConfig environment = config.EffectiveEnvironment;
+            EcologyConfig ecology = config.EffectiveEcology;
             IReadOnlyList<string> enabledSystems = config.EffectiveEnabledSystems
                 .Where(systemId => !string.IsNullOrWhiteSpace(systemId))
                 .Select(systemId => systemId.Trim())
@@ -206,6 +208,18 @@ namespace TabulaRasa.Simulation.State
                     ClampFinite(memory.DecayPerTick, 0, 100),
                     ClampFinite(memory.MinimumStrength, 0, 1),
                     ClampFinite(memory.RecallThreshold, 0, 1)),
+                Environment = new EnvironmentConfig(
+                    Math.Clamp(environment.DayLengthTicks, 4, 100_000),
+                    Math.Clamp(environment.WeatherChangeIntervalTicks, 1, 1_000_000),
+                    ClampFinite(environment.BaseTemperature, -100, 100)),
+                Ecology = new EcologyConfig(
+                    Math.Clamp(ecology.InitialPlantCount, 0, 10_000),
+                    Math.Clamp(ecology.InitialWaterSourceCount, 0, 10_000),
+                    Math.Clamp(ecology.InitialResourceDepositCount, 0, 10_000),
+                    Math.Clamp(ecology.PlantRegrowthTicks, 0, 1_000_000),
+                    Math.Clamp(ecology.PlantDecayTicksAfterDepleted, 1, 1_000_000),
+                    ClampFinite(ecology.WaterRefillPerRainTick, 0, 1_000),
+                    ClampFinite(ecology.WaterEvaporationPerHeatTick, 0, 1_000)),
                 EnabledSystems = enabledSystems.Count == 0
                     ? SimulationConfig.DefaultEnabledSystems
                     : enabledSystems

@@ -5,6 +5,7 @@ namespace TabulaRasa.World.Spatial.Grid
         Plain = 0,
         Road = 1,
         Forest = 2,
-        Mud = 3
+        Mud = 3,
+        Water = 4
     }
 }

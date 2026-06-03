@@ -286,7 +286,10 @@ namespace TabulaRasa.Api.Services
                 || current.WorldWidth != requested.WorldWidth
                 || current.WorldHeight != requested.WorldHeight
                 || current.InitialAgentCount != requested.InitialAgentCount
-                || current.InitialFoodCount != requested.InitialFoodCount;
+                || current.InitialFoodCount != requested.InitialFoodCount
+                || current.EffectiveEcology.InitialPlantCount != requested.EffectiveEcology.InitialPlantCount
+                || current.EffectiveEcology.InitialWaterSourceCount != requested.EffectiveEcology.InitialWaterSourceCount
+                || current.EffectiveEcology.InitialResourceDepositCount != requested.EffectiveEcology.InitialResourceDepositCount;
         }
 
         private SimulationSnapshotDto StoreCurrentSnapshot()
@@ -461,7 +464,41 @@ namespace TabulaRasa.Api.Services
                 Inventory = ToInventory(container.Inventory)
             }).ToList();
 
-            WorldState world = WorldFactory.Create(agents, resourceContainers, grid);
+            bool includeEcologyDraftEntities = ShouldIncludeEcologyDraftEntities(draft);
+            List<PlantEntity> plants = (includeEcologyDraftEntities ? draft.Plants ?? [] : []).Select(plant => new PlantEntity
+            {
+                Id = plant.Id.Trim(),
+                Position = ToWorldPosition(plant.Position),
+                ResourceId = plant.ResourceId.Trim(),
+                Yield = plant.Yield,
+                MaxYield = plant.MaxYield,
+                RegrowthTicks = plant.RegrowthTicks,
+                TicksUntilRegrowth = plant.TicksUntilRegrowth,
+                DecayTicksAfterDepleted = plant.DecayTicksAfterDepleted,
+                DepletedTicks = plant.DepletedTicks,
+                IsDecayed = plant.IsDecayed
+            }).ToList();
+
+            List<WaterSourceEntity> waterSources = (includeEcologyDraftEntities ? draft.WaterSources ?? [] : []).Select(water => new WaterSourceEntity
+            {
+                Id = water.Id.Trim(),
+                Position = ToWorldPosition(water.Position),
+                CurrentVolume = water.CurrentVolume,
+                MaxVolume = water.MaxVolume,
+                RefillPerRainTick = water.RefillPerRainTick,
+                EvaporationPerHeatTick = water.EvaporationPerHeatTick
+            }).ToList();
+
+            List<ResourceDepositEntity> resourceDeposits = (includeEcologyDraftEntities ? draft.ResourceDeposits ?? [] : []).Select(deposit => new ResourceDepositEntity
+            {
+                Id = deposit.Id.Trim(),
+                Position = ToWorldPosition(deposit.Position),
+                ResourceId = deposit.ResourceId.Trim(),
+                Quantity = deposit.Quantity,
+                MaxQuantity = deposit.MaxQuantity
+            }).ToList();
+
+            WorldState world = WorldFactory.Create(agents, resourceContainers, grid, plants, waterSources, resourceDeposits);
             world.ResourceDefinitions.Clear();
             world.ResourceDefinitions.AddRange(draft.ResourceDefinitions.Select(ToResourceDefinition));
             SimulationConfig draftConfig = config with
@@ -469,7 +506,13 @@ namespace TabulaRasa.Api.Services
                 WorldWidth = draft.Grid.Width,
                 WorldHeight = draft.Grid.Height,
                 InitialAgentCount = agents.Count,
-                InitialFoodCount = resourceContainers.Count
+                InitialFoodCount = resourceContainers.Count,
+                Ecology = config.EffectiveEcology with
+                {
+                    InitialPlantCount = plants.Count,
+                    InitialWaterSourceCount = waterSources.Count,
+                    InitialResourceDepositCount = resourceDeposits.Count
+                }
             };
 
             return new SimulationState(world, new SimulationTime((int)draft.Tick), agentStates, draftConfig);
@@ -530,6 +573,9 @@ namespace TabulaRasa.Api.Services
             HashSet<string> agentIds = new(StringComparer.Ordinal);
             HashSet<string> resourceDefinitionIds = new(StringComparer.OrdinalIgnoreCase);
             HashSet<string> resourceContainerIds = new(StringComparer.Ordinal);
+            HashSet<string> plantIds = new(StringComparer.Ordinal);
+            HashSet<string> waterSourceIds = new(StringComparer.Ordinal);
+            HashSet<string> resourceDepositIds = new(StringComparer.Ordinal);
 
             for (int i = 0; i < draft.ResourceDefinitions.Count; i++)
             {
@@ -570,6 +616,60 @@ namespace TabulaRasa.Api.Services
                 ValidateId(container.Id, $"{prefix}.id", resourceContainerIds);
                 ValidatePosition(container.Position, $"{prefix}.position", draft.Grid.Width, draft.Grid.Height);
                 ValidateInventory(container.Inventory, $"{prefix}.inventory", resourceDefinitionIds, draft.ResourceDefinitions);
+            }
+
+            bool includeEcologyDraftEntities = ShouldIncludeEcologyDraftEntities(draft);
+            IReadOnlyList<EditablePlantDto> plants = includeEcologyDraftEntities ? draft.Plants ?? [] : [];
+            for (int i = 0; i < plants.Count; i++)
+            {
+                EditablePlantDto plant = plants[i];
+                string prefix = $"plants[{i}]";
+
+                ValidateId(plant.Id, $"{prefix}.id", plantIds);
+                ValidatePosition(plant.Position, $"{prefix}.position", draft.Grid.Width, draft.Grid.Height);
+                AddIf(string.IsNullOrWhiteSpace(plant.ResourceId), $"{prefix}.resourceId", "Resource id is required.");
+                AddIf(!resourceDefinitionIds.Contains(plant.ResourceId), $"{prefix}.resourceId", "Resource id must match a resource definition.");
+                AddIf(plant.Yield < 0, $"{prefix}.yield", "Yield must be zero or greater.");
+                AddIf(plant.MaxYield < 0, $"{prefix}.maxYield", "Max yield must be zero or greater.");
+                AddIf(plant.Yield > plant.MaxYield, $"{prefix}.yield", "Yield cannot exceed max yield.");
+                AddIf(plant.RegrowthTicks < 0, $"{prefix}.regrowthTicks", "Regrowth ticks must be zero or greater.");
+                AddIf(plant.TicksUntilRegrowth < 0, $"{prefix}.ticksUntilRegrowth", "Ticks until regrowth must be zero or greater.");
+                AddIf(plant.DecayTicksAfterDepleted <= 0, $"{prefix}.decayTicksAfterDepleted", "Decay ticks must be greater than zero.");
+                AddIf(plant.DepletedTicks < 0, $"{prefix}.depletedTicks", "Depleted ticks must be zero or greater.");
+            }
+
+            IReadOnlyList<EditableWaterSourceDto> waterSources = includeEcologyDraftEntities ? draft.WaterSources ?? [] : [];
+            for (int i = 0; i < waterSources.Count; i++)
+            {
+                EditableWaterSourceDto water = waterSources[i];
+                string prefix = $"waterSources[{i}]";
+
+                ValidateId(water.Id, $"{prefix}.id", waterSourceIds);
+                ValidatePosition(water.Position, $"{prefix}.position", draft.Grid.Width, draft.Grid.Height);
+                ValidateFinite(water.CurrentVolume, $"{prefix}.currentVolume");
+                ValidateFinite(water.MaxVolume, $"{prefix}.maxVolume");
+                ValidateFinite(water.RefillPerRainTick, $"{prefix}.refillPerRainTick");
+                ValidateFinite(water.EvaporationPerHeatTick, $"{prefix}.evaporationPerHeatTick");
+                AddIf(water.CurrentVolume < 0, $"{prefix}.currentVolume", "Volume must be zero or greater.");
+                AddIf(water.MaxVolume < 0, $"{prefix}.maxVolume", "Max volume must be zero or greater.");
+                AddIf(water.CurrentVolume > water.MaxVolume, $"{prefix}.currentVolume", "Volume cannot exceed max volume.");
+                AddIf(water.RefillPerRainTick < 0, $"{prefix}.refillPerRainTick", "Refill must be zero or greater.");
+                AddIf(water.EvaporationPerHeatTick < 0, $"{prefix}.evaporationPerHeatTick", "Evaporation must be zero or greater.");
+            }
+
+            IReadOnlyList<EditableResourceDepositDto> deposits = includeEcologyDraftEntities ? draft.ResourceDeposits ?? [] : [];
+            for (int i = 0; i < deposits.Count; i++)
+            {
+                EditableResourceDepositDto deposit = deposits[i];
+                string prefix = $"resourceDeposits[{i}]";
+
+                ValidateId(deposit.Id, $"{prefix}.id", resourceDepositIds);
+                ValidatePosition(deposit.Position, $"{prefix}.position", draft.Grid.Width, draft.Grid.Height);
+                AddIf(string.IsNullOrWhiteSpace(deposit.ResourceId), $"{prefix}.resourceId", "Resource id is required.");
+                AddIf(!resourceDefinitionIds.Contains(deposit.ResourceId), $"{prefix}.resourceId", "Resource id must match a resource definition.");
+                AddIf(deposit.Quantity < 0, $"{prefix}.quantity", "Quantity must be zero or greater.");
+                AddIf(deposit.MaxQuantity < 0, $"{prefix}.maxQuantity", "Max quantity must be zero or greater.");
+                AddIf(deposit.Quantity > deposit.MaxQuantity, $"{prefix}.quantity", "Quantity cannot exceed max quantity.");
             }
 
             for (int i = 0; i < draft.Grid.BlockedCells.Count; i++)
@@ -718,7 +818,11 @@ namespace TabulaRasa.Api.Services
                     definition.NeedEffects.HungerDelta,
                     definition.NeedEffects.ThirstDelta,
                     definition.NeedEffects.EnergyDelta,
-                    definition.NeedEffects.FatigueDelta)
+                    definition.NeedEffects.FatigueDelta),
+                Renewability = Enum.TryParse(definition.Renewability, ignoreCase: true, out ResourceRenewability renewability)
+                    ? renewability
+                    : ResourceRenewability.Renewable,
+                Category = string.IsNullOrWhiteSpace(definition.Category) ? "general" : definition.Category.Trim()
             };
         }
 
@@ -743,6 +847,11 @@ namespace TabulaRasa.Api.Services
         private static WorldPosition ToWorldPosition(PositionDto position)
         {
             return new WorldPosition(position.X, position.Y);
+        }
+
+        private static bool ShouldIncludeEcologyDraftEntities(SimulationDraftDto draft)
+        {
+            return draft.Config is null || draft.Config.Ecology is not null;
         }
     }
 }

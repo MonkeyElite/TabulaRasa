@@ -9,7 +9,10 @@ namespace TabulaRasa.World.Construction
         public static WorldState Create(
             List<AgentEntity> agents,
             List<ResourceContainerEntity> resourceContainers,
-            GridMap? grid = null)
+            GridMap? grid = null,
+            List<PlantEntity>? plants = null,
+            List<WaterSourceEntity>? waterSources = null,
+            List<ResourceDepositEntity>? resourceDeposits = null)
         {
             WorldState worldState = grid is null
                 ? new WorldState()
@@ -17,6 +20,9 @@ namespace TabulaRasa.World.Construction
 
             worldState.Agents.AddRange(agents);
             worldState.ResourceContainers.AddRange(resourceContainers);
+            worldState.Plants.AddRange(plants ?? []);
+            worldState.WaterSources.AddRange(waterSources ?? []);
+            worldState.ResourceDeposits.AddRange(resourceDeposits ?? []);
 
             return worldState;
         }

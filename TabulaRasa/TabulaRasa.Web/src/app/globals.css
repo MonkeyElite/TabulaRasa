@@ -688,6 +688,7 @@ select {
 }
 
 .entity-actions {
+  flex-wrap: wrap;
   margin-bottom: 10px;
 }
 
@@ -733,6 +734,18 @@ select {
 
 .entity-dot.food {
   background: var(--amber);
+}
+
+.entity-dot.plant {
+  background: #60b96f;
+}
+
+.entity-dot.water {
+  background: #4aa3df;
+}
+
+.entity-dot.deposit {
+  background: var(--muted);
 }
 
 .entity-dot.corpse {

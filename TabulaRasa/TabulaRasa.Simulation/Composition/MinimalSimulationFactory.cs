@@ -23,6 +23,8 @@ namespace TabulaRasa.Simulation.Composition
         public static readonly IReadOnlyDictionary<string, string> SystemNamesById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["need-decay"] = "Need Decay System",
+            ["environment"] = "Environment System",
+            ["ecology"] = "Ecology System",
             ["memory"] = "Agent Memory System",
             ["planning"] = "Planning System",
             ["goal-generation"] = "Goal Generation System",
@@ -44,12 +46,19 @@ namespace TabulaRasa.Simulation.Composition
             List<WorldPosition> positions = BuildDeterministicPositions(
                 effectiveConfig.WorldWidth,
                 effectiveConfig.WorldHeight,
-                effectiveConfig.InitialAgentCount + effectiveConfig.InitialFoodCount,
+                effectiveConfig.InitialAgentCount
+                    + effectiveConfig.InitialFoodCount
+                    + effectiveConfig.EffectiveEcology.InitialPlantCount
+                    + effectiveConfig.EffectiveEcology.InitialWaterSourceCount
+                    + effectiveConfig.EffectiveEcology.InitialResourceDepositCount,
                 random);
 
             List<AgentEntity> agentEntities = [];
             List<AgentState> agentStates = [];
             List<ResourceContainerEntity> resourceContainers = [];
+            List<PlantEntity> plants = [];
+            List<WaterSourceEntity> waterSources = [];
+            List<ResourceDepositEntity> resourceDeposits = [];
 
             for (int index = 0; index < effectiveConfig.InitialAgentCount && index < positions.Count; index++)
             {
@@ -92,7 +101,69 @@ namespace TabulaRasa.Simulation.Composition
             }
 
             GridMap grid = new(effectiveConfig.WorldWidth, effectiveConfig.WorldHeight);
-            WorldState world = WorldFactory.Create(agentEntities, resourceContainers, grid);
+            int ecologyPositionStart = effectiveConfig.InitialAgentCount + effectiveConfig.InitialFoodCount;
+            for (int index = 0; index < effectiveConfig.EffectiveEcology.InitialPlantCount; index++)
+            {
+                int positionIndex = ecologyPositionStart + index;
+                if (positionIndex >= positions.Count)
+                {
+                    break;
+                }
+
+                plants.Add(new PlantEntity
+                {
+                    Id = $"plant-{index + 1}",
+                    Position = positions[positionIndex],
+                    MaxYield = 3,
+                    Yield = 2,
+                    RegrowthTicks = effectiveConfig.EffectiveEcology.PlantRegrowthTicks,
+                    DecayTicksAfterDepleted = effectiveConfig.EffectiveEcology.PlantDecayTicksAfterDepleted
+                });
+                grid.SetTerrain(positions[positionIndex].ToGridCell(), GridTerrainType.Forest);
+            }
+
+            int waterPositionStart = ecologyPositionStart + effectiveConfig.EffectiveEcology.InitialPlantCount;
+            for (int index = 0; index < effectiveConfig.EffectiveEcology.InitialWaterSourceCount; index++)
+            {
+                int positionIndex = waterPositionStart + index;
+                if (positionIndex >= positions.Count)
+                {
+                    break;
+                }
+
+                waterSources.Add(new WaterSourceEntity
+                {
+                    Id = $"water-source-{index + 1}",
+                    Position = positions[positionIndex],
+                    CurrentVolume = 8,
+                    MaxVolume = 10,
+                    RefillPerRainTick = effectiveConfig.EffectiveEcology.WaterRefillPerRainTick,
+                    EvaporationPerHeatTick = effectiveConfig.EffectiveEcology.WaterEvaporationPerHeatTick
+                });
+                grid.SetTerrain(positions[positionIndex].ToGridCell(), GridTerrainType.Water);
+            }
+
+            int depositPositionStart = waterPositionStart + effectiveConfig.EffectiveEcology.InitialWaterSourceCount;
+            for (int index = 0; index < effectiveConfig.EffectiveEcology.InitialResourceDepositCount; index++)
+            {
+                int positionIndex = depositPositionStart + index;
+                if (positionIndex >= positions.Count)
+                {
+                    break;
+                }
+
+                resourceDeposits.Add(new ResourceDepositEntity
+                {
+                    Id = $"resource-deposit-{index + 1}",
+                    Position = positions[positionIndex],
+                    ResourceId = ResourceDefinition.StoneId,
+                    Quantity = 5,
+                    MaxQuantity = 5
+                });
+                grid.SetTerrain(positions[positionIndex].ToGridCell(), GridTerrainType.Mud);
+            }
+
+            WorldState world = WorldFactory.Create(agentEntities, resourceContainers, grid, plants, waterSources, resourceDeposits);
             SimulationState state = new(world, new SimulationTime(Tick: 0), agentStates, effectiveConfig);
 
             return (state, BuildSystems(state.Config));
@@ -102,6 +173,8 @@ namespace TabulaRasa.Simulation.Composition
         {
             Dictionary<string, Func<ISystem>> factories = new(StringComparer.OrdinalIgnoreCase)
             {
+                ["environment"] = () => new EnvironmentSystem(),
+                ["ecology"] = () => new EcologySystem(),
                 ["need-decay"] = () => new NeedDecaySystem(),
                 ["memory"] = () => new AgentMemorySystem(),
                 ["planning"] = () => new PlanningSystem(),

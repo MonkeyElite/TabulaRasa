@@ -190,7 +190,12 @@ const snapshot: SimulationSnapshot = {
         cell: { x: 1, y: 1 },
         terrainType: "Mud",
         traversalCost: 3,
-        speedMultiplier: 0.5
+        speedMultiplier: 0.5,
+        perceptionMultiplier: 1,
+        hungerDeltaMultiplier: 1,
+        thirstDeltaMultiplier: 1,
+        fatigueDeltaMultiplier: 1.5,
+        isWater: false
       }
     ],
     occupiedCells: []
@@ -391,6 +396,8 @@ const snapshot: SimulationSnapshot = {
     unitWeight: 1,
     maxStackQuantity: 10,
     isConsumable: true,
+    renewability: "Renewable",
+    category: "plant",
     needEffects: { hungerDelta: -5, thirstDelta: 0, energyDelta: 0, fatigueDelta: 0 }
   }],
   resourceContainers: [],
@@ -419,6 +426,26 @@ const snapshot: SimulationSnapshot = {
   populationCount: 1,
   aliveAgentCount: 1,
   deadAgentCount: 0,
+  environment: {
+    dayLengthTicks: 100,
+    tickOfDay: 3,
+    day: 0,
+    phase: "Dawn",
+    weather: "Clear",
+    temperature: 18
+  },
+  ecologyStats: {
+    plantCount: 0,
+    harvestablePlantCount: 0,
+    totalPlantYield: 0,
+    waterSourceCount: 0,
+    totalWaterVolume: 0,
+    resourceDepositCount: 0,
+    totalDepositQuantity: 0
+  },
+  plants: [],
+  waterSources: [],
+  resourceDeposits: [],
   diagnostics: null
 };
 
@@ -442,7 +469,10 @@ const draft: SimulationDraft = {
   })),
   resourceDefinitions: snapshot.resourceDefinitions,
   resourceContainers: [],
-  config: null
+  config: null,
+  plants: [],
+  waterSources: [],
+  resourceDeposits: []
 };
 
 const schema: SimulationDraftSchema = {
@@ -451,6 +481,9 @@ const schema: SimulationDraftSchema = {
   agentFields: [],
   resourceDefinitionFields: [],
   resourceContainerFields: [],
+  plantFields: [],
+  waterSourceFields: [],
+  resourceDepositFields: [],
   inventoryFields: [],
   resourceStackFields: []
 };

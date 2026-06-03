@@ -56,6 +56,9 @@ namespace TabulaRasa.World.Queries
             return world.Agents
                 .Cast<ISpatialEntity>()
                 .Concat(world.ResourceContainers)
+                .Concat(world.Plants)
+                .Concat(world.WaterSources)
+                .Concat(world.ResourceDeposits)
                 .Where(entity => entity.Position.DistanceTo(origin) <= radius)
                 .ToList();
         }
@@ -65,6 +68,8 @@ namespace TabulaRasa.World.Queries
             return entity switch
             {
                 ResourceContainerEntity container => !container.IsEmpty,
+                PlantEntity plant => !plant.IsDecayed,
+                ResourceDepositEntity deposit => !deposit.IsEmpty,
                 _ => true
             };
         }
@@ -183,6 +188,50 @@ namespace TabulaRasa.World.Queries
         public static bool ContainerHasFood(ResourceContainerEntity container)
         {
             return container.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0;
+        }
+
+        public static PlantEntity? FindAvailablePlantAtInteractionPoint(
+            WorldState world,
+            WorldPosition agentPosition,
+            string plantId,
+            float tolerance = DefaultInteractionTolerance)
+        {
+            PlantEntity? plant = world.Plants.FirstOrDefault(candidate =>
+                candidate.Id == plantId && candidate.IsHarvestable);
+
+            if (plant is null)
+            {
+                return null;
+            }
+
+            InteractionPoint? interactionPoint = FindNearestAvailableInteractionPoint(
+                plant,
+                agentPosition,
+                tolerance);
+
+            return interactionPoint is null ? null : plant;
+        }
+
+        public static WaterSourceEntity? FindAvailableWaterSourceAtInteractionPoint(
+            WorldState world,
+            WorldPosition agentPosition,
+            string waterSourceId,
+            float tolerance = DefaultInteractionTolerance)
+        {
+            WaterSourceEntity? waterSource = world.WaterSources.FirstOrDefault(candidate =>
+                candidate.Id == waterSourceId && candidate.IsAvailable);
+
+            if (waterSource is null)
+            {
+                return null;
+            }
+
+            InteractionPoint? interactionPoint = FindNearestAvailableInteractionPoint(
+                waterSource,
+                agentPosition,
+                tolerance);
+
+            return interactionPoint is null ? null : waterSource;
         }
     }
 }

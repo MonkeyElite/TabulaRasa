@@ -1,9 +1,11 @@
 using TabulaRasa.Abstractions.Agents;
+using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.Spatial.Interaction;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
 using TabulaRasa.World.Resources;
+using TabulaRasa.World.Spatial.Grid;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.Systems
@@ -14,6 +16,8 @@ namespace TabulaRasa.Simulation.Systems
         {
             List<PerceivedEntity> nearbyEntities = [];
             List<InteractionOpportunity> opportunities = [];
+            GridTerrainProfile agentTerrain = world.Grid.GetTerrainProfile(agent.Position.ToGridCell());
+            float effectiveRadius = perceptionRadius * agentTerrain.PerceptionMultiplier;
 
             foreach (ISpatialEntity entity in world.SpatialEntities)
             {
@@ -24,7 +28,7 @@ namespace TabulaRasa.Simulation.Systems
 
                 float distance = entity.Position.DistanceTo(agent.Position);
 
-                if (distance > perceptionRadius)
+                if (distance > effectiveRadius)
                 {
                     continue;
                 }
@@ -35,7 +39,9 @@ namespace TabulaRasa.Simulation.Systems
                         agent.Position,
                         maxDistance: float.MaxValue)
                     : null;
-                float relevance = CalculateRelevance(distance, perceptionRadius);
+                float relevance = CalculateRelevance(distance, effectiveRadius);
+                GridTerrainProfile entityTerrain = world.Grid.GetTerrainProfile(entity.Position.ToGridCell());
+                float certainty = Math.Clamp(agentTerrain.PerceptionMultiplier * entityTerrain.PerceptionMultiplier, 0.1f, 1f);
 
                 nearbyEntities.Add(new PerceivedEntity(
                     entity.Id,
@@ -44,7 +50,7 @@ namespace TabulaRasa.Simulation.Systems
                     IsInteractable: interactionPoint is not null,
                     Channel: PerceptionChannel.Sight,
                     Distance: distance,
-                    Certainty: 1,
+                    Certainty: certainty,
                     Relevance: relevance));
 
                 if (entity is ResourceContainerEntity container
@@ -59,6 +65,48 @@ namespace TabulaRasa.Simulation.Systems
                         Channel: PerceptionChannel.Sight,
                         Relevance: relevance));
                 }
+
+                if (entity is PlantEntity plant
+                    && plant.IsHarvestable
+                    && interactionPoint is not null)
+                {
+                    AgentActionType actionType = string.Equals(plant.ResourceId, ResourceDefinition.FoodId, StringComparison.OrdinalIgnoreCase)
+                        ? AgentActionType.Eat
+                        : AgentActionType.PickUpResource;
+                    opportunities.Add(new InteractionOpportunity(
+                        actionType,
+                        plant.Id,
+                        interactionPoint.Value.StandPosition,
+                        SourceEntityId: plant.Id,
+                        Channel: PerceptionChannel.Sight,
+                        Relevance: relevance));
+                }
+
+                if (entity is WaterSourceEntity waterSource
+                    && waterSource.IsAvailable
+                    && interactionPoint is not null)
+                {
+                    opportunities.Add(new InteractionOpportunity(
+                        AgentActionType.Drink,
+                        waterSource.Id,
+                        interactionPoint.Value.StandPosition,
+                        SourceEntityId: waterSource.Id,
+                        Channel: PerceptionChannel.Sight,
+                        Relevance: relevance));
+                }
+
+                if (entity is ResourceDepositEntity deposit
+                    && !deposit.IsEmpty
+                    && interactionPoint is not null)
+                {
+                    opportunities.Add(new InteractionOpportunity(
+                        AgentActionType.PickUpResource,
+                        deposit.Id,
+                        interactionPoint.Value.StandPosition,
+                        SourceEntityId: deposit.Id,
+                        Channel: PerceptionChannel.Sight,
+                        Relevance: relevance));
+                }
             }
 
             return new AgentPerception(nearbyEntities, opportunities);
@@ -69,6 +117,9 @@ namespace TabulaRasa.Simulation.Systems
             return entity switch
             {
                 ResourceContainerEntity container => !container.IsEmpty,
+                PlantEntity plant => !plant.IsDecayed,
+                WaterSourceEntity waterSource => waterSource.IsAvailable,
+                ResourceDepositEntity deposit => !deposit.IsEmpty,
                 _ => true
             };
         }
@@ -80,6 +131,10 @@ namespace TabulaRasa.Simulation.Systems
                 AgentEntity => PerceivedEntityType.Agent,
                 ResourceContainerEntity container when container.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0 => PerceivedEntityType.Food,
                 ResourceContainerEntity => PerceivedEntityType.ResourceContainer,
+                PlantEntity plant when string.Equals(plant.ResourceId, ResourceDefinition.FoodId, StringComparison.OrdinalIgnoreCase) => PerceivedEntityType.Food,
+                PlantEntity => PerceivedEntityType.Plant,
+                WaterSourceEntity => PerceivedEntityType.WaterSource,
+                ResourceDepositEntity => PerceivedEntityType.ResourceDeposit,
                 _ => PerceivedEntityType.Unknown
             };
         }

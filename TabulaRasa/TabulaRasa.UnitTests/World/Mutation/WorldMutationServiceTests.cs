@@ -177,8 +177,10 @@ namespace TabulaRasa.UnitTests.World.Mutation
             Assert.Single(snapshot.Agents[0].OccupiedCells);
             Assert.True(snapshot.Agents[0].OccupiesSpace);
             Assert.NotNull(snapshot.Agents[0].Health);
-            Assert.Single(snapshot.ResourceDefinitions);
-            Assert.Equal(ResourceDefinition.FoodId, snapshot.ResourceDefinitions.Single().Id);
+            Assert.Contains(snapshot.ResourceDefinitions, definition => definition.Id == ResourceDefinition.FoodId);
+            Assert.Contains(snapshot.ResourceDefinitions, definition => definition.Id == ResourceDefinition.WaterId);
+            Assert.Contains(snapshot.ResourceDefinitions, definition => definition.Id == ResourceDefinition.WoodId);
+            Assert.Contains(snapshot.ResourceDefinitions, definition => definition.Id == ResourceDefinition.StoneId);
             Assert.Equal(1, snapshot.Agents[0].Inventory.Stacks.Single().Quantity);
             Assert.Equal(1, snapshot.Agents[0].Inventory.UsedSlots);
         }

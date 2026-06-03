@@ -43,7 +43,9 @@ namespace TabulaRasa.World.Spatial.Grid
 
         public bool IsTraversable(GridCell cell)
         {
-            return Contains(cell) && !blockedCells.Contains(cell);
+            return Contains(cell)
+                && !blockedCells.Contains(cell)
+                && GetTerrain(cell) != GridTerrainType.Water;
         }
 
         public GridTerrainType GetTerrain(GridCell cell)

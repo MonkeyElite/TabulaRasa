@@ -57,6 +57,28 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                     return new ActionResult(request.AgentId, request.ActionType, false, "No food is available to eat.");
                 }
 
+                PlantEntity? plant = SpatialQueries.FindAvailablePlantAtInteractionPoint(
+                    state.World,
+                    agentEntity.Position,
+                    request.TargetId);
+                if (plant is not null)
+                {
+                    WorldMutationResult harvest = _mutations.TryHarvestPlant(
+                        state.World,
+                        agentEntity.Id,
+                        plant.Id,
+                        quantity: 1);
+                    if (!harvest.Succeeded)
+                    {
+                        return new ActionResult(
+                            request.AgentId,
+                            request.ActionType,
+                            false,
+                            harvest.Reason ?? "Plant could not be harvested.");
+                    }
+                }
+                else
+                {
                 ResourceContainerEntity? container = SpatialQueries.FindAvailableFoodContainerAtInteractionPoint(
                     state.World,
                     agentEntity.Position,
@@ -85,6 +107,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                         request.ActionType,
                         false,
                         pickup.Reason ?? "Food could not be picked up.");
+                }
                 }
             }
 
@@ -118,6 +141,35 @@ namespace TabulaRasa.Simulation.Actions.Resolution
             }
 
             string resourceId = request.TargetType ?? ResourceDefinition.FoodId;
+
+            PlantEntity? plant = state.World.Plants.FirstOrDefault(candidate => candidate.Id == request.TargetId);
+            if (plant is not null)
+            {
+                WorldMutationResult harvest = _mutations.TryHarvestPlant(
+                    state.World,
+                    request.AgentId,
+                    plant.Id,
+                    quantity: 1);
+
+                return harvest.Succeeded
+                    ? new ActionResult(request.AgentId, request.ActionType, true)
+                    : new ActionResult(request.AgentId, request.ActionType, false, harvest.Reason);
+            }
+
+            ResourceDepositEntity? deposit = state.World.ResourceDeposits.FirstOrDefault(candidate => candidate.Id == request.TargetId);
+            if (deposit is not null)
+            {
+                WorldMutationResult harvest = _mutations.TryHarvestDeposit(
+                    state.World,
+                    request.AgentId,
+                    deposit.Id,
+                    quantity: 1);
+
+                return harvest.Succeeded
+                    ? new ActionResult(request.AgentId, request.ActionType, true)
+                    : new ActionResult(request.AgentId, request.ActionType, false, harvest.Reason);
+            }
+
             WorldMutationResult mutation = _mutations.TryPickUpResource(
                 state.World,
                 request.AgentId,
@@ -174,16 +226,64 @@ namespace TabulaRasa.Simulation.Actions.Resolution
             return new ActionResult(request.AgentId, request.ActionType, true);
         }
 
-        private static ActionResult ResolveDrink(SimulationState state, ActionRequest request)
+        private ActionResult ResolveDrink(SimulationState state, ActionRequest request)
         {
+            AgentEntity? agentEntity = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
             AgentState? agentState = state.GetAgentById(request.AgentId);
 
-            if (agentState is null)
+            if (agentEntity is null || agentState is null)
             {
                 return new ActionResult(request.AgentId, request.ActionType, false, "Drink action could not be resolved.");
             }
 
-            NeedSystem.ApplyDrink(agentState.NeedState);
+            if (agentEntity.Inventory.GetQuantity(ResourceDefinition.WaterId) > 0)
+            {
+                WorldMutationResult mutation = _mutations.TryConsumeResource(
+                    state.World,
+                    agentEntity.Inventory,
+                    ResourceDefinition.WaterId,
+                    quantity: 1);
+                if (!mutation.Succeeded)
+                {
+                    return new ActionResult(request.AgentId, request.ActionType, false, mutation.Reason);
+                }
+
+                ApplyNeedEffects(
+                    agentState.NeedState,
+                    state.World.ResourceDefinitionsById[ResourceDefinition.WaterId].NeedEffects);
+
+                return new ActionResult(request.AgentId, request.ActionType, true);
+            }
+
+            if (request.TargetId is null)
+            {
+                NeedSystem.ApplyDrink(agentState.NeedState);
+                return new ActionResult(request.AgentId, request.ActionType, true);
+            }
+
+            WaterSourceEntity? waterSource = SpatialQueries.FindAvailableWaterSourceAtInteractionPoint(
+                state.World,
+                agentEntity.Position,
+                request.TargetId);
+            if (waterSource is null)
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, "Water source is unavailable.");
+            }
+
+            WorldMutationResult draw = _mutations.TryDrawWater(
+                state.World,
+                agentEntity.Id,
+                waterSource.Id,
+                amount: 1,
+                addToInventory: false);
+            if (!draw.Succeeded)
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, draw.Reason);
+            }
+
+            ApplyNeedEffects(
+                agentState.NeedState,
+                state.World.ResourceDefinitionsById[ResourceDefinition.WaterId].NeedEffects);
 
             return new ActionResult(request.AgentId, request.ActionType, true);
         }

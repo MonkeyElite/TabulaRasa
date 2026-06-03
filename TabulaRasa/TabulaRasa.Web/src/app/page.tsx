@@ -36,6 +36,8 @@ import type {
 } from "@/types/simulation";
 
 const systemOptions = [
+  ["environment", "Environment"],
+  ["ecology", "Ecology"],
   ["need-decay", "Need decay"],
   ["memory", "Memory"],
   ["planning", "Planning"],
@@ -81,8 +83,24 @@ const defaultConfig: SimulationConfig = {
     minimumStrength: 0.2,
     recallThreshold: 0.35
   },
+  environment: {
+    dayLengthTicks: 100,
+    weatherChangeIntervalTicks: 50,
+    baseTemperature: 20
+  },
+  ecology: {
+    initialPlantCount: 3,
+    initialWaterSourceCount: 1,
+    initialResourceDepositCount: 1,
+    plantRegrowthTicks: 5,
+    plantDecayTicksAfterDepleted: 20,
+    waterRefillPerRainTick: 0.5,
+    waterEvaporationPerHeatTick: 0.25
+  },
   enabledSystems: systemOptions.map(([id]) => id)
 };
+
+const terrainBrushes = ["Plain", "Road", "Forest", "Mud", "Water"] as const;
 
 export default function Home() {
   const [simulations, setSimulations] = useState<SimulationSummary[]>([]);
@@ -104,6 +122,7 @@ export default function Home() {
   const [hover, setHover] = useState<HoverInfo>(null);
   const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
   const [showPerceptionOverlay, setShowPerceptionOverlay] = useState(false);
+  const [terrainBrush, setTerrainBrush] = useState<(typeof terrainBrushes)[number] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState("Simulation");
@@ -434,6 +453,18 @@ export default function Home() {
         <button onClick={() => setEditing((value) => !value)} disabled={!canEdit}>
           Edit
         </button>
+        {editing && (
+          <select
+            value={terrainBrush ?? ""}
+            onChange={(event) => setTerrainBrush(event.target.value ? event.target.value as (typeof terrainBrushes)[number] : null)}
+            title="Terrain brush"
+          >
+            <option value="">Select</option>
+            {terrainBrushes.map((brush) => (
+              <option key={brush} value={brush}>{brush}</option>
+            ))}
+          </select>
+        )}
         <button onClick={handleRestartFromDraft} disabled={!editing || !draft}>
           <Save size={16} />
           Restart
@@ -507,6 +538,8 @@ export default function Home() {
             onMoveAgent={moveAgent}
             onMoveResourceContainer={moveResourceContainer}
             onToggleBlockedCell={(cell) => draft && setDraft(toggleBlockedCell(draft, cell))}
+            terrainBrush={terrainBrush}
+            onPaintTerrain={(cell, terrainType) => draft && setDraft(setTerrainCell(draft, cell, terrainType))}
             onHover={setHover}
           />
           {hover && (
@@ -787,6 +820,42 @@ function ConfigFields({
         disabled={disabled}
         step={0.01}
         onChange={(decayPerTick) => onChange({ ...config, memory: { ...config.memory, decayPerTick } })}
+      />
+      <NumberConfigField
+        label="Day ticks"
+        value={config.environment.dayLengthTicks}
+        disabled={disabled}
+        onChange={(dayLengthTicks) => onChange({ ...config, environment: { ...config.environment, dayLengthTicks } })}
+      />
+      <NumberConfigField
+        label="Weather"
+        value={config.environment.weatherChangeIntervalTicks}
+        disabled={disabled}
+        onChange={(weatherChangeIntervalTicks) => onChange({ ...config, environment: { ...config.environment, weatherChangeIntervalTicks } })}
+      />
+      <NumberConfigField
+        label="Base temp"
+        value={config.environment.baseTemperature}
+        disabled={disabled}
+        onChange={(baseTemperature) => onChange({ ...config, environment: { ...config.environment, baseTemperature } })}
+      />
+      <NumberConfigField
+        label="Plants"
+        value={config.ecology.initialPlantCount}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(initialPlantCount) => onChange({ ...config, ecology: { ...config.ecology, initialPlantCount } })}
+      />
+      <NumberConfigField
+        label="Water src"
+        value={config.ecology.initialWaterSourceCount}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(initialWaterSourceCount) => onChange({ ...config, ecology: { ...config.ecology, initialWaterSourceCount } })}
+      />
+      <NumberConfigField
+        label="Deposits"
+        value={config.ecology.initialResourceDepositCount}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(initialResourceDepositCount) => onChange({ ...config, ecology: { ...config.ecology, initialResourceDepositCount } })}
       />
       <NumberConfigField
         label="Forget below"

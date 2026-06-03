@@ -245,6 +245,15 @@ namespace TabulaRasa.World.Mutation
                 case ResourceContainerEntity container:
                     world.ResourceContainers.Add(container);
                     return WorldMutationResult.Success();
+                case PlantEntity plant:
+                    world.Plants.Add(plant);
+                    return WorldMutationResult.Success();
+                case WaterSourceEntity waterSource:
+                    world.WaterSources.Add(waterSource);
+                    return WorldMutationResult.Success();
+                case ResourceDepositEntity deposit:
+                    world.ResourceDeposits.Add(deposit);
+                    return WorldMutationResult.Success();
                 default:
                     return WorldMutationResult.Failure(
                         WorldMutationFailureKind.UnsupportedEntityType,
@@ -270,9 +279,186 @@ namespace TabulaRasa.World.Mutation
                 return WorldMutationResult.Success();
             }
 
+            PlantEntity? plant = EntityQueries.GetPlant(world, entityId);
+            if (plant is not null)
+            {
+                world.Plants.Remove(plant);
+                return WorldMutationResult.Success();
+            }
+
+            WaterSourceEntity? waterSource = EntityQueries.GetWaterSource(world, entityId);
+            if (waterSource is not null)
+            {
+                world.WaterSources.Remove(waterSource);
+                return WorldMutationResult.Success();
+            }
+
+            ResourceDepositEntity? deposit = EntityQueries.GetResourceDeposit(world, entityId);
+            if (deposit is not null)
+            {
+                world.ResourceDeposits.Remove(deposit);
+                return WorldMutationResult.Success();
+            }
+
             return WorldMutationResult.Failure(
                 WorldMutationFailureKind.EntityNotFound,
                 "Entity does not exist.");
+        }
+
+        public WorldMutationResult TryHarvestPlant(
+            WorldState world,
+            string agentId,
+            string plantId,
+            int quantity)
+        {
+            AgentEntity? agent = EntityQueries.GetAgentEntity(world, agentId);
+            PlantEntity? plant = EntityQueries.GetPlant(world, plantId);
+
+            if (agent is null || plant is null)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.EntityNotFound,
+                    "Agent or plant does not exist.");
+            }
+
+            if (SpatialQueries.FindNearestAvailableInteractionPoint(
+                    plant,
+                    agent.Position,
+                    SpatialQueries.DefaultInteractionTolerance) is null)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidOperation,
+                    "Plant is out of reach.");
+            }
+
+            if (!plant.IsHarvestable || plant.Yield < quantity)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Plant does not have enough harvestable yield.");
+            }
+
+            if (!TryGetDefinition(world, plant.ResourceId, out ResourceDefinition? definition, out WorldMutationResult failure))
+            {
+                return failure;
+            }
+
+            if (!CanAddResource(agent.Inventory, world.ResourceDefinitionsById, definition, quantity, out string reason))
+            {
+                return WorldMutationResult.Failure(WorldMutationFailureKind.CapacityExceeded, reason);
+            }
+
+            plant.Yield -= quantity;
+            if (plant.Yield <= 0)
+            {
+                plant.Yield = 0;
+                plant.TicksUntilRegrowth = Math.Max(1, plant.RegrowthTicks);
+                plant.DepletedTicks = 0;
+            }
+
+            AddResource(agent.Inventory, definition, quantity);
+            return WorldMutationResult.Success();
+        }
+
+        public WorldMutationResult TryDrawWater(
+            WorldState world,
+            string agentId,
+            string waterSourceId,
+            float amount,
+            bool addToInventory)
+        {
+            AgentEntity? agent = EntityQueries.GetAgentEntity(world, agentId);
+            WaterSourceEntity? waterSource = EntityQueries.GetWaterSource(world, waterSourceId);
+
+            if (agent is null || waterSource is null)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.EntityNotFound,
+                    "Agent or water source does not exist.");
+            }
+
+            if (SpatialQueries.FindNearestAvailableInteractionPoint(
+                    waterSource,
+                    agent.Position,
+                    SpatialQueries.DefaultInteractionTolerance) is null)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidOperation,
+                    "Water source is out of reach.");
+            }
+
+            if (amount <= 0 || waterSource.CurrentVolume < amount)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Water source does not contain enough water.");
+            }
+
+            if (addToInventory)
+            {
+                if (!TryGetDefinition(world, ResourceDefinition.WaterId, out ResourceDefinition? definition, out WorldMutationResult failure))
+                {
+                    return failure;
+                }
+
+                if (!CanAddResource(agent.Inventory, world.ResourceDefinitionsById, definition, (int)MathF.Ceiling(amount), out string reason))
+                {
+                    return WorldMutationResult.Failure(WorldMutationFailureKind.CapacityExceeded, reason);
+                }
+
+                AddResource(agent.Inventory, definition, (int)MathF.Ceiling(amount));
+            }
+
+            waterSource.CurrentVolume = Math.Max(0, waterSource.CurrentVolume - amount);
+            return WorldMutationResult.Success();
+        }
+
+        public WorldMutationResult TryHarvestDeposit(
+            WorldState world,
+            string agentId,
+            string depositId,
+            int quantity)
+        {
+            AgentEntity? agent = EntityQueries.GetAgentEntity(world, agentId);
+            ResourceDepositEntity? deposit = EntityQueries.GetResourceDeposit(world, depositId);
+
+            if (agent is null || deposit is null)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.EntityNotFound,
+                    "Agent or resource deposit does not exist.");
+            }
+
+            if (SpatialQueries.FindNearestAvailableInteractionPoint(
+                    deposit,
+                    agent.Position,
+                    SpatialQueries.DefaultInteractionTolerance) is null)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidOperation,
+                    "Resource deposit is out of reach.");
+            }
+
+            if (quantity <= 0 || deposit.Quantity < quantity)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Resource deposit does not contain enough quantity.");
+            }
+
+            if (!TryGetDefinition(world, deposit.ResourceId, out ResourceDefinition? definition, out WorldMutationResult failure))
+            {
+                return failure;
+            }
+
+            if (!CanAddResource(agent.Inventory, world.ResourceDefinitionsById, definition, quantity, out string reason))
+            {
+                return WorldMutationResult.Failure(WorldMutationFailureKind.CapacityExceeded, reason);
+            }
+
+            deposit.Quantity -= quantity;
+            AddResource(agent.Inventory, definition, quantity);
+            return WorldMutationResult.Success();
         }
 
         public WorldMutationResult TryDamageEntity(WorldState world, string entityId, float amount)

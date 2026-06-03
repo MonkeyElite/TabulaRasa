@@ -15,6 +15,7 @@ using TabulaRasa.Simulation.Tasks.Definitions;
 using TabulaRasa.Simulation.Tasks.Jobs;
 using TabulaRasa.Simulation.Tasks.Reservations;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Environment;
 using TabulaRasa.World.Queries;
 using TabulaRasa.World.Resources;
 using TabulaRasa.World.Spatial.Grid;
@@ -51,7 +52,12 @@ namespace TabulaRasa.Api.Services
                 populationCount,
                 aliveAgentCount,
                 deadAgentCount,
-                ToDiagnostics(state.GetDiagnosticsForTick(state.Time.Tick)));
+                ToDiagnostics(state.GetDiagnosticsForTick(state.Time.Tick)),
+                ToEnvironment(state.World.Environment),
+                ToEcologyStats(state),
+                state.World.Plants.Select(ToPlant).ToList(),
+                state.World.WaterSources.Select(ToWaterSource).ToList(),
+                state.World.ResourceDeposits.Select(ToResourceDeposit).ToList());
         }
 
         public static SimulationDraftDto ToDraft(SimulationState state)
@@ -73,7 +79,10 @@ namespace TabulaRasa.Api.Services
                     container.Id,
                     ToPosition(container.Position),
                     ToEditableInventory(container.Inventory))).ToList(),
-                ToConfig(state.Config));
+                ToConfig(state.Config),
+                state.World.Plants.Select(ToEditablePlant).ToList(),
+                state.World.WaterSources.Select(ToEditableWaterSource).ToList(),
+                state.World.ResourceDeposits.Select(ToEditableResourceDeposit).ToList());
         }
 
         public static SimulationConfigDto ToConfig(SimulationConfig config)
@@ -105,7 +114,19 @@ namespace TabulaRasa.Api.Services
                     config.EffectiveMemory.RetentionTicks,
                     config.EffectiveMemory.DecayPerTick,
                     config.EffectiveMemory.MinimumStrength,
-                    config.EffectiveMemory.RecallThreshold));
+                    config.EffectiveMemory.RecallThreshold),
+                new EnvironmentConfigDto(
+                    config.EffectiveEnvironment.DayLengthTicks,
+                    config.EffectiveEnvironment.WeatherChangeIntervalTicks,
+                    config.EffectiveEnvironment.BaseTemperature),
+                new EcologyConfigDto(
+                    config.EffectiveEcology.InitialPlantCount,
+                    config.EffectiveEcology.InitialWaterSourceCount,
+                    config.EffectiveEcology.InitialResourceDepositCount,
+                    config.EffectiveEcology.PlantRegrowthTicks,
+                    config.EffectiveEcology.PlantDecayTicksAfterDepleted,
+                    config.EffectiveEcology.WaterRefillPerRainTick,
+                    config.EffectiveEcology.WaterEvaporationPerHeatTick));
         }
 
         public static SimulationConfig ToConfig(SimulationConfigDto? dto, SimulationConfig fallback)
@@ -124,6 +145,25 @@ namespace TabulaRasa.Api.Services
                     dto.Memory.DecayPerTick,
                     dto.Memory.MinimumStrength,
                     dto.Memory.RecallThreshold);
+            EnvironmentConfig environment = dto.Environment is null
+                ? fallback.EffectiveEnvironment
+                : new EnvironmentConfig(
+                    dto.Environment.DayLengthTicks,
+                    dto.Environment.WeatherChangeIntervalTicks,
+                    dto.Environment.BaseTemperature);
+            EcologyConfig ecology = dto.Ecology is null
+                ? new EcologyConfig(
+                    InitialPlantCount: 0,
+                    InitialWaterSourceCount: 0,
+                    InitialResourceDepositCount: 0)
+                : new EcologyConfig(
+                    dto.Ecology.InitialPlantCount,
+                    dto.Ecology.InitialWaterSourceCount,
+                    dto.Ecology.InitialResourceDepositCount,
+                    dto.Ecology.PlantRegrowthTicks,
+                    dto.Ecology.PlantDecayTicksAfterDepleted,
+                    dto.Ecology.WaterRefillPerRainTick,
+                    dto.Ecology.WaterEvaporationPerHeatTick);
 
             return new SimulationConfig(
                     dto.Seed,
@@ -146,7 +186,9 @@ namespace TabulaRasa.Api.Services
                         dto.Pathfinding.MaxVisitedCells,
                         dto.Pathfinding.MaxRepathAttempts),
                     dto.EnabledSystems,
-                    memory);
+                    memory,
+                    environment,
+                    ecology);
         }
 
         public static SimulationDraftDto ToDraft(SimulationSnapshotDto snapshot, SimulationConfigDto config)
@@ -170,7 +212,10 @@ namespace TabulaRasa.Api.Services
                     container.Id,
                     container.Position,
                     ToEditableInventory(container.Inventory))).ToList(),
-                config);
+                config,
+                (snapshot.Plants ?? []).Select(ToEditablePlant).ToList(),
+                (snapshot.WaterSources ?? []).Select(ToEditableWaterSource).ToList(),
+                (snapshot.ResourceDeposits ?? []).Select(ToEditableResourceDeposit).ToList());
         }
 
         private static GridDto ToGrid(SimulationState state)
@@ -334,7 +379,9 @@ namespace TabulaRasa.Api.Services
                 definition.UnitWeight,
                 definition.MaxStackQuantity,
                 definition.IsConsumable,
-                ToNeedEffects(definition.NeedEffects));
+                ToNeedEffects(definition.NeedEffects),
+                definition.Renewability.ToString(),
+                definition.Category);
         }
 
         private static EditableResourceDefinitionDto ToEditableResourceDefinition(ResourceDefinition definition)
@@ -346,7 +393,9 @@ namespace TabulaRasa.Api.Services
                 definition.UnitWeight,
                 definition.MaxStackQuantity,
                 definition.IsConsumable,
-                ToNeedEffects(definition.NeedEffects));
+                ToNeedEffects(definition.NeedEffects),
+                definition.Renewability.ToString(),
+                definition.Category);
         }
 
         private static EditableResourceDefinitionDto ToEditableResourceDefinition(ResourceDefinitionDto definition)
@@ -358,7 +407,9 @@ namespace TabulaRasa.Api.Services
                 definition.UnitWeight,
                 definition.MaxStackQuantity,
                 definition.IsConsumable,
-                definition.NeedEffects);
+                definition.NeedEffects,
+                definition.Renewability,
+                definition.Category);
         }
 
         private static ResourceNeedEffectsDto ToNeedEffects(ResourceNeedEffects effects)
@@ -423,6 +474,153 @@ namespace TabulaRasa.Api.Services
                 SpatialQueries.OccupiesSpace(container),
                 ToHealth(container),
                 ToInventory(container.Inventory, definitions));
+        }
+
+        private static PlantSnapshotDto ToPlant(PlantEntity plant)
+        {
+            return new PlantSnapshotDto(
+                plant.Id,
+                nameof(PlantEntity),
+                ToPosition(plant.Position),
+                ToGridCell(plant.Position.ToGridCell()),
+                new FootprintDto(plant.Footprint.Width, plant.Footprint.Height),
+                SpatialQueries.GetOccupiedCellsForEntity(plant).Select(ToGridCell).ToList(),
+                SpatialQueries.OccupiesSpace(plant),
+                ToHealth(plant),
+                plant.ResourceId,
+                plant.Yield,
+                plant.MaxYield,
+                plant.RegrowthTicks,
+                plant.TicksUntilRegrowth,
+                plant.DecayTicksAfterDepleted,
+                plant.DepletedTicks,
+                plant.IsDecayed);
+        }
+
+        private static WaterSourceSnapshotDto ToWaterSource(WaterSourceEntity waterSource)
+        {
+            return new WaterSourceSnapshotDto(
+                waterSource.Id,
+                nameof(WaterSourceEntity),
+                ToPosition(waterSource.Position),
+                ToGridCell(waterSource.Position.ToGridCell()),
+                new FootprintDto(waterSource.Footprint.Width, waterSource.Footprint.Height),
+                SpatialQueries.GetOccupiedCellsForEntity(waterSource).Select(ToGridCell).ToList(),
+                SpatialQueries.OccupiesSpace(waterSource),
+                waterSource.CurrentVolume,
+                waterSource.MaxVolume,
+                waterSource.RefillPerRainTick,
+                waterSource.EvaporationPerHeatTick);
+        }
+
+        private static ResourceDepositSnapshotDto ToResourceDeposit(ResourceDepositEntity deposit)
+        {
+            return new ResourceDepositSnapshotDto(
+                deposit.Id,
+                nameof(ResourceDepositEntity),
+                ToPosition(deposit.Position),
+                ToGridCell(deposit.Position.ToGridCell()),
+                new FootprintDto(deposit.Footprint.Width, deposit.Footprint.Height),
+                SpatialQueries.GetOccupiedCellsForEntity(deposit).Select(ToGridCell).ToList(),
+                SpatialQueries.OccupiesSpace(deposit),
+                deposit.ResourceId,
+                deposit.Quantity,
+                deposit.MaxQuantity);
+        }
+
+        private static EditablePlantDto ToEditablePlant(PlantEntity plant)
+        {
+            return new EditablePlantDto(
+                plant.Id,
+                ToPosition(plant.Position),
+                plant.ResourceId,
+                plant.Yield,
+                plant.MaxYield,
+                plant.RegrowthTicks,
+                plant.TicksUntilRegrowth,
+                plant.DecayTicksAfterDepleted,
+                plant.DepletedTicks,
+                plant.IsDecayed);
+        }
+
+        private static EditablePlantDto ToEditablePlant(PlantSnapshotDto plant)
+        {
+            return new EditablePlantDto(
+                plant.Id,
+                plant.Position,
+                plant.ResourceId,
+                plant.Yield,
+                plant.MaxYield,
+                plant.RegrowthTicks,
+                plant.TicksUntilRegrowth,
+                plant.DecayTicksAfterDepleted,
+                plant.DepletedTicks,
+                plant.IsDecayed);
+        }
+
+        private static EditableWaterSourceDto ToEditableWaterSource(WaterSourceEntity waterSource)
+        {
+            return new EditableWaterSourceDto(
+                waterSource.Id,
+                ToPosition(waterSource.Position),
+                waterSource.CurrentVolume,
+                waterSource.MaxVolume,
+                waterSource.RefillPerRainTick,
+                waterSource.EvaporationPerHeatTick);
+        }
+
+        private static EditableWaterSourceDto ToEditableWaterSource(WaterSourceSnapshotDto waterSource)
+        {
+            return new EditableWaterSourceDto(
+                waterSource.Id,
+                waterSource.Position,
+                waterSource.CurrentVolume,
+                waterSource.MaxVolume,
+                waterSource.RefillPerRainTick,
+                waterSource.EvaporationPerHeatTick);
+        }
+
+        private static EditableResourceDepositDto ToEditableResourceDeposit(ResourceDepositEntity deposit)
+        {
+            return new EditableResourceDepositDto(
+                deposit.Id,
+                ToPosition(deposit.Position),
+                deposit.ResourceId,
+                deposit.Quantity,
+                deposit.MaxQuantity);
+        }
+
+        private static EditableResourceDepositDto ToEditableResourceDeposit(ResourceDepositSnapshotDto deposit)
+        {
+            return new EditableResourceDepositDto(
+                deposit.Id,
+                deposit.Position,
+                deposit.ResourceId,
+                deposit.Quantity,
+                deposit.MaxQuantity);
+        }
+
+        private static EnvironmentStateDto ToEnvironment(EnvironmentState environment)
+        {
+            return new EnvironmentStateDto(
+                environment.DayLengthTicks,
+                environment.TickOfDay,
+                environment.Day,
+                environment.Phase.ToString(),
+                environment.Weather.ToString(),
+                environment.Temperature);
+        }
+
+        private static EcologyStatsDto ToEcologyStats(SimulationState state)
+        {
+            return new EcologyStatsDto(
+                state.World.Plants.Count,
+                state.World.Plants.Count(plant => plant.IsHarvestable),
+                state.World.Plants.Sum(plant => plant.Yield),
+                state.World.WaterSources.Count,
+                state.World.WaterSources.Sum(water => water.CurrentVolume),
+                state.World.ResourceDeposits.Count,
+                state.World.ResourceDeposits.Sum(deposit => deposit.Quantity));
         }
 
         private static MovementSnapshotDto ToMovement(ActiveMovement movement)
@@ -616,7 +814,12 @@ namespace TabulaRasa.Api.Services
                 ToGridCell(terrainCell.Cell),
                 terrainCell.TerrainType.ToString(),
                 profile.TraversalCost,
-                profile.SpeedMultiplier);
+                profile.SpeedMultiplier,
+                profile.PerceptionMultiplier,
+                profile.HungerDeltaMultiplier,
+                profile.ThirstDeltaMultiplier,
+                profile.FatigueDeltaMultiplier,
+                profile.IsWater);
         }
 
         private static EditableGridTerrainCellDto ToEditableTerrainCell(GridTerrainCell terrainCell)

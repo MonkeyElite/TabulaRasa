@@ -36,7 +36,7 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 AgentActionType.DropResource => ActionValidationResult.Valid,
                 AgentActionType.ConsumeResource => ActionValidationResult.Valid,
                 AgentActionType.TransferResource => ActionValidationResult.Valid,
-                AgentActionType.Drink => ActionValidationResult.Valid,
+                AgentActionType.Drink => ValidateDrink(state, agentEntity, request),
                 AgentActionType.Rest => ActionValidationResult.Valid,
                 AgentActionType.Wander => ValidateWander(state, agentEntity),
                 AgentActionType.None => ActionValidationResult.Valid,
@@ -50,6 +50,15 @@ namespace TabulaRasa.Simulation.Actions.Validation
             ActionRequest request)
         {
             if (agentEntity.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0)
+            {
+                return ActionValidationResult.Valid;
+            }
+
+            if (request.TargetId is not null
+                && SpatialQueries.FindAvailablePlantAtInteractionPoint(
+                    state.World,
+                    agentEntity.Position,
+                    request.TargetId) is not null)
             {
                 return ActionValidationResult.Valid;
             }
@@ -90,20 +99,74 @@ namespace TabulaRasa.Simulation.Actions.Validation
             ResourceContainerEntity? container = state.World.ResourceContainers.FirstOrDefault(candidate =>
                 candidate.Id == request.TargetId && !candidate.IsEmpty);
 
-            if (container is null)
+            if (container is not null)
+            {
+                if (SpatialQueries.FindNearestAvailableInteractionPoint(
+                        container,
+                        agentEntity.Position,
+                        SpatialQueries.DefaultInteractionTolerance) is null)
+                {
+                    return ActionValidationResult.Invalid("Target resource container is out of reach.");
+                }
+
+                return ActionValidationResult.Valid;
+            }
+
+            PlantEntity? plant = state.World.Plants.FirstOrDefault(candidate =>
+                candidate.Id == request.TargetId && candidate.IsHarvestable);
+            if (plant is not null)
+            {
+                return SpatialQueries.FindNearestAvailableInteractionPoint(
+                        plant,
+                        agentEntity.Position,
+                        SpatialQueries.DefaultInteractionTolerance) is null
+                    ? ActionValidationResult.Invalid("Target plant is out of reach.")
+                    : ActionValidationResult.Valid;
+            }
+
+            ResourceDepositEntity? deposit = state.World.ResourceDeposits.FirstOrDefault(candidate =>
+                candidate.Id == request.TargetId && !candidate.IsEmpty);
+            if (deposit is not null)
+            {
+                return SpatialQueries.FindNearestAvailableInteractionPoint(
+                        deposit,
+                        agentEntity.Position,
+                        SpatialQueries.DefaultInteractionTolerance) is null
+                    ? ActionValidationResult.Invalid("Target resource deposit is out of reach.")
+                    : ActionValidationResult.Valid;
+            }
+
+            if (container is null && plant is null && deposit is null)
             {
                 return ActionValidationResult.Invalid("Target resource container is unavailable.");
             }
 
-            if (SpatialQueries.FindNearestAvailableInteractionPoint(
-                    container,
-                    agentEntity.Position,
-                    SpatialQueries.DefaultInteractionTolerance) is null)
+            return ActionValidationResult.Valid;
+        }
+
+        private static ActionValidationResult ValidateDrink(
+            SimulationState state,
+            AgentEntity agentEntity,
+            ActionRequest request)
+        {
+            if (agentEntity.Inventory.GetQuantity(ResourceDefinition.WaterId) > 0)
             {
-                return ActionValidationResult.Invalid("Target resource container is out of reach.");
+                return ActionValidationResult.Valid;
             }
 
-            return ActionValidationResult.Valid;
+            if (request.TargetId is null)
+            {
+                return ActionValidationResult.Valid;
+            }
+
+            WaterSourceEntity? waterSource = SpatialQueries.FindAvailableWaterSourceAtInteractionPoint(
+                state.World,
+                agentEntity.Position,
+                request.TargetId);
+
+            return waterSource is null
+                ? ActionValidationResult.Invalid("Target water source is unavailable or out of reach.")
+                : ActionValidationResult.Valid;
         }
 
         private static ActionValidationResult ValidateWander(SimulationState state, AgentEntity agentEntity)

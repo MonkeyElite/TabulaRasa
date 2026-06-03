@@ -1,5 +1,19 @@
 namespace TabulaRasa.Simulation.Configuration
 {
+    public sealed record EnvironmentConfig(
+        int DayLengthTicks = 100,
+        int WeatherChangeIntervalTicks = 50,
+        float BaseTemperature = 20);
+
+    public sealed record EcologyConfig(
+        int InitialPlantCount = 3,
+        int InitialWaterSourceCount = 1,
+        int InitialResourceDepositCount = 1,
+        int PlantRegrowthTicks = 5,
+        int PlantDecayTicksAfterDepleted = 20,
+        float WaterRefillPerRainTick = 0.5f,
+        float WaterEvaporationPerHeatTick = 0.25f);
+
     public sealed record NeedDecayConfig(
         float HungerDelta = 1,
         float ThirstDelta = 1,
@@ -33,10 +47,14 @@ namespace TabulaRasa.Simulation.Configuration
         float MovementSpeedPerTick = 0.25f,
         PathfindingConfig? Pathfinding = null,
         IReadOnlyList<string>? EnabledSystems = null,
-        MemoryConfig? Memory = null)
+        MemoryConfig? Memory = null,
+        EnvironmentConfig? Environment = null,
+        EcologyConfig? Ecology = null)
     {
         public static readonly IReadOnlyList<string> DefaultEnabledSystems =
         [
+            "environment",
+            "ecology",
             "need-decay",
             "memory",
             "planning",
@@ -55,6 +73,8 @@ namespace TabulaRasa.Simulation.Configuration
         public NeedDecayConfig EffectiveNeedDecay => NeedDecay ?? new NeedDecayConfig();
         public PathfindingConfig EffectivePathfinding => Pathfinding ?? new PathfindingConfig();
         public MemoryConfig EffectiveMemory => Memory ?? new MemoryConfig();
+        public EnvironmentConfig EffectiveEnvironment => Environment ?? new EnvironmentConfig();
+        public EcologyConfig EffectiveEcology => Ecology ?? new EcologyConfig();
         public IReadOnlyList<string> EffectiveEnabledSystems => EnabledSystems ?? DefaultEnabledSystems;
     }
 }

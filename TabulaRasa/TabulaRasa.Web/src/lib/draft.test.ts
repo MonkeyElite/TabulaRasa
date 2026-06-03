@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   addAgentDraft,
+  addPlantDraft,
   addResourceContainerDraft,
+  addResourceDepositDraft,
+  addWaterSourceDraft,
   removeAgentDraft,
+  removePlantDraft,
   removeResourceContainerDraft,
+  removeResourceDepositDraft,
+  removeWaterSourceDraft,
   setTerrainCell,
   toggleBlockedCell,
   updateAgentDraft,
@@ -23,6 +29,8 @@ const draft: SimulationDraft = {
     unitWeight: 1,
     maxStackQuantity: 10,
     isConsumable: true,
+    renewability: "Renewable",
+    category: "plant",
     needEffects: { hungerDelta: -5, thirstDelta: 0, energyDelta: 0, fatigueDelta: 0 }
   }],
   resourceContainers: [{
@@ -30,7 +38,10 @@ const draft: SimulationDraft = {
     position: { x: 1, y: 1 },
     inventory: { maxSlots: 4, maxWeight: 100, stacks: [{ stackId: "food-stack-1", resourceId: "food", quantity: 1 }] }
   }],
-  config: null
+  config: null,
+  plants: [],
+  waterSources: [],
+  resourceDeposits: []
 };
 
 describe("draft helpers", () => {
@@ -77,12 +88,24 @@ describe("draft helpers", () => {
   it("adds and removes draft entities", () => {
     const withAgent = addAgentDraft(draft);
     const withContainer = addResourceContainerDraft(withAgent);
-    const removedAgent = removeAgentDraft(withContainer, "agent-2");
+    const withPlant = addPlantDraft(withContainer);
+    const withWater = addWaterSourceDraft(withPlant);
+    const withDeposit = addResourceDepositDraft(withWater);
+    const removedAgent = removeAgentDraft(withDeposit, "agent-2");
     const removedContainer = removeResourceContainerDraft(removedAgent, "resource-container-2");
+    const removedPlant = removePlantDraft(removedContainer, "plant-1");
+    const removedWater = removeWaterSourceDraft(removedPlant, "water-source-1");
+    const removedDeposit = removeResourceDepositDraft(removedWater, "resource-deposit-1");
 
     expect(withAgent.agents.map((agent) => agent.id)).toContain("agent-2");
     expect(withContainer.resourceContainers.map((container) => container.id)).toContain("resource-container-2");
+    expect(withPlant.plants.map((plant) => plant.id)).toContain("plant-1");
+    expect(withWater.waterSources.map((waterSource) => waterSource.id)).toContain("water-source-1");
+    expect(withDeposit.resourceDeposits.map((deposit) => deposit.id)).toContain("resource-deposit-1");
     expect(removedAgent.agents.map((agent) => agent.id)).not.toContain("agent-2");
     expect(removedContainer.resourceContainers.map((container) => container.id)).not.toContain("resource-container-2");
+    expect(removedPlant.plants).toHaveLength(0);
+    expect(removedWater.waterSources).toHaveLength(0);
+    expect(removedDeposit.resourceDeposits).toHaveLength(0);
   });
 });

@@ -4,6 +4,8 @@ using TabulaRasa.Agents.Needs;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
+using TabulaRasa.World.Environment;
+using TabulaRasa.World.Spatial.Grid;
 using TabulaRasa.World.State;
 
 namespace TabulaRasa.Simulation.Systems
@@ -33,16 +35,35 @@ namespace TabulaRasa.Simulation.Systems
                     continue;
                 }
 
+                GridTerrainProfile terrain = world.Grid.GetTerrainProfile(agentEntity.Position.ToGridCell());
+                float temperatureThirstMultiplier = GetTemperatureThirstMultiplier(world.Environment);
+
                 NeedSystem.ApplyNeedDecay(
                     agentState.NeedState,
-                    decay.HungerDelta,
-                    decay.ThirstDelta,
+                    decay.HungerDelta * terrain.HungerDeltaMultiplier,
+                    decay.ThirstDelta * terrain.ThirstDeltaMultiplier * temperatureThirstMultiplier,
                     decay.EnergyDelta,
-                    decay.FatigueDelta);
+                    decay.FatigueDelta * terrain.FatigueDeltaMultiplier);
 
                 EmitCriticalNeedEvents(state, agentEntity, agentState.NeedState);
                 ApplySurvivalDamage(state, agentEntity, agentState.NeedState);
             }
+        }
+
+        private static float GetTemperatureThirstMultiplier(EnvironmentState environment)
+        {
+            float multiplier = environment.Weather == EnvironmentWeather.Heat ? 1.25f : 1f;
+
+            if (environment.Temperature >= 30)
+            {
+                multiplier += 0.25f;
+            }
+            else if (environment.Temperature <= 5)
+            {
+                multiplier -= 0.15f;
+            }
+
+            return Math.Clamp(multiplier, 0.5f, 2f);
         }
 
         private void EmitCriticalNeedEvents(

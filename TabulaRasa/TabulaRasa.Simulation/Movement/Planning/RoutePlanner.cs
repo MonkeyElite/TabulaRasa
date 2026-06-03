@@ -7,6 +7,7 @@ using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
+using TabulaRasa.World.Resources;
 using TabulaRasa.World.Spatial.Navigation.Grid;
 
 namespace TabulaRasa.Simulation.Movement.Planning
@@ -32,7 +33,8 @@ namespace TabulaRasa.Simulation.Movement.Planning
             return request.ActionType switch
             {
                 AgentActionType.Eat => PlanEatRoute(state, request),
-                AgentActionType.PickUpResource => PlanResourceContainerRoute(state, request),
+                AgentActionType.Drink => PlanWaterSourceRoute(state, request),
+                AgentActionType.PickUpResource => PlanResourceTargetRoute(state, request),
                 AgentActionType.Wander => PlanWanderRoute(state, request),
                 _ => RoutePlanningResult.NotNeeded()
             };
@@ -52,7 +54,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 return null;
             }
 
-            if (movement.RequestedAction is AgentActionType.Eat or AgentActionType.PickUpResource)
+            if (movement.RequestedAction is AgentActionType.Eat or AgentActionType.PickUpResource or AgentActionType.Drink)
             {
                 if (movement.TargetId is null)
                 {
@@ -60,23 +62,19 @@ namespace TabulaRasa.Simulation.Movement.Planning
                     return null;
                 }
 
-                ResourceContainerEntity? container = state.World.ResourceContainers.FirstOrDefault(candidate =>
-                    candidate.Id == movement.TargetId
-                    && (movement.RequestedAction == AgentActionType.PickUpResource
-                        ? !candidate.IsEmpty
-                        : SpatialQueries.ContainerHasFood(candidate)));
+                IInteractableEntity? target = FindRouteTarget(state, movement.RequestedAction, movement.TargetId);
 
-                if (container is null)
+                if (target is null)
                 {
-                    failureReason = "Target resource container is unavailable.";
+                    failureReason = "Target is unavailable.";
                     return null;
                 }
 
-                RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, container);
+                RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, target);
 
                 if (candidate is null)
                 {
-                    failureReason = "Target food is unreachable.";
+                    failureReason = "Target is unreachable.";
                     return null;
                 }
 
@@ -106,19 +104,24 @@ namespace TabulaRasa.Simulation.Movement.Planning
             AgentEntity? agent = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
             ResourceContainerEntity? container = state.World.ResourceContainers.FirstOrDefault(candidate =>
                 candidate.Id == request.TargetId && SpatialQueries.ContainerHasFood(candidate));
+            PlantEntity? plant = state.World.Plants.FirstOrDefault(candidate =>
+                candidate.Id == request.TargetId
+                && candidate.IsHarvestable
+                && string.Equals(candidate.ResourceId, ResourceDefinition.FoodId, StringComparison.OrdinalIgnoreCase));
 
             if (agent is null)
             {
                 return RoutePlanningResult.Failure("Agent does not exist.");
             }
 
-            if (container is null)
+            IInteractableEntity? target = container ?? (IInteractableEntity?)plant;
+            if (target is null)
             {
                 return RoutePlanningResult.Failure("Target resource container is unavailable.");
             }
 
             InteractionPoint? currentAnchor = SpatialQueries.FindNearestAvailableInteractionPoint(
-                container,
+                target,
                 agent.Position,
                 SpatialQueries.DefaultInteractionTolerance);
 
@@ -127,7 +130,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 return RoutePlanningResult.NotNeeded();
             }
 
-            RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, container);
+            RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, target);
 
             return candidate is null
                 ? RoutePlanningResult.Failure("Target food is unreachable.")
@@ -139,7 +142,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                     state.Config.EffectivePathfinding.MaxRepathAttempts));
         }
 
-        private RoutePlanningResult PlanResourceContainerRoute(SimulationState state, ActionRequest request)
+        private RoutePlanningResult PlanResourceTargetRoute(SimulationState state, ActionRequest request)
         {
             if (request.TargetId is null)
             {
@@ -147,21 +150,20 @@ namespace TabulaRasa.Simulation.Movement.Planning
             }
 
             AgentEntity? agent = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
-            ResourceContainerEntity? container = state.World.ResourceContainers.FirstOrDefault(candidate =>
-                candidate.Id == request.TargetId && !candidate.IsEmpty);
+            IInteractableEntity? target = FindRouteTarget(state, request.ActionType, request.TargetId);
 
             if (agent is null)
             {
                 return RoutePlanningResult.Failure("Agent does not exist.");
             }
 
-            if (container is null)
+            if (target is null)
             {
-                return RoutePlanningResult.Failure("Target resource container is unavailable.");
+                return RoutePlanningResult.Failure("Target resource is unavailable.");
             }
 
             InteractionPoint? currentAnchor = SpatialQueries.FindNearestAvailableInteractionPoint(
-                container,
+                target,
                 agent.Position,
                 SpatialQueries.DefaultInteractionTolerance);
 
@@ -170,10 +172,53 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 return RoutePlanningResult.NotNeeded();
             }
 
-            RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, container);
+            RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, target);
 
             return candidate is null
                 ? RoutePlanningResult.Failure("Target resource container is unreachable.")
+                : RoutePlanningResult.Success(CreateMovement(
+                    request,
+                    candidate.Route,
+                    state.Config.MovementSpeedPerTick,
+                    DefaultArrivalTolerance,
+                    state.Config.EffectivePathfinding.MaxRepathAttempts));
+        }
+
+        private RoutePlanningResult PlanWaterSourceRoute(SimulationState state, ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return RoutePlanningResult.NotNeeded();
+            }
+
+            AgentEntity? agent = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
+            WaterSourceEntity? waterSource = state.World.WaterSources.FirstOrDefault(candidate =>
+                candidate.Id == request.TargetId && candidate.IsAvailable);
+
+            if (agent is null)
+            {
+                return RoutePlanningResult.Failure("Agent does not exist.");
+            }
+
+            if (waterSource is null)
+            {
+                return RoutePlanningResult.Failure("Target water source is unavailable.");
+            }
+
+            InteractionPoint? currentAnchor = SpatialQueries.FindNearestAvailableInteractionPoint(
+                waterSource,
+                agent.Position,
+                SpatialQueries.DefaultInteractionTolerance);
+
+            if (currentAnchor is not null)
+            {
+                return RoutePlanningResult.NotNeeded();
+            }
+
+            RouteCandidate? candidate = FindBestRouteToInteractionPoint(state, agent, waterSource);
+
+            return candidate is null
+                ? RoutePlanningResult.Failure("Target water source is unreachable.")
                 : RoutePlanningResult.Success(CreateMovement(
                     request,
                     candidate.Route,
@@ -219,12 +264,12 @@ namespace TabulaRasa.Simulation.Movement.Planning
         private RouteCandidate? FindBestRouteToInteractionPoint(
             SimulationState state,
             AgentEntity agent,
-            ResourceContainerEntity container)
+            IInteractableEntity target)
         {
             GridCell startCell = SpatialQueries.GetCurrentCell(state.World, agent.Position);
             List<RouteCandidate> candidates = [];
 
-            foreach (InteractionPoint point in container.InteractionPoints.Where(point => !point.IsReserved))
+            foreach (InteractionPoint point in target.InteractionPoints.Where(point => !point.IsReserved))
             {
                 GridCell destinationCell = point.StandPosition.ToGridCell();
                 PathResult result = _pathfinder.FindPath(
@@ -322,6 +367,42 @@ namespace TabulaRasa.Simulation.Movement.Planning
         {
             return state.World.Grid.IsTraversable(cell)
                 && !SpatialQueries.IsCellOccupied(state.World, cell, agent.Id);
+        }
+
+        private static IInteractableEntity? FindRouteTarget(
+            SimulationState state,
+            AgentActionType actionType,
+            string targetId)
+        {
+            if (actionType == AgentActionType.Drink)
+            {
+                return state.World.WaterSources.FirstOrDefault(candidate =>
+                    candidate.Id == targetId && candidate.IsAvailable);
+            }
+
+            ResourceContainerEntity? container = state.World.ResourceContainers.FirstOrDefault(candidate =>
+                candidate.Id == targetId
+                && (actionType == AgentActionType.Eat
+                    ? SpatialQueries.ContainerHasFood(candidate)
+                    : !candidate.IsEmpty));
+
+            if (container is not null)
+            {
+                return container;
+            }
+
+            PlantEntity? plant = state.World.Plants.FirstOrDefault(candidate =>
+                candidate.Id == targetId
+                && candidate.IsHarvestable
+                && (actionType != AgentActionType.Eat
+                    || string.Equals(candidate.ResourceId, ResourceDefinition.FoodId, StringComparison.OrdinalIgnoreCase)));
+            if (plant is not null)
+            {
+                return plant;
+            }
+
+            return state.World.ResourceDeposits.FirstOrDefault(candidate =>
+                candidate.Id == targetId && !candidate.IsEmpty);
         }
 
         private sealed record RouteCandidate(MovementRoute Route, float TotalCost, float Distance);

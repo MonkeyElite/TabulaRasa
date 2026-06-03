@@ -17,6 +17,8 @@ type Props = {
   onMoveAgent: (id: string, cell: GridCell) => void;
   onMoveResourceContainer: (id: string, cell: GridCell) => void;
   onToggleBlockedCell: (cell: GridCell) => void;
+  terrainBrush: TerrainType | null;
+  onPaintTerrain: (cell: GridCell, terrainType: TerrainType) => void;
   onHover: (hover: HoverInfo) => void;
 };
 
@@ -25,7 +27,8 @@ const terrainProfiles: Record<TerrainType, { terrainType: TerrainType; traversal
   Plain: { terrainType: "Plain", traversalCost: 1, speedMultiplier: 1, color: 0x20262b },
   Road: { terrainType: "Road", traversalCost: 0.5, speedMultiplier: 1.25, color: 0x4b4f58 },
   Forest: { terrainType: "Forest", traversalCost: 2, speedMultiplier: 0.75, color: 0x26543a },
-  Mud: { terrainType: "Mud", traversalCost: 3, speedMultiplier: 0.5, color: 0x5c4632 }
+  Mud: { terrainType: "Mud", traversalCost: 3, speedMultiplier: 0.5, color: 0x5c4632 },
+  Water: { terrainType: "Water", traversalCost: 10, speedMultiplier: 0.25, color: 0x235d78 }
 };
 
 export function WorldCanvas({
@@ -41,7 +44,9 @@ export function WorldCanvas({
   onMoveAgent,
   onMoveResourceContainer,
   onHover,
-  onToggleBlockedCell
+  onToggleBlockedCell,
+  terrainBrush,
+  onPaintTerrain
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<PIXI.Application | null>(null);
@@ -57,6 +62,7 @@ export function WorldCanvas({
       }
     | null
   >(null);
+  const paintingRef = useRef(false);
 
   useEffect(() => {
     if (!hostRef.current) {
@@ -152,7 +158,7 @@ export function WorldCanvas({
   useEffect(() => {
     renderWorld();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot, draft, editing, canEdit, selection, showNavigationOverlay, showPerceptionOverlay, perceptionRadius]);
+  }, [snapshot, draft, editing, canEdit, selection, showNavigationOverlay, showPerceptionOverlay, perceptionRadius, terrainBrush]);
 
   function renderWorld() {
     const world = worldRef.current;
@@ -197,22 +203,36 @@ export function WorldCanvas({
         cell.stroke({ color: occupants.length > 0 ? 0x6aa8ff : 0x3a414d, width: occupants.length > 0 ? 2 : 1 });
         cell.eventMode = "static";
         cell.cursor = editing && canEdit ? "pointer" : "default";
+        cell.on("pointerdown", () => {
+          if (editing && canEdit && terrainBrush) {
+            paintingRef.current = true;
+            onPaintTerrain({ x, y }, terrainBrush);
+          }
+        });
         cell.on("pointertap", () => {
           const selectedCell = { x, y };
+          if (editing && canEdit && terrainBrush) {
+            onPaintTerrain(selectedCell, terrainBrush);
+            return;
+          }
           if (editing && canEdit && selection?.type === "cell") {
             onToggleBlockedCell(selectedCell);
             return;
           }
           onSelect({ type: "cell", cell: selectedCell });
         });
-        cell.on("pointerover", (event) =>
+        cell.on("pointerover", (event) => {
+          if (paintingRef.current && editing && canEdit && terrainBrush) {
+            onPaintTerrain({ x, y }, terrainBrush);
+          }
+
           onHover({
             label: `Cell ${x}, ${y}`,
             detail: cellDetail(isBlocked, occupants, terrain),
             x: event.global.x,
             y: event.global.y
-          })
-        );
+          });
+        });
         cell.on("pointermove", (event) =>
           onHover({
             label: `Cell ${x}, ${y}`,
@@ -350,6 +370,102 @@ export function WorldCanvas({
       }
     }
 
+    const plants = editing && draft ? draft.plants : snapshot.plants ?? [];
+    for (const plant of plants) {
+      const graphic = new PIXI.Graphics();
+      const x = plant.position.x * cellSize;
+      const y = plant.position.y * cellSize;
+      const selected = selection?.type === "plant" && selection.id === plant.id;
+      graphic.circle(x, y, selected ? 15 : 11);
+      graphic.fill(plant.isDecayed ? 0x5a5f68 : plant.yield > 0 ? 0x60b96f : 0x3f6c48);
+      graphic.stroke({ color: selected ? 0xffffff : 0x19381f, width: selected ? 4 : 2 });
+      graphic.eventMode = "static";
+      graphic.cursor = editing && canEdit ? "grab" : "pointer";
+      graphic.on("pointertap", () => onSelect({ type: "plant", id: plant.id }));
+      graphic.on("pointerover", (event) =>
+        onHover({
+          label: plant.id,
+          detail: `Plant - ${plant.resourceId} yield ${plant.yield}/${plant.maxYield}`,
+          x: event.global.x,
+          y: event.global.y
+        })
+      );
+      graphic.on("pointermove", (event) =>
+        onHover({
+          label: plant.id,
+          detail: `Plant - ${plant.resourceId} yield ${plant.yield}/${plant.maxYield}`,
+          x: event.global.x,
+          y: event.global.y
+        })
+      );
+      graphic.on("pointerout", () => onHover(null));
+      world.addChild(graphic);
+    }
+
+    const waterSources = editing && draft ? draft.waterSources : snapshot.waterSources ?? [];
+    for (const waterSource of waterSources) {
+      const graphic = new PIXI.Graphics();
+      const x = waterSource.position.x * cellSize;
+      const y = waterSource.position.y * cellSize;
+      const selected = selection?.type === "waterSource" && selection.id === waterSource.id;
+      graphic.circle(x, y, selected ? 17 : 13);
+      graphic.fill(waterSource.currentVolume > 0 ? 0x4aa3df : 0x3d4c58);
+      graphic.stroke({ color: selected ? 0xffffff : 0x17374c, width: selected ? 4 : 2 });
+      graphic.eventMode = "static";
+      graphic.cursor = editing && canEdit ? "grab" : "pointer";
+      graphic.on("pointertap", () => onSelect({ type: "waterSource", id: waterSource.id }));
+      graphic.on("pointerover", (event) =>
+        onHover({
+          label: waterSource.id,
+          detail: `Water - ${formatNumber(waterSource.currentVolume)}/${formatNumber(waterSource.maxVolume)}`,
+          x: event.global.x,
+          y: event.global.y
+        })
+      );
+      graphic.on("pointermove", (event) =>
+        onHover({
+          label: waterSource.id,
+          detail: `Water - ${formatNumber(waterSource.currentVolume)}/${formatNumber(waterSource.maxVolume)}`,
+          x: event.global.x,
+          y: event.global.y
+        })
+      );
+      graphic.on("pointerout", () => onHover(null));
+      world.addChild(graphic);
+    }
+
+    const resourceDeposits = editing && draft ? draft.resourceDeposits : snapshot.resourceDeposits ?? [];
+    for (const deposit of resourceDeposits) {
+      const graphic = new PIXI.Graphics();
+      const x = deposit.position.x * cellSize;
+      const y = deposit.position.y * cellSize;
+      const selected = selection?.type === "resourceDeposit" && selection.id === deposit.id;
+      graphic.roundRect(x - 12, y - 12, 24, 24, 4);
+      graphic.fill(deposit.quantity > 0 ? 0x9aa4b2 : 0x5a5f68);
+      graphic.stroke({ color: selected ? 0xffffff : 0x454b55, width: selected ? 4 : 2 });
+      graphic.eventMode = "static";
+      graphic.cursor = editing && canEdit ? "grab" : "pointer";
+      graphic.on("pointertap", () => onSelect({ type: "resourceDeposit", id: deposit.id }));
+      graphic.on("pointerover", (event) =>
+        onHover({
+          label: deposit.id,
+          detail: `${deposit.resourceId} - ${deposit.quantity}/${deposit.maxQuantity}`,
+          x: event.global.x,
+          y: event.global.y
+        })
+      );
+      graphic.on("pointermove", (event) =>
+        onHover({
+          label: deposit.id,
+          detail: `${deposit.resourceId} - ${deposit.quantity}/${deposit.maxQuantity}`,
+          x: event.global.x,
+          y: event.global.y
+        })
+      );
+      graphic.on("pointerout", () => onHover(null));
+      world.addChild(graphic);
+    }
+
     const agents = editing && draft ? draft.agents : snapshot.agents;
     for (const agent of agents) {
       const graphic = new PIXI.Graphics();
@@ -421,6 +537,20 @@ export function WorldCanvas({
     return () => host.removeEventListener("dblclick", handleDoubleClick);
   }, [canEdit, editing, onMoveAgent, onMoveResourceContainer, selection]);
 
+  useEffect(() => {
+    const stopPainting = () => {
+      paintingRef.current = false;
+    };
+
+    window.addEventListener("pointerup", stopPainting, true);
+    window.addEventListener("pointercancel", stopPainting, true);
+
+    return () => {
+      window.removeEventListener("pointerup", stopPainting, true);
+      window.removeEventListener("pointercancel", stopPainting, true);
+    };
+  }, []);
+
   return <div className="canvas-host" ref={hostRef} />;
 }
 
@@ -441,6 +571,25 @@ function draftOccupiedCells(draft: SimulationDraft): OccupiedCell[] {
         cell: { x: Math.floor(container.position.x), y: Math.floor(container.position.y) },
         entityId: container.id,
         entityType: "ResourceContainerEntity"
+      })),
+    ...draft.plants
+      .filter((plant) => !plant.isDecayed)
+      .map((plant) => ({
+        cell: { x: Math.floor(plant.position.x), y: Math.floor(plant.position.y) },
+        entityId: plant.id,
+        entityType: "PlantEntity"
+      })),
+    ...draft.waterSources.map((waterSource) => ({
+      cell: { x: Math.floor(waterSource.position.x), y: Math.floor(waterSource.position.y) },
+      entityId: waterSource.id,
+      entityType: "WaterSourceEntity"
+    })),
+    ...draft.resourceDeposits
+      .filter((deposit) => deposit.quantity > 0)
+      .map((deposit) => ({
+        cell: { x: Math.floor(deposit.position.x), y: Math.floor(deposit.position.y) },
+        entityId: deposit.id,
+        entityType: "ResourceDepositEntity"
       }))
   ];
 }
@@ -457,7 +606,7 @@ function cellFill(
     return 0x17191d;
   }
 
-  if (showNavigationOverlay && isTerrainType(terrainType) && terrainType !== "Plain") {
+  if ((showNavigationOverlay || terrainType === "Water") && isTerrainType(terrainType) && terrainType !== "Plain") {
     return terrainProfiles[terrainType].color;
   }
 
@@ -497,7 +646,7 @@ function terrainProfile(terrainType: string) {
 }
 
 function isTerrainType(value: string): value is TerrainType {
-  return value === "Plain" || value === "Road" || value === "Forest" || value === "Mud";
+  return value === "Plain" || value === "Road" || value === "Forest" || value === "Mud" || value === "Water";
 }
 
 function cellDetail(

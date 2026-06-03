@@ -57,6 +57,33 @@ namespace TabulaRasa.Api.Services
                     Field<Inventory>("inventory.maxSlots", "Slots", "number", nameof(Inventory.MaxSlots)),
                     Field<Inventory>("inventory.maxWeight", "Weight", "number", nameof(Inventory.MaxWeight))
                 ],
+                PlantFields:
+                [
+                    Field<PlantEntity>("id", "Id", "string", nameof(PlantEntity.Id), isEditable: false),
+                    Field<PlantEntity>("position.x", "X", "number", nameof(PlantEntity.Position)),
+                    Field<PlantEntity>("position.y", "Y", "number", nameof(PlantEntity.Position)),
+                    Field<PlantEntity>("resourceId", "Resource", "string", nameof(PlantEntity.ResourceId)),
+                    Field<PlantEntity>("yield", "Yield", "number", nameof(PlantEntity.Yield)),
+                    Field<PlantEntity>("maxYield", "Max yield", "number", nameof(PlantEntity.MaxYield)),
+                    Field<PlantEntity>("regrowthTicks", "Regrow", "number", nameof(PlantEntity.RegrowthTicks))
+                ],
+                WaterSourceFields:
+                [
+                    Field<WaterSourceEntity>("id", "Id", "string", nameof(WaterSourceEntity.Id), isEditable: false),
+                    Field<WaterSourceEntity>("position.x", "X", "number", nameof(WaterSourceEntity.Position)),
+                    Field<WaterSourceEntity>("position.y", "Y", "number", nameof(WaterSourceEntity.Position)),
+                    Field<WaterSourceEntity>("currentVolume", "Volume", "number", nameof(WaterSourceEntity.CurrentVolume)),
+                    Field<WaterSourceEntity>("maxVolume", "Max volume", "number", nameof(WaterSourceEntity.MaxVolume))
+                ],
+                ResourceDepositFields:
+                [
+                    Field<ResourceDepositEntity>("id", "Id", "string", nameof(ResourceDepositEntity.Id), isEditable: false),
+                    Field<ResourceDepositEntity>("position.x", "X", "number", nameof(ResourceDepositEntity.Position)),
+                    Field<ResourceDepositEntity>("position.y", "Y", "number", nameof(ResourceDepositEntity.Position)),
+                    Field<ResourceDepositEntity>("resourceId", "Resource", "string", nameof(ResourceDepositEntity.ResourceId)),
+                    Field<ResourceDepositEntity>("quantity", "Quantity", "number", nameof(ResourceDepositEntity.Quantity)),
+                    Field<ResourceDepositEntity>("maxQuantity", "Max", "number", nameof(ResourceDepositEntity.MaxQuantity))
+                ],
                 InventoryFields:
                 [
                     Field<Inventory>("maxSlots", "Slots", "number", nameof(Inventory.MaxSlots)),

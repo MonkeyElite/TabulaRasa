@@ -60,6 +60,18 @@ export function RuntimePanel({
           Dead <strong>{snapshot?.deadAgentCount ?? status?.deadAgentCount ?? 0}</strong>
         </span>
         <span className="metric">
+          Time <strong>{snapshot?.environment ? `${snapshot.environment.phase} ${snapshot.environment.tickOfDay}/${snapshot.environment.dayLengthTicks}` : "-"}</strong>
+        </span>
+        <span className="metric">
+          Weather <strong>{snapshot?.environment ? `${snapshot.environment.weather} ${formatNumber(snapshot.environment.temperature)}C` : "-"}</strong>
+        </span>
+        <span className="metric">
+          Plants <strong>{snapshot?.ecologyStats ? `${snapshot.ecologyStats.harvestablePlantCount}/${snapshot.ecologyStats.plantCount}` : "-"}</strong>
+        </span>
+        <span className="metric">
+          Water <strong>{snapshot?.ecologyStats ? formatNumber(snapshot.ecologyStats.totalWaterVolume) : "-"}</strong>
+        </span>
+        <span className="metric">
           Seed <strong>{status?.config.seed ?? "-"}</strong>
         </span>
       </div>
@@ -196,4 +208,8 @@ function formatMilliseconds(value: number | undefined) {
   }
 
   return `${value.toFixed(value < 10 ? 2 : 1)}ms`;
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? value.toString() : value.toFixed(1);
 }

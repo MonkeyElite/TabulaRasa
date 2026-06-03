@@ -67,6 +67,20 @@ export type SimulationConfig = {
     minimumStrength: number;
     recallThreshold: number;
   };
+  environment: {
+    dayLengthTicks: number;
+    weatherChangeIntervalTicks: number;
+    baseTemperature: number;
+  };
+  ecology: {
+    initialPlantCount: number;
+    initialWaterSourceCount: number;
+    initialResourceDepositCount: number;
+    plantRegrowthTicks: number;
+    plantDecayTicksAfterDepleted: number;
+    waterRefillPerRainTick: number;
+    waterEvaporationPerHeatTick: number;
+  };
   enabledSystems: string[];
 };
 
@@ -103,13 +117,18 @@ export type OccupiedCell = {
   entityType: string;
 };
 
-export type TerrainType = "Plain" | "Road" | "Forest" | "Mud";
+export type TerrainType = "Plain" | "Road" | "Forest" | "Mud" | "Water";
 
 export type GridTerrainCell = {
   cell: GridCell;
   terrainType: TerrainType | string;
   traversalCost: number;
   speedMultiplier: number;
+  perceptionMultiplier: number;
+  hungerDeltaMultiplier: number;
+  thirstDeltaMultiplier: number;
+  fatigueDeltaMultiplier: number;
+  isWater: boolean;
 };
 
 export type EditableGridTerrainCell = {
@@ -139,6 +158,8 @@ export type ResourceDefinition = {
   maxStackQuantity: number;
   isConsumable: boolean;
   needEffects: ResourceNeedEffects;
+  renewability: "Renewable" | "Nonrenewable" | string;
+  category: string;
 };
 
 export type ResourceStack = {
@@ -192,6 +213,30 @@ export type SimulationSnapshot = {
   aliveAgentCount: number;
   deadAgentCount: number;
   diagnostics: SimulationTickDiagnostics | null;
+  environment: EnvironmentState | null;
+  ecologyStats: EcologyStats | null;
+  plants: PlantSnapshot[];
+  waterSources: WaterSourceSnapshot[];
+  resourceDeposits: ResourceDepositSnapshot[];
+};
+
+export type EnvironmentState = {
+  dayLengthTicks: number;
+  tickOfDay: number;
+  day: number;
+  phase: "Dawn" | "Day" | "Dusk" | "Night" | string;
+  weather: "Clear" | "Rain" | "Heat" | "Cold" | string;
+  temperature: number;
+};
+
+export type EcologyStats = {
+  plantCount: number;
+  harvestablePlantCount: number;
+  totalPlantYield: number;
+  waterSourceCount: number;
+  totalWaterVolume: number;
+  resourceDepositCount: number;
+  totalDepositQuantity: number;
 };
 
 export type SimulationEvent = {
@@ -336,6 +381,52 @@ export type ResourceContainerSnapshot = {
   inventory: Inventory;
 };
 
+export type PlantSnapshot = {
+  id: string;
+  entityType: string;
+  position: Position;
+  cell: GridCell;
+  footprint: Footprint;
+  occupiedCells: GridCell[];
+  occupiesSpace: boolean;
+  health: EntityHealth | null;
+  resourceId: string;
+  yield: number;
+  maxYield: number;
+  regrowthTicks: number;
+  ticksUntilRegrowth: number;
+  decayTicksAfterDepleted: number;
+  depletedTicks: number;
+  isDecayed: boolean;
+};
+
+export type WaterSourceSnapshot = {
+  id: string;
+  entityType: string;
+  position: Position;
+  cell: GridCell;
+  footprint: Footprint;
+  occupiedCells: GridCell[];
+  occupiesSpace: boolean;
+  currentVolume: number;
+  maxVolume: number;
+  refillPerRainTick: number;
+  evaporationPerHeatTick: number;
+};
+
+export type ResourceDepositSnapshot = {
+  id: string;
+  entityType: string;
+  position: Position;
+  cell: GridCell;
+  footprint: Footprint;
+  occupiedCells: GridCell[];
+  occupiesSpace: boolean;
+  resourceId: string;
+  quantity: number;
+  maxQuantity: number;
+};
+
 export type MovementSnapshot = {
   agentId: string;
   requestedAction: string;
@@ -440,6 +531,9 @@ export type SimulationDraft = {
   resourceDefinitions: EditableResourceDefinition[];
   resourceContainers: EditableResourceContainer[];
   config: SimulationConfig | null;
+  plants: EditablePlant[];
+  waterSources: EditableWaterSource[];
+  resourceDeposits: EditableResourceDeposit[];
 };
 
 export type SimulationDraftSchema = {
@@ -448,6 +542,9 @@ export type SimulationDraftSchema = {
   agentFields: EditableField[];
   resourceDefinitionFields: EditableField[];
   resourceContainerFields: EditableField[];
+  plantFields: EditableField[];
+  waterSourceFields: EditableField[];
+  resourceDepositFields: EditableField[];
   inventoryFields: EditableField[];
   resourceStackFields: EditableField[];
 };
@@ -476,10 +573,43 @@ export type EditableResourceContainer = {
   inventory: EditableInventory;
 };
 
+export type EditablePlant = {
+  id: string;
+  position: Position;
+  resourceId: string;
+  yield: number;
+  maxYield: number;
+  regrowthTicks: number;
+  ticksUntilRegrowth: number;
+  decayTicksAfterDepleted: number;
+  depletedTicks: number;
+  isDecayed: boolean;
+};
+
+export type EditableWaterSource = {
+  id: string;
+  position: Position;
+  currentVolume: number;
+  maxVolume: number;
+  refillPerRainTick: number;
+  evaporationPerHeatTick: number;
+};
+
+export type EditableResourceDeposit = {
+  id: string;
+  position: Position;
+  resourceId: string;
+  quantity: number;
+  maxQuantity: number;
+};
+
 export type Selection =
   | { type: "agent"; id: string }
   | { type: "resourceContainer"; id: string }
   | { type: "resourceDefinition"; id: string }
+  | { type: "plant"; id: string }
+  | { type: "waterSource"; id: string }
+  | { type: "resourceDeposit"; id: string }
   | { type: "cell"; cell: GridCell }
   | null;
 
