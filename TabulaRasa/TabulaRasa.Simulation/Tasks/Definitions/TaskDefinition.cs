@@ -9,6 +9,11 @@ namespace TabulaRasa.Simulation.Tasks.Definitions
             string name,
             int requiredProgressTicks,
             AgentActionType? atomicAction = null,
+            TaskExecutionKind executionKind = TaskExecutionKind.Progress,
+            string? targetId = null,
+            string? targetType = null,
+            string? selectedGoal = null,
+            string? contextKey = null,
             IReadOnlyList<ITaskPrecondition>? preconditions = null,
             IReadOnlyList<TaskRequirement>? requirements = null,
             IReadOnlyList<TaskOutput>? outputs = null)
@@ -24,6 +29,11 @@ namespace TabulaRasa.Simulation.Tasks.Definitions
             Name = name;
             RequiredProgressTicks = requiredProgressTicks;
             AtomicAction = atomicAction;
+            ExecutionKind = executionKind;
+            TargetId = targetId;
+            TargetType = targetType;
+            SelectedGoal = selectedGoal;
+            ContextKey = contextKey;
             Preconditions = preconditions ?? [];
             Requirements = requirements ?? [];
             Outputs = outputs ?? [];
@@ -33,6 +43,11 @@ namespace TabulaRasa.Simulation.Tasks.Definitions
         public string Name { get; }
         public int RequiredProgressTicks { get; }
         public AgentActionType? AtomicAction { get; }
+        public TaskExecutionKind ExecutionKind { get; }
+        public string? TargetId { get; }
+        public string? TargetType { get; }
+        public string? SelectedGoal { get; }
+        public string? ContextKey { get; }
         public IReadOnlyList<ITaskPrecondition> Preconditions { get; }
         public IReadOnlyList<TaskRequirement> Requirements { get; }
         public IReadOnlyList<TaskOutput> Outputs { get; }

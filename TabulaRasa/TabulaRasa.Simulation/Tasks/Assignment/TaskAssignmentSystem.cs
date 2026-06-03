@@ -1,5 +1,6 @@
 using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Definitions;
 using TabulaRasa.Simulation.Tasks.Jobs;
@@ -27,14 +28,14 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
                     task.Status == TaskStatus.Pending
                     && job.AreDependenciesComplete(task)))
                 {
-                    string? agentId = FindAvailableAgentId(state);
+                    string? agentId = FindAvailableAgentId(state, job);
 
                     if (agentId is null)
                     {
                         return;
                     }
 
-                    if (!PreconditionsPass(state, task))
+                    if (!PreconditionsPass(state, task, agentId))
                     {
                         job.RefreshStatus();
                         continue;
@@ -60,7 +61,7 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
             }
         }
 
-        private static string? FindAvailableAgentId(SimulationState state)
+        private static string? FindAvailableAgentId(SimulationState state, JobInstance job)
         {
             HashSet<string> busyAgentIds = state.ActiveMovements
                 .Select(movement => movement.AgentId)
@@ -71,14 +72,17 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
                     .OfType<string>())
                 .ToHashSet();
 
-            return state.Agents
-                .Where(agent => !busyAgentIds.Contains(agent.Id))
-                .Where(agent => state.World.Agents.FirstOrDefault(entity => entity.Id == agent.Id)?.IsDead != true)
-                .Select(agent => agent.Id)
+            IEnumerable<string> candidates = job.OwnerAgentId is null
+                ? state.Agents.Select(agent => agent.Id)
+                : [job.OwnerAgentId];
+
+            return candidates
+                .Where(agentId => !busyAgentIds.Contains(agentId))
+                .Where(agentId => state.World.Agents.FirstOrDefault(entity => entity.Id == agentId)?.IsDead != true)
                 .FirstOrDefault();
         }
 
-        private static bool PreconditionsPass(SimulationState state, TaskInstance task)
+        private static bool PreconditionsPass(SimulationState state, TaskInstance task, string agentId)
         {
             foreach (ITaskPrecondition precondition in task.Definition.Preconditions)
             {
@@ -88,6 +92,7 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
                 {
                     task.Fail(result.FailureReason ?? "Task precondition failed.");
                     state.Reservations.ReleaseByOwner(task.Id);
+                    MarkTaskTargetUnavailable(state, task, agentId, result.FailureReason ?? "Task precondition failed.");
                     state.EmitEvent(
                         "task.failed",
                         SourceSystem,
@@ -102,6 +107,24 @@ namespace TabulaRasa.Simulation.Tasks.Assignment
             }
 
             return true;
+        }
+
+        private static void MarkTaskTargetUnavailable(
+            SimulationState state,
+            TaskInstance task,
+            string agentId,
+            string reason)
+        {
+            if (!string.Equals(task.Definition.SelectedGoal, "Hunger", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            AgentMemoryService.MarkTargetUnavailable(
+                state,
+                agentId,
+                task.Definition.TargetId,
+                reason);
         }
 
         private static bool TryReserveRequirements(SimulationState state, TaskInstance task)

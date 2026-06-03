@@ -15,7 +15,9 @@ namespace TabulaRasa.Simulation.Movement.Execution
             int maxRepathAttempts = 3,
             string? contextKey = null,
             string? selectedGoal = null,
-            AgentNeedsSnapshot? needsBefore = null)
+            AgentNeedsSnapshot? needsBefore = null,
+            string? sourceTaskId = null,
+            string? sourceGoalId = null)
         {
             AgentId = agentId;
             RequestedAction = requestedAction;
@@ -27,6 +29,8 @@ namespace TabulaRasa.Simulation.Movement.Execution
             ContextKey = contextKey;
             SelectedGoal = selectedGoal;
             NeedsBefore = needsBefore;
+            SourceTaskId = sourceTaskId;
+            SourceGoalId = sourceGoalId;
         }
 
         public string AgentId { get; }
@@ -35,6 +39,8 @@ namespace TabulaRasa.Simulation.Movement.Execution
         public string? ContextKey { get; }
         public string? SelectedGoal { get; }
         public AgentNeedsSnapshot? NeedsBefore { get; }
+        public string? SourceTaskId { get; }
+        public string? SourceGoalId { get; }
         public MovementRoute Route { get; set; }
         public float SpeedPerTick { get; }
         public float ArrivalTolerance { get; }

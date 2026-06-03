@@ -19,6 +19,8 @@ describe("DebugPanels", () => {
     expect(screen.getByText("Need Decay System")).toBeTruthy();
     expect(screen.getByText("Evaluation / priority 1")).toBeTruthy();
     expect(screen.getByText("12345")).toBeTruthy();
+    expect(screen.getByText("Task statuses")).toBeTruthy();
+    expect(screen.getByText("pending 1 / done 1 / failed 0")).toBeTruthy();
   });
 
   it("renders event log rows", () => {
@@ -105,7 +107,41 @@ const snapshot: SimulationSnapshot = {
   resourceDefinitions: [],
   resourceContainers: [],
   activeMovements: [],
-  jobs: [],
+  goals: [
+    {
+      id: "goal-1",
+      agentId: "agent-1",
+      needKey: "Hunger",
+      reason: "Resolve hunger with food.",
+      priority: 70,
+      targetId: "food-1",
+      targetType: "Food",
+      jobId: "job-1",
+      status: "Active",
+      createdTick: 1,
+      lastUpdatedTick: 1,
+      failureReason: null
+    }
+  ],
+  jobs: [
+    {
+      id: "job-1",
+      definitionId: "hunger-find-and-eat-food",
+      name: "Find And Eat Food",
+      status: "Active",
+      ownerAgentId: "agent-1",
+      goalId: "goal-1",
+      taskCount: 3,
+      pendingTaskCount: 1,
+      assignedTaskCount: 1,
+      inProgressTaskCount: 0,
+      completedTaskCount: 1,
+      failedTaskCount: 0,
+      cancelledTaskCount: 0,
+      interruptedTaskCount: 0,
+      tasks: []
+    }
+  ],
   reservations: [],
   recentActionResults: [],
   pendingIntentCount: 0,

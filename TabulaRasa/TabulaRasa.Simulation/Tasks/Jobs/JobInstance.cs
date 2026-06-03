@@ -5,10 +5,16 @@ namespace TabulaRasa.Simulation.Tasks.Jobs
 {
     public sealed class JobInstance
     {
-        public JobInstance(string id, JobDefinition definition)
+        public JobInstance(
+            string id,
+            JobDefinition definition,
+            string? ownerAgentId = null,
+            string? goalId = null)
         {
             Id = id;
             Definition = definition;
+            OwnerAgentId = ownerAgentId;
+            GoalId = goalId;
             Tasks = definition.Steps
                 .Select(step => new TaskInstance(
                     $"{id}:{step.Id}",
@@ -21,6 +27,8 @@ namespace TabulaRasa.Simulation.Tasks.Jobs
 
         public string Id { get; }
         public JobDefinition Definition { get; }
+        public string? OwnerAgentId { get; }
+        public string? GoalId { get; }
         public JobStatus Status { get; private set; } = JobStatus.Pending;
         public IReadOnlyList<TaskInstance> Tasks { get; }
 
@@ -51,6 +59,12 @@ namespace TabulaRasa.Simulation.Tasks.Jobs
             if (Tasks.Any(t => t.Status == TaskStatus.Cancelled))
             {
                 Status = JobStatus.Cancelled;
+                return;
+            }
+
+            if (Tasks.Any(t => t.Status == TaskStatus.Interrupted))
+            {
+                Status = JobStatus.Interrupted;
                 return;
             }
 

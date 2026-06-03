@@ -93,6 +93,7 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<ResourceDefinitionDto> ResourceDefinitions,
         IReadOnlyList<ResourceContainerSnapshotDto> ResourceContainers,
         IReadOnlyList<MovementSnapshotDto> ActiveMovements,
+        IReadOnlyList<GoalSnapshotDto> Goals,
         IReadOnlyList<JobSnapshotDto> Jobs,
         IReadOnlyList<ReservationSnapshotDto> Reservations,
         IReadOnlyList<ActionResultSnapshotDto> RecentActionResults,
@@ -175,6 +176,8 @@ namespace TabulaRasa.Api.Contracts
         InventoryDto Inventory,
         AgentNeedsDto Needs,
         MovementSnapshotDto? Movement,
+        GoalSnapshotDto? CurrentGoal,
+        IReadOnlyList<TaskSnapshotDto> TaskQueue,
         AgentPerceptionSnapshotDto Perception,
         AgentMemorySnapshotDto Memory,
         AgentDecisionSnapshotDto? Decision,
@@ -317,13 +320,50 @@ namespace TabulaRasa.Api.Contracts
         string DefinitionId,
         string Name,
         string Status,
+        string? OwnerAgentId,
+        string? GoalId,
         int TaskCount,
         int PendingTaskCount,
         int AssignedTaskCount,
         int InProgressTaskCount,
         int CompletedTaskCount,
         int FailedTaskCount,
-        int CancelledTaskCount);
+        int CancelledTaskCount,
+        int InterruptedTaskCount,
+        IReadOnlyList<TaskSnapshotDto> Tasks);
+
+    public sealed record GoalSnapshotDto(
+        string Id,
+        string AgentId,
+        string NeedKey,
+        string Reason,
+        int Priority,
+        string? TargetId,
+        string? TargetType,
+        string? JobId,
+        string Status,
+        long CreatedTick,
+        long LastUpdatedTick,
+        string? FailureReason);
+
+    public sealed record TaskSnapshotDto(
+        string Id,
+        string JobId,
+        string StepId,
+        string DefinitionId,
+        string Name,
+        string Status,
+        string ExecutionKind,
+        string? AssignedAgentId,
+        int ProgressTicks,
+        int RequiredProgressTicks,
+        int DispatchCount,
+        string? TargetId,
+        string? TargetType,
+        string? AtomicAction,
+        string? SelectedGoal,
+        string? ContextKey,
+        string? FailureReason);
 
     public sealed record ReservationSnapshotDto(
         string Id,

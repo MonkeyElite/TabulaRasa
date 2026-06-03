@@ -6,6 +6,7 @@ using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Simulation.Configuration;
+using TabulaRasa.Simulation.Goals;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
@@ -39,6 +40,7 @@ namespace TabulaRasa.Api.Services
                 state.World.ResourceDefinitions.Select(ToResourceDefinition).ToList(),
                 state.World.ResourceContainers.Select(container => ToResourceContainer(container, state.World.ResourceDefinitionsById)).ToList(),
                 state.ActiveMovements.Select(ToMovement).ToList(),
+                state.Goals.Select(ToGoal).ToList(),
                 state.ActiveJobs.Concat(state.PendingJobs).Select(ToJob).ToList(),
                 state.Reservations.Reservations.Select(ToReservation).ToList(),
                 state.ActionResults.TakeLast(10).Select(ToActionResult).ToList(),
@@ -202,6 +204,8 @@ namespace TabulaRasa.Api.Services
                 ToInventory(agent.Inventory, state.World.ResourceDefinitionsById),
                 ToNeeds(agentState?.NeedState),
                 movement is null ? null : ToMovement(movement),
+                ToCurrentGoal(agent.Id, state),
+                ToTaskQueue(agent.Id, state),
                 ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)),
                 ToMemory(state.MemoryStoresByAgentId.GetValueOrDefault(agent.Id)),
                 ToDecision(agentState?.Learning.LatestDecision),
@@ -450,13 +454,78 @@ namespace TabulaRasa.Api.Services
                 job.Definition.Id,
                 job.Definition.Name,
                 job.Status.ToString(),
+                job.OwnerAgentId,
+                job.GoalId,
                 job.Tasks.Count,
                 job.Tasks.Count(task => task.Status == TaskStatus.Pending),
                 job.Tasks.Count(task => task.Status == TaskStatus.Assigned),
                 job.Tasks.Count(task => task.Status == TaskStatus.InProgress),
                 job.Tasks.Count(task => task.Status == TaskStatus.Completed),
                 job.Tasks.Count(task => task.Status == TaskStatus.Failed),
-                job.Tasks.Count(task => task.Status == TaskStatus.Cancelled));
+                job.Tasks.Count(task => task.Status == TaskStatus.Cancelled),
+                job.Tasks.Count(task => task.Status == TaskStatus.Interrupted),
+                job.Tasks.Select(ToTask).ToList());
+        }
+
+        private static GoalSnapshotDto? ToCurrentGoal(string agentId, SimulationState state)
+        {
+            AgentGoal? goal = state.Goals
+                .LastOrDefault(goal => goal.AgentId == agentId && goal.IsActive);
+
+            return goal is null ? null : ToGoal(goal);
+        }
+
+        private static IReadOnlyList<TaskSnapshotDto> ToTaskQueue(string agentId, SimulationState state)
+        {
+            HashSet<string> goalJobIds = state.Goals
+                .Where(goal => goal.AgentId == agentId && goal.IsActive && goal.JobId is not null)
+                .Select(goal => goal.JobId!)
+                .ToHashSet(StringComparer.Ordinal);
+
+            return state.ActiveJobs.Concat(state.PendingJobs)
+                .Where(job => job.OwnerAgentId == agentId || goalJobIds.Contains(job.Id))
+                .SelectMany(job => job.Tasks)
+                .Select(ToTask)
+                .ToList();
+        }
+
+        private static GoalSnapshotDto ToGoal(AgentGoal goal)
+        {
+            return new GoalSnapshotDto(
+                goal.Id,
+                goal.AgentId,
+                goal.NeedKey,
+                goal.Reason,
+                goal.Priority,
+                goal.TargetId,
+                goal.TargetType,
+                goal.JobId,
+                goal.Status.ToString(),
+                goal.CreatedTick,
+                goal.LastUpdatedTick,
+                goal.FailureReason);
+        }
+
+        private static TaskSnapshotDto ToTask(TaskInstance task)
+        {
+            return new TaskSnapshotDto(
+                task.Id,
+                task.JobId,
+                task.StepId,
+                task.Definition.Id,
+                task.Definition.Name,
+                task.Status.ToString(),
+                task.Definition.ExecutionKind.ToString(),
+                task.AssignedAgentId,
+                task.ProgressTicks,
+                task.Definition.RequiredProgressTicks,
+                task.DispatchCount,
+                task.Definition.TargetId,
+                task.Definition.TargetType,
+                task.Definition.AtomicAction?.ToString(),
+                task.Definition.SelectedGoal,
+                task.Definition.ContextKey,
+                task.FailureReason);
         }
 
         private static ReservationSnapshotDto ToReservation(Reservation reservation)

@@ -75,6 +75,30 @@ describe("Inspector", () => {
     expect(screen.getByText("target food-1 / source food-1 / Sight")).toBeTruthy();
   });
 
+  it("renders selected agent goal and task queue in the work tab", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Work"));
+
+    expect(screen.getByText("Current goal")).toBeTruthy();
+    expect(screen.getByText("Resolve hunger with food.")).toBeTruthy();
+    expect(screen.getByText("Task queue")).toBeTruthy();
+    expect(screen.getByText("Move To Food")).toBeTruthy();
+    expect(screen.getByText("Assigned / Movement / step move-to-food")).toBeTruthy();
+  });
+
   it("renders empty perception states for selected agents", () => {
     const emptySnapshot: SimulationSnapshot = {
       ...snapshot,
@@ -209,6 +233,60 @@ const snapshot: SimulationSnapshot = {
         lastRepathReason: "Route became blocked.",
         lastEffectiveSpeedPerTick: 0.75
       },
+      currentGoal: {
+        id: "goal-1",
+        agentId: "agent-1",
+        needKey: "Hunger",
+        reason: "Resolve hunger with food.",
+        priority: 70,
+        targetId: "food-1",
+        targetType: "Food",
+        jobId: "job-1",
+        status: "Active",
+        createdTick: 2,
+        lastUpdatedTick: 3,
+        failureReason: null
+      },
+      taskQueue: [
+        {
+          id: "job-1:find-food",
+          jobId: "job-1",
+          stepId: "find-food",
+          definitionId: "find-food",
+          name: "Find Food",
+          status: "Completed",
+          executionKind: "Progress",
+          assignedAgentId: "agent-1",
+          progressTicks: 1,
+          requiredProgressTicks: 1,
+          dispatchCount: 0,
+          targetId: "food-1",
+          targetType: "food",
+          atomicAction: null,
+          selectedGoal: "Hunger",
+          contextKey: "Hunger|Food|Task",
+          failureReason: null
+        },
+        {
+          id: "job-1:move-to-food",
+          jobId: "job-1",
+          stepId: "move-to-food",
+          definitionId: "move-to-food",
+          name: "Move To Food",
+          status: "Assigned",
+          executionKind: "Movement",
+          assignedAgentId: "agent-1",
+          progressTicks: 0,
+          requiredProgressTicks: 1,
+          dispatchCount: 1,
+          targetId: "food-1",
+          targetType: "food",
+          atomicAction: "Eat",
+          selectedGoal: "Hunger",
+          contextKey: "Hunger|Food|Task",
+          failureReason: null
+        }
+      ],
       perception: {
         nearbyEntities: [
           {
@@ -317,6 +395,20 @@ const snapshot: SimulationSnapshot = {
   }],
   resourceContainers: [],
   activeMovements: [],
+  goals: [{
+    id: "goal-1",
+    agentId: "agent-1",
+    needKey: "Hunger",
+    reason: "Resolve hunger with food.",
+    priority: 70,
+    targetId: "food-1",
+    targetType: "Food",
+    jobId: "job-1",
+    status: "Active",
+    createdTick: 2,
+    lastUpdatedTick: 3,
+    failureReason: null
+  }],
   jobs: [],
   reservations: [],
   recentActionResults: [],

@@ -1,4 +1,6 @@
 using TabulaRasa.Abstractions.Execution;
+using TabulaRasa.Abstractions.Agents.Actions;
+using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Definitions;
@@ -46,7 +48,9 @@ namespace TabulaRasa.Simulation.Tasks.Execution
                         continue;
                     }
 
-                    if (!PreconditionsPass(state, task))
+                    bool hasActionResult = task.Definition.ExecutionKind != TaskExecutionKind.Progress
+                        && FindTaskActionResult(state, task) is not null;
+                    if (!hasActionResult && !PreconditionsPass(state, task))
                     {
                         ReleaseTaskReservations(state, task);
                         state.EmitEvent(
@@ -73,10 +77,10 @@ namespace TabulaRasa.Simulation.Tasks.Execution
                             new Dictionary<string, string>
                             {
                                 ["assignedAgentId"] = task.AssignedAgentId ?? ""
-                            });
+                        });
                     }
 
-                    task.Advance();
+                    AdvanceTask(state, task);
 
                     if (task.IsTerminal)
                     {
@@ -101,6 +105,7 @@ namespace TabulaRasa.Simulation.Tasks.Execution
                         JobStatus.Completed => "job.completed",
                         JobStatus.Failed => "job.failed",
                         JobStatus.Cancelled => "job.cancelled",
+                        JobStatus.Interrupted => "job.interrupted",
                         _ => "job.status_changed"
                     };
                     state.EmitEvent(
@@ -126,6 +131,7 @@ namespace TabulaRasa.Simulation.Tasks.Execution
                 if (!result.Succeeded)
                 {
                     task.Fail(result.FailureReason ?? "Task precondition failed.");
+                    MarkTaskTargetUnavailable(state, task, task.FailureReason ?? "Task precondition failed.");
                     return false;
                 }
             }
@@ -145,6 +151,85 @@ namespace TabulaRasa.Simulation.Tasks.Execution
                     $"{task.Id} released reservations.",
                     task.Id);
             }
+        }
+
+        private static void AdvanceTask(SimulationState state, TaskInstance task)
+        {
+            switch (task.Definition.ExecutionKind)
+            {
+                case TaskExecutionKind.Progress:
+                    task.Advance();
+                    break;
+                case TaskExecutionKind.Movement:
+                    AdvanceMovementTask(state, task);
+                    break;
+                case TaskExecutionKind.Action:
+                    AdvanceActionTask(state, task);
+                    break;
+            }
+        }
+
+        private static void AdvanceMovementTask(SimulationState state, TaskInstance task)
+        {
+            ActionResult? result = FindTaskActionResult(state, task);
+            if (result is not null)
+            {
+                if (result.Succeeded)
+                {
+                    task.Complete();
+                    return;
+                }
+
+                task.Fail(result.Reason ?? "Movement task failed.");
+                MarkTaskTargetUnavailable(state, task, task.FailureReason ?? "Movement task failed.");
+                return;
+            }
+
+            bool hasPendingWork = state.ActiveMovements.Any(movement => movement.SourceTaskId == task.Id)
+                || state.PendingActionRequests.Any(request => request.SourceTaskId == task.Id);
+
+            if (task.DispatchCount > 0 && !hasPendingWork)
+            {
+                task.Complete();
+            }
+        }
+
+        private static void AdvanceActionTask(SimulationState state, TaskInstance task)
+        {
+            ActionResult? result = FindTaskActionResult(state, task);
+            if (result is null)
+            {
+                return;
+            }
+
+            if (result.Succeeded)
+            {
+                task.Complete();
+                return;
+            }
+
+            task.Fail(result.Reason ?? "Action task failed.");
+            MarkTaskTargetUnavailable(state, task, task.FailureReason ?? "Action task failed.");
+        }
+
+        private static ActionResult? FindTaskActionResult(SimulationState state, TaskInstance task)
+        {
+            return state.ActionResults
+                .LastOrDefault(result => result.SourceTaskId == task.Id);
+        }
+
+        private static void MarkTaskTargetUnavailable(SimulationState state, TaskInstance task, string reason)
+        {
+            if (!string.Equals(task.Definition.SelectedGoal, "Hunger", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            AgentMemoryService.MarkTargetUnavailable(
+                state,
+                task.AssignedAgentId ?? "",
+                task.Definition.TargetId,
+                reason);
         }
     }
 }

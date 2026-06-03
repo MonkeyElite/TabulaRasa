@@ -92,6 +92,8 @@ namespace TabulaRasa.Simulation.Learning
                 ["targetId"] = result.TargetId ?? "",
                 ["contextKey"] = result.ContextKey ?? "",
                 ["selectedGoal"] = result.SelectedGoal ?? "",
+                ["sourceTaskId"] = result.SourceTaskId ?? "",
+                ["sourceGoalId"] = result.SourceGoalId ?? "",
                 ["outcomeScore"] = result.OutcomeScore?.ToString("0.###", CultureInfo.InvariantCulture) ?? ""
             };
 

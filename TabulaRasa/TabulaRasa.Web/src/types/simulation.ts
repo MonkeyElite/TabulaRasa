@@ -180,6 +180,7 @@ export type SimulationSnapshot = {
   resourceDefinitions: ResourceDefinition[];
   resourceContainers: ResourceContainerSnapshot[];
   activeMovements: MovementSnapshot[];
+  goals: GoalSnapshot[];
   jobs: JobSnapshot[];
   reservations: ReservationSnapshot[];
   recentActionResults: ActionResultSnapshot[];
@@ -233,6 +234,8 @@ export type AgentSnapshot = {
   inventory: Inventory;
   needs: AgentNeeds;
   movement: MovementSnapshot | null;
+  currentGoal: GoalSnapshot | null;
+  taskQueue: TaskSnapshot[];
   perception: AgentPerceptionSnapshot;
   memory: AgentMemorySnapshot;
   decision: AgentDecisionSnapshot | null;
@@ -358,6 +361,8 @@ export type JobSnapshot = {
   definitionId: string;
   name: string;
   status: string;
+  ownerAgentId: string | null;
+  goalId: string | null;
   taskCount: number;
   pendingTaskCount: number;
   assignedTaskCount: number;
@@ -365,6 +370,43 @@ export type JobSnapshot = {
   completedTaskCount: number;
   failedTaskCount: number;
   cancelledTaskCount: number;
+  interruptedTaskCount: number;
+  tasks: TaskSnapshot[];
+};
+
+export type GoalSnapshot = {
+  id: string;
+  agentId: string;
+  needKey: string;
+  reason: string;
+  priority: number;
+  targetId: string | null;
+  targetType: string | null;
+  jobId: string | null;
+  status: string;
+  createdTick: number;
+  lastUpdatedTick: number;
+  failureReason: string | null;
+};
+
+export type TaskSnapshot = {
+  id: string;
+  jobId: string;
+  stepId: string;
+  definitionId: string;
+  name: string;
+  status: string;
+  executionKind: string;
+  assignedAgentId: string | null;
+  progressTicks: number;
+  requiredProgressTicks: number;
+  dispatchCount: number;
+  targetId: string | null;
+  targetType: string | null;
+  atomicAction: string | null;
+  selectedGoal: string | null;
+  contextKey: string | null;
+  failureReason: string | null;
 };
 
 export type ReservationSnapshot = {

@@ -23,6 +23,8 @@ namespace TabulaRasa.Simulation.Tasks.Definitions
         public IReadOnlyList<string> DependsOnStepIds { get; }
         public string? AssignedAgentId { get; private set; }
         public int ProgressTicks { get; private set; }
+        public int DispatchCount { get; private set; }
+        public long? LastDispatchTick { get; private set; }
         public TaskStatus Status { get; private set; } = TaskStatus.Pending;
         public string? FailureReason { get; private set; }
 
@@ -53,6 +55,17 @@ namespace TabulaRasa.Simulation.Tasks.Definitions
             {
                 Status = TaskStatus.Completed;
             }
+        }
+
+        public void MarkActionDispatched(long tick)
+        {
+            DispatchCount++;
+            LastDispatchTick = tick;
+        }
+
+        public void Complete()
+        {
+            Status = TaskStatus.Completed;
         }
 
         public void Fail(string reason)

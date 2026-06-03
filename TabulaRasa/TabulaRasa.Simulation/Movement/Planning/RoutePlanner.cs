@@ -291,7 +291,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 maxRepathAttempts,
                 request.ContextKey,
                 request.SelectedGoal,
-                request.NeedsBefore);
+                request.NeedsBefore,
+                request.SourceTaskId,
+                request.SourceGoalId);
         }
 
         private static MovementRoute CreateRoute(GridPath path, WorldPosition exactDestination)

@@ -115,6 +115,27 @@ namespace TabulaRasa.UnitTests.Api
         }
 
         [Fact]
+        public void Snapshot_IncludesAgentGoalsAndTaskQueues()
+        {
+            using SimulationRegistry registry = new();
+            SimulationSession session = registry.Create("Goals", Config(seed: 4, agents: 1, food: 1, hungerDelta: 5));
+
+            session.Step();
+
+            SimulationSnapshotDto snapshot = session.GetCurrentSnapshot();
+            AgentSnapshotDto agent = Assert.Single(snapshot.Agents);
+            GoalSnapshotDto goal = Assert.Single(snapshot.Goals);
+            JobSnapshotDto job = Assert.Single(snapshot.Jobs);
+            Assert.NotNull(agent.CurrentGoal);
+            Assert.Equal(goal.Id, agent.CurrentGoal.Id);
+            Assert.Equal(goal.Id, job.GoalId);
+            Assert.Equal(agent.Id, job.OwnerAgentId);
+            Assert.Equal(job.Tasks.Count, agent.TaskQueue.Count);
+            Assert.Contains(agent.TaskQueue, task => task.StepId == "find-food");
+        }
+
+
+        [Fact]
         public void ConcurrentSteps_DoNotCorruptTickProgression()
         {
             using SimulationRegistry registry = new();
@@ -309,7 +330,8 @@ namespace TabulaRasa.UnitTests.Api
             int agents = 1,
             int food = 1,
             int eventHistoryLimit = 100,
-            int snapshotHistoryLimit = 100)
+            int snapshotHistoryLimit = 100,
+            float hungerDelta = 1)
         {
             return new SimulationConfigDto(
                 seed,
@@ -320,17 +342,19 @@ namespace TabulaRasa.UnitTests.Api
                 food,
                 eventHistoryLimit,
                 snapshotHistoryLimit,
-                new NeedDecayConfigDto(1, 1, -1),
+                new NeedDecayConfigDto(hungerDelta, 1, -1),
                 20,
                 0.25f,
                 new PathfindingConfigDto(false, 1_000, 3),
                 [
                     "need-decay",
                     "planning",
+                    "goal-generation",
                     "action-request-creation",
                     "route-planning",
                     "job-activation",
                     "task-assignment",
+                    "task-action-dispatch",
                     "movement-execution",
                     "task-execution",
                     "action-execution",

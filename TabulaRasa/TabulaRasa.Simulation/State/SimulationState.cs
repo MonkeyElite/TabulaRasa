@@ -4,6 +4,7 @@ using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Configuration;
+using TabulaRasa.Simulation.Goals;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
@@ -22,6 +23,7 @@ namespace TabulaRasa.Simulation.State
         public List<ActionRequest> PendingActionRequests { get; } = [];
         public List<ActionResult> ActionResults { get; } = [];
         public List<ActiveMovement> ActiveMovements { get; } = [];
+        public List<AgentGoal> Goals { get; } = [];
         public List<JobInstance> PendingJobs { get; } = [];
         public List<JobInstance> ActiveJobs { get; } = [];
         public ReservationRegistry Reservations { get; } = new();

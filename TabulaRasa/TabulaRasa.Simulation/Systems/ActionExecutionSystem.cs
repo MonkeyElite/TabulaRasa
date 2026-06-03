@@ -36,6 +36,11 @@ namespace TabulaRasa.Simulation.Systems
 
             foreach (ActionRequest request in requests)
             {
+                if (request.IsMovementOnly)
+                {
+                    continue;
+                }
+
                 AgentEntity? agent = state.World.Agents.FirstOrDefault(agent => agent.Id == request.AgentId);
                 if (agent is not null && agent.IsDead)
                 {
@@ -54,7 +59,9 @@ namespace TabulaRasa.Simulation.Systems
                         request.TargetId,
                         request.ContextKey,
                         request.SelectedGoal,
-                        request.NeedsBefore);
+                        request.NeedsBefore,
+                        SourceTaskId: request.SourceTaskId,
+                        SourceGoalId: request.SourceGoalId);
                     AgentLearningService.RecordActionResult(state, result, Name);
 
                     continue;
@@ -65,7 +72,9 @@ namespace TabulaRasa.Simulation.Systems
                     TargetId = request.TargetId,
                     ContextKey = request.ContextKey,
                     SelectedGoal = request.SelectedGoal,
-                    NeedsBefore = request.NeedsBefore
+                    NeedsBefore = request.NeedsBefore,
+                    SourceTaskId = request.SourceTaskId,
+                    SourceGoalId = request.SourceGoalId
                 };
                 AgentLearningService.RecordActionResult(state, resolved, Name);
             }

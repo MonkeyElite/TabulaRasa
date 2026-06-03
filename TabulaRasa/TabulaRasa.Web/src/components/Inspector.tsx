@@ -20,7 +20,7 @@ type Props = {
 
 export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange, onTerrainChange }: Props) {
   const [inspectorTab, setInspectorTab] = React.useState<"state" | "entities" | "selection">("selection");
-  const [agentTab, setAgentTab] = React.useState<"overview" | "perception" | "memory" | "learning">("overview");
+  const [agentTab, setAgentTab] = React.useState<"overview" | "work" | "perception" | "memory" | "learning">("overview");
   const editable = editing && canEdit && draft;
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
   const listedResourceContainers = editable ? draft.resourceContainers : snapshot?.resourceContainers ?? [];
@@ -198,6 +198,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           {!editing && selectedSnapshotAgent && (
             <div className="tabs">
               <button className={agentTab === "overview" ? "selected" : ""} onClick={() => setAgentTab("overview")}>Overview</button>
+              <button className={agentTab === "work" ? "selected" : ""} onClick={() => setAgentTab("work")}>Work</button>
               <button className={agentTab === "perception" ? "selected" : ""} onClick={() => setAgentTab("perception")}>Perception</button>
               <button className={agentTab === "memory" ? "selected" : ""} onClick={() => setAgentTab("memory")}>Memory</button>
               <button className={agentTab === "learning" ? "selected" : ""} onClick={() => setAgentTab("learning")}>Decision</button>
@@ -220,6 +221,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               ["Health", health(agent)],
               ["Status", isDeadAgent(agent) ? "dead" : "alive"],
               ["Needs", `H ${formatNumber(agent.needs.hunger)} / T ${formatNumber(agent.needs.thirst)} / E ${formatNumber(agent.needs.energy)} / F ${formatNumber(agent.needs.fatigue)}`],
+              ["Goal", selectedSnapshotAgent?.currentGoal ? `${selectedSnapshotAgent.currentGoal.needKey} / ${selectedSnapshotAgent.currentGoal.status}` : "none"],
               ["Movement", movement?.status ?? "idle"],
               ["Route target", movement?.targetId ?? "none"],
               ["Destination", movement ? `${formatNumber(movement.destination.x)}, ${formatNumber(movement.destination.y)}` : "none"],
@@ -248,6 +250,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           />
             </>
           )}
+          {!editing && selectedSnapshotAgent && agentTab === "work" && <WorkDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "perception" && <PerceptionDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "memory" && <MemoryDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "learning" && <LearningDetails agent={selectedSnapshotAgent} />}
@@ -397,6 +400,54 @@ function InventoryDetails({ inventory }: { inventory: InventoryLike }) {
             <div className="perception-row" key={stack.stackId}>
               <strong>{stack.resourceId}</strong>
               <small>{stack.quantity} in {stack.stackId}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorkDetails({ agent }: { agent: AgentSnapshot }) {
+  const goal = agent.currentGoal;
+  const tasks = agent.taskQueue;
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Current goal</div>
+      {goal ? (
+        <EntitySummary
+          rows={[
+            ["Need", goal.needKey],
+            ["Status", goal.status],
+            ["Priority", goal.priority.toString()],
+            ["Target", goal.targetId ?? "none"],
+            ["Job", goal.jobId ?? "none"],
+            ["Reason", goal.failureReason ?? goal.reason]
+          ]}
+        />
+      ) : (
+        <span className="empty-state">No active goal.</span>
+      )}
+
+      <div className="subsection-title">Task queue</div>
+      {tasks.length === 0 ? (
+        <span className="empty-state">No queued tasks.</span>
+      ) : (
+        <div className="perception-list">
+          {tasks.map((task) => (
+            <div className="perception-row" key={task.id}>
+              <strong>{task.name}</strong>
+              <small>
+                {task.status} / {task.executionKind} / step {task.stepId}
+              </small>
+              <small>
+                progress {task.progressTicks} / {task.requiredProgressTicks} / dispatches {task.dispatchCount}
+              </small>
+              <small>
+                action {task.atomicAction ?? "none"} / target {task.targetId ?? "none"} / assigned {task.assignedAgentId ?? "none"}
+              </small>
+              {task.failureReason && <small>{task.failureReason}</small>}
             </div>
           ))}
         </div>

@@ -16,6 +16,17 @@ export function RuntimePanel({
   const slowestSystems = [...systems]
     .sort((left, right) => right.durationMilliseconds - left.durationMilliseconds)
     .slice(0, 3);
+  const jobs = snapshot?.jobs ?? [];
+  const taskCounts = jobs.reduce(
+    (counts, job) => ({
+      total: counts.total + job.taskCount,
+      pending: counts.pending + job.pendingTaskCount,
+      active: counts.active + job.assignedTaskCount + job.inProgressTaskCount,
+      completed: counts.completed + job.completedTaskCount,
+      failed: counts.failed + job.failedTaskCount + job.cancelledTaskCount + job.interruptedTaskCount
+    }),
+    { total: 0, pending: 0, active: 0, completed: 0, failed: 0 }
+  );
 
   return (
     <section className="debug-panel">
@@ -32,6 +43,15 @@ export function RuntimePanel({
         </span>
         <span className="metric">
           Events <strong>{snapshot?.diagnostics?.eventCount ?? snapshot?.events.length ?? 0}</strong>
+        </span>
+        <span className="metric">
+          Goals <strong>{snapshot?.goals.filter((goal) => goal.status === "Active").length ?? 0}/{snapshot?.goals.length ?? 0}</strong>
+        </span>
+        <span className="metric">
+          Jobs <strong>{jobs.filter((job) => job.status === "Active").length}/{jobs.length}</strong>
+        </span>
+        <span className="metric">
+          Tasks <strong>{taskCounts.active}/{taskCounts.total}</strong>
         </span>
         <span className="metric">
           Alive <strong>{snapshot?.aliveAgentCount ?? status?.aliveAgentCount ?? 0}</strong>
@@ -63,6 +83,18 @@ export function RuntimePanel({
         </div>
       )}
       <div className="system-list">
+        {jobs.length > 0 && (
+          <div className="system-row">
+            <span>
+              <strong>Task statuses</strong>
+              <small>
+                pending {taskCounts.pending} / done {taskCounts.completed} / failed {taskCounts.failed}
+              </small>
+            </span>
+            <span>{taskCounts.active}</span>
+            <span>{jobs.length}</span>
+          </div>
+        )}
         {systems.map((system) => (
           <div key={`${system.phase}:${system.systemName}:${system.priority}`} className="system-row">
             <span>

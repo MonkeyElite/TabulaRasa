@@ -290,7 +290,9 @@ namespace TabulaRasa.Simulation.Movement.Execution
                     TargetId: movement.TargetId,
                     ContextKey: movement.ContextKey,
                     SelectedGoal: movement.SelectedGoal,
-                    NeedsBefore: movement.NeedsBefore);
+                    NeedsBefore: movement.NeedsBefore,
+                    SourceTaskId: movement.SourceTaskId,
+                    SourceGoalId: movement.SourceGoalId);
                 AgentLearningService.RecordActionResult(state, result, SourceSystem);
             }
         }
@@ -319,7 +321,9 @@ namespace TabulaRasa.Simulation.Movement.Execution
                 movement.TargetId,
                 movement.ContextKey,
                 movement.SelectedGoal,
-                movement.NeedsBefore);
+                movement.NeedsBefore,
+                SourceTaskId: movement.SourceTaskId,
+                SourceGoalId: movement.SourceGoalId);
             AgentLearningService.RecordActionResult(state, result, SourceSystem);
         }
 

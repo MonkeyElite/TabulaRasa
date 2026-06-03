@@ -10,5 +10,7 @@
         string? SelectedGoal = null,
         AgentNeedsSnapshot? NeedsBefore = null,
         AgentNeedsSnapshot? NeedsAfter = null,
-        float? OutcomeScore = null);
+        float? OutcomeScore = null,
+        string? SourceTaskId = null,
+        string? SourceGoalId = null);
 }

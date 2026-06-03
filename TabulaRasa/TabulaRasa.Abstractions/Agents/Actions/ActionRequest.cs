@@ -8,5 +8,8 @@
         string? SelectedGoal = null,
         string? TargetType = null,
         string? Channel = null,
-        AgentNeedsSnapshot? NeedsBefore = null);
+        AgentNeedsSnapshot? NeedsBefore = null,
+        string? SourceTaskId = null,
+        string? SourceGoalId = null,
+        bool IsMovementOnly = false);
 }

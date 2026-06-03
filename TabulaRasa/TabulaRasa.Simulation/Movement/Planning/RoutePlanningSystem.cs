@@ -23,7 +23,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
 
         public string Name => "Route Planning System";
         public SimulationPhase Phase => SimulationPhase.Evaluation;
-        public int Priority => 2;
+        public int Priority => 6;
 
         public void Execute(SimulationState state)
         {
@@ -59,13 +59,20 @@ namespace TabulaRasa.Simulation.Movement.Planning
                         request.TargetId,
                         request.ContextKey,
                         request.SelectedGoal,
-                        request.NeedsBefore);
+                        request.NeedsBefore,
+                        SourceTaskId: request.SourceTaskId,
+                        SourceGoalId: request.SourceGoalId);
                     AgentLearningService.RecordActionResult(state, actionResult, Name);
                     continue;
                 }
 
                 if (!result.RequiresMovement)
                 {
+                    if (request.IsMovementOnly)
+                    {
+                        state.PendingActionRequests.Remove(request);
+                    }
+
                     continue;
                 }
 
