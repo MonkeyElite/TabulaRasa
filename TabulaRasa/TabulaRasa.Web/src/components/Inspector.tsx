@@ -79,6 +79,25 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
   const cellIsBlocked = selectedCell ? blockedCells.some((cell) => sameCell(cell, selectedCell)) : false;
   const cellOccupants = selectedCell ? getCellOccupants(snapshot, draft, Boolean(editable), selectedCell) : [];
   const selectedCellTerrain = selectedCell ? getCellTerrain(snapshot, draft, Boolean(editable), selectedCell) : terrainProfile("Plain");
+  const addSpeciesAgent = (speciesId: "human" | "deer" | "wolf") => {
+    if (!draft) {
+      return;
+    }
+
+    const nextDraft = addAgentDraft(draft);
+    const nextAgent = nextDraft.agents.at(-1);
+    if (!nextAgent) {
+      onDraftChange(nextDraft);
+      return;
+    }
+
+    const speciesDraft = updateAgentDraft(nextDraft, nextAgent.id, {
+      speciesId,
+      id: `${speciesId}-${nextDraft.agents.filter((agent) => agent.speciesId === speciesId).length + 1}`
+    });
+    onDraftChange(speciesDraft);
+    onSelect({ type: "agent", id: speciesDraft.agents.at(-1)?.id ?? nextAgent.id });
+  };
 
   return (
     <aside className="inspector">
@@ -142,18 +161,9 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
         <h3>Entities</h3>
         {editable && (
           <div className="row entity-actions">
-            <button
-              onClick={() => {
-                const nextDraft = addAgentDraft(draft);
-                const nextAgent = nextDraft.agents.at(-1);
-                onDraftChange(nextDraft);
-                if (nextAgent) {
-                  onSelect({ type: "agent", id: nextAgent.id });
-                }
-              }}
-            >
-              Add agent
-            </button>
+            <button onClick={() => addSpeciesAgent("human")}>Add human</button>
+            <button onClick={() => addSpeciesAgent("deer")}>Add deer</button>
+            <button onClick={() => addSpeciesAgent("wolf")}>Add wolf</button>
             <button
               onClick={() => {
                 const nextDraft = addResourceContainerDraft(draft);
@@ -228,6 +238,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
                 <strong>{item.id}</strong>
                 <small>
                   {isDeadAgent(item) ? "Corpse" : "AgentEntity"} - cell {Math.floor(item.position.x)}, {Math.floor(item.position.y)}
+                  {"speciesId" in item ? ` - ${item.speciesId}` : ""}
                 </small>
               </span>
             </button>
@@ -326,6 +337,13 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               ["Cell", `${Math.floor(agent.position.x)}, ${Math.floor(agent.position.y)}`],
               ["Position", `${formatNumber(agent.position.x)}, ${formatNumber(agent.position.y)}`],
               ["Type", entityType(agent, "AgentEntity")],
+              ["Species", "speciesId" in agent ? agent.speciesId : "human"],
+              ["Age", "ageTicks" in agent ? agent.ageTicks.toString() : "0"],
+              ["Born", "bornTick" in agent ? agent.bornTick.toString() : "0"],
+              ["Parents", "parentIds" in agent && agent.parentIds.length > 0 ? agent.parentIds.join(", ") : "none"],
+              ["Offspring", "offspringIds" in agent && agent.offspringIds.length > 0 ? agent.offspringIds.join(", ") : "none"],
+              ["Last reproduced", "lastReproducedTick" in agent && agent.lastReproducedTick !== null ? agent.lastReproducedTick.toString() : "never"],
+              ["Death", selectedSnapshotAgent?.deathTick !== null && selectedSnapshotAgent?.deathTick !== undefined ? `${selectedSnapshotAgent.deathCause ?? "unknown"} @ ${selectedSnapshotAgent.deathTick}` : "n/a"],
               ["Footprint", footprint(agent, "0.8 x 0.8")],
               ["Occupies", occupiesSpace(agent, true)],
               ["Occupied cells", occupiedCells(agent)],
@@ -886,7 +904,16 @@ function DraftField({
     );
   }
 
-  return <ReadonlyField label={field.label} value={String(value ?? "")} wide={wide} />;
+  return (
+    <label className={`field${wide ? " wide" : ""}`}>
+      <span>{field.label}</span>
+      <input
+        value={String(value ?? "")}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
 }
 
 function EntitySummary({ rows }: { rows: Array<[string, string]> }) {

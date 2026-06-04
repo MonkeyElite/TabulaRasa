@@ -14,6 +14,11 @@ namespace TabulaRasa.Simulation.Configuration
         float WaterRefillPerRainTick = 0.5f,
         float WaterEvaporationPerHeatTick = 0.25f);
 
+    public sealed record SpeciesPopulationConfig(
+        int Human = 1,
+        int Deer = 0,
+        int Wolf = 0);
+
     public sealed record NeedDecayConfig(
         float HungerDelta = 1,
         float ThirstDelta = 1,
@@ -49,12 +54,14 @@ namespace TabulaRasa.Simulation.Configuration
         IReadOnlyList<string>? EnabledSystems = null,
         MemoryConfig? Memory = null,
         EnvironmentConfig? Environment = null,
-        EcologyConfig? Ecology = null)
+        EcologyConfig? Ecology = null,
+        SpeciesPopulationConfig? SpeciesPopulation = null)
     {
         public static readonly IReadOnlyList<string> DefaultEnabledSystems =
         [
             "environment",
             "ecology",
+            "lifecycle",
             "need-decay",
             "memory",
             "planning",
@@ -75,6 +82,8 @@ namespace TabulaRasa.Simulation.Configuration
         public MemoryConfig EffectiveMemory => Memory ?? new MemoryConfig();
         public EnvironmentConfig EffectiveEnvironment => Environment ?? new EnvironmentConfig();
         public EcologyConfig EffectiveEcology => Ecology ?? new EcologyConfig();
+        public SpeciesPopulationConfig EffectiveSpeciesPopulation =>
+            SpeciesPopulation ?? new SpeciesPopulationConfig(Human: InitialAgentCount, Deer: 0, Wolf: 0);
         public IReadOnlyList<string> EffectiveEnabledSystems => EnabledSystems ?? DefaultEnabledSystems;
     }
 }

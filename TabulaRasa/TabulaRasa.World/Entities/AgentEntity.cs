@@ -18,5 +18,13 @@ namespace TabulaRasa.World.Entities
             MaxWeight = 10
         };
         public bool IsDead { get; set; }
+        public string SpeciesId { get; set; } = "human";
+        public int AgeTicks { get; set; }
+        public long BornTick { get; set; }
+        public List<string> ParentIds { get; init; } = [];
+        public List<string> OffspringIds { get; init; } = [];
+        public long? LastReproducedTick { get; set; }
+        public long? DeathTick { get; set; }
+        public string? DeathCause { get; set; }
     }
 }

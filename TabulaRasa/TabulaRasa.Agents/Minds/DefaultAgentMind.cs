@@ -82,6 +82,74 @@ namespace TabulaRasa.Agents.Minds
             List<DecisionCandidate> candidates = [];
 
             foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Flee))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Safety", "Predator", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Flee);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Flee,
+                    opportunity.TargetId,
+                    "Safety",
+                    contextKey,
+                    "Predator",
+                    channel,
+                    1,
+                    relevance,
+                    learnedWeight,
+                    2.5f + relevance + learnedWeight));
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Attack))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Hunger", "Prey", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Attack);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                float needPressure = needPressures["Hunger"];
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Attack,
+                    opportunity.TargetId,
+                    "Hunger",
+                    contextKey,
+                    "Prey",
+                    channel,
+                    needPressure,
+                    relevance,
+                    learnedWeight,
+                    (needPressure * 1.8f) + (relevance * 0.5f) + learnedWeight));
+            }
+
+            bool needsAreSafeForReproduction = self.IsAdult
+                && self.Needs.Hunger <= 4
+                && self.Needs.Thirst <= 4
+                && self.Needs.Fatigue <= 4;
+            if (needsAreSafeForReproduction)
+            {
+                foreach (InteractionOpportunity opportunity in perception.Opportunities
+                    .Where(opportunity => opportunity.ActionType == AgentActionType.Reproduce))
+                {
+                    string channel = opportunity.Channel.ToString();
+                    string contextKey = BuildContextKey("Reproduction", "Mate", channel);
+                    float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Reproduce);
+                    float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                    candidates.Add(new DecisionCandidate(
+                        AgentActionType.Reproduce,
+                        opportunity.TargetId,
+                        "Reproduction",
+                        contextKey,
+                        "Mate",
+                        channel,
+                        0.35f,
+                        relevance,
+                        learnedWeight,
+                        0.55f + (relevance * 0.25f) + learnedWeight));
+                }
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
                 .Where(opportunity => opportunity.ActionType == AgentActionType.Eat))
             {
                 string channel = opportunity.Channel.ToString();
@@ -146,7 +214,7 @@ namespace TabulaRasa.Agents.Minds
                     0.05f + (relevance * 0.25f) + learnedWeight));
             }
 
-            if ((self.Inventory?.GetValueOrDefault("food") ?? 0) > 0)
+            if (self.SpeciesId != "wolf" && (self.Inventory?.GetValueOrDefault("food") ?? 0) > 0)
             {
                 string contextKey = BuildContextKey("Hunger", "Food", "Inventory");
                 float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Eat);

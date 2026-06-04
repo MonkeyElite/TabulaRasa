@@ -27,6 +27,9 @@ namespace TabulaRasa.Api.Services
                 AgentFields:
                 [
                     Field<AgentEntity>("id", "Id", "string", nameof(AgentEntity.Id), isEditable: false),
+                    Field<AgentEntity>("speciesId", "Species", "string", nameof(AgentEntity.SpeciesId)),
+                    Field<AgentEntity>("ageTicks", "Age", "number", nameof(AgentEntity.AgeTicks)),
+                    Field<AgentEntity>("bornTick", "Born", "number", nameof(AgentEntity.BornTick)),
                     Field<AgentEntity>("position.x", "X", "number", nameof(AgentEntity.Position)),
                     Field<AgentEntity>("position.y", "Y", "number", nameof(AgentEntity.Position)),
                     Field<Inventory>("inventory.maxSlots", "Slots", "number", nameof(Inventory.MaxSlots)),

@@ -4,6 +4,7 @@ using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.Spatial.Interaction;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Simulation.Movement.Execution;
+using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
@@ -35,6 +36,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 AgentActionType.Eat => PlanEatRoute(state, request),
                 AgentActionType.Drink => PlanWaterSourceRoute(state, request),
                 AgentActionType.PickUpResource => PlanResourceTargetRoute(state, request),
+                AgentActionType.Attack => PlanAgentInteractionRoute(state, request, "Attack target is unavailable.", "Attack target is unreachable."),
+                AgentActionType.Reproduce => PlanAgentInteractionRoute(state, request, "Mate is unavailable.", "Mate is unreachable."),
+                AgentActionType.Flee => PlanFleeRoute(state, request),
                 AgentActionType.Wander => PlanWanderRoute(state, request),
                 _ => RoutePlanningResult.NotNeeded()
             };
@@ -137,7 +141,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 : RoutePlanningResult.Success(CreateMovement(
                     request,
                     candidate.Route,
-                    state.Config.MovementSpeedPerTick,
+                    GetMovementSpeed(state, agent),
                     DefaultArrivalTolerance,
                     state.Config.EffectivePathfinding.MaxRepathAttempts));
         }
@@ -179,7 +183,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 : RoutePlanningResult.Success(CreateMovement(
                     request,
                     candidate.Route,
-                    state.Config.MovementSpeedPerTick,
+                    GetMovementSpeed(state, agent),
                     DefaultArrivalTolerance,
                     state.Config.EffectivePathfinding.MaxRepathAttempts));
         }
@@ -222,9 +226,94 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 : RoutePlanningResult.Success(CreateMovement(
                     request,
                     candidate.Route,
-                    state.Config.MovementSpeedPerTick,
+                    GetMovementSpeed(state, agent),
                     DefaultArrivalTolerance,
                     state.Config.EffectivePathfinding.MaxRepathAttempts));
+        }
+
+        private RoutePlanningResult PlanAgentInteractionRoute(
+            SimulationState state,
+            ActionRequest request,
+            string unavailableReason,
+            string unreachableReason)
+        {
+            if (request.TargetId is null)
+            {
+                return RoutePlanningResult.Failure(unavailableReason);
+            }
+
+            AgentEntity? agent = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
+            AgentEntity? target = state.World.Agents.FirstOrDefault(candidate => candidate.Id == request.TargetId && !candidate.IsDead);
+            if (agent is null)
+            {
+                return RoutePlanningResult.Failure("Agent does not exist.");
+            }
+
+            if (target is null)
+            {
+                return RoutePlanningResult.Failure(unavailableReason);
+            }
+
+            if (agent.Position.DistanceTo(target.Position) <= SpatialQueries.DefaultInteractionTolerance + 0.5f)
+            {
+                return RoutePlanningResult.NotNeeded();
+            }
+
+            RouteCandidate? candidate = FindBestRouteAdjacentToAgent(state, agent, target);
+
+            return candidate is null
+                ? RoutePlanningResult.Failure(unreachableReason)
+                : RoutePlanningResult.Success(CreateMovement(
+                    request,
+                    candidate.Route,
+                    GetMovementSpeed(state, agent),
+                    DefaultArrivalTolerance,
+                    state.Config.EffectivePathfinding.MaxRepathAttempts));
+        }
+
+        private RoutePlanningResult PlanFleeRoute(SimulationState state, ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return RoutePlanningResult.Failure("Flee action requires a target.");
+            }
+
+            AgentEntity? agent = state.World.Agents.FirstOrDefault(a => a.Id == request.AgentId);
+            AgentEntity? predator = state.World.Agents.FirstOrDefault(candidate => candidate.Id == request.TargetId && !candidate.IsDead);
+            if (agent is null)
+            {
+                return RoutePlanningResult.Failure("Agent does not exist.");
+            }
+
+            if (predator is null)
+            {
+                return RoutePlanningResult.Failure("Flee target is unavailable.");
+            }
+
+            GridCell currentCell = SpatialQueries.GetCurrentCell(state.World, agent.Position);
+            IReadOnlyList<GridCell> fleeDestinations = state.World.Grid.GetAdjacentCells(
+                    currentCell,
+                    state.Config.EffectivePathfinding.AllowDiagonalMovement)
+                .Where(cell => CanAgentEnterCell(state, agent, cell))
+                .OrderByDescending(cell => GetCellCenter(cell).DistanceTo(predator.Position))
+                .ToList();
+
+            if (fleeDestinations.Count == 0)
+            {
+                return RoutePlanningResult.Failure("Agent has no available adjacent cell to flee to.");
+            }
+
+            GridCell destination = fleeDestinations[0];
+            MovementRoute route = CreateRoute(
+                new GridPath([currentCell, destination], state.World.Grid.GetTraversalCost(destination)),
+                GetCellCenter(destination));
+
+            return RoutePlanningResult.Success(CreateMovement(
+                request,
+                route,
+                GetMovementSpeed(state, agent),
+                DefaultArrivalTolerance,
+                state.Config.EffectivePathfinding.MaxRepathAttempts));
         }
 
         private RoutePlanningResult PlanWanderRoute(SimulationState state, ActionRequest request)
@@ -256,7 +345,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
             return RoutePlanningResult.Success(CreateMovement(
                 request,
                 route,
-                state.Config.MovementSpeedPerTick,
+                GetMovementSpeed(state, agent),
                 DefaultArrivalTolerance,
                 state.Config.EffectivePathfinding.MaxRepathAttempts));
         }
@@ -317,6 +406,51 @@ namespace TabulaRasa.Simulation.Movement.Planning
             return result.Succeeded && result.Path is not null
                 ? CreateRoute(result.Path, exactDestination)
                 : null;
+        }
+
+        private RouteCandidate? FindBestRouteAdjacentToAgent(
+            SimulationState state,
+            AgentEntity agent,
+            AgentEntity target)
+        {
+            GridCell startCell = SpatialQueries.GetCurrentCell(state.World, agent.Position);
+            GridCell targetCell = SpatialQueries.GetCurrentCell(state.World, target.Position);
+            List<RouteCandidate> candidates = [];
+
+            foreach (GridCell destinationCell in state.World.Grid.GetAdjacentCells(
+                targetCell,
+                state.Config.EffectivePathfinding.AllowDiagonalMovement))
+            {
+                if (!CanAgentEnterCell(state, agent, destinationCell))
+                {
+                    continue;
+                }
+
+                PathResult result = _pathfinder.FindPath(
+                    state.World.Grid,
+                    new PathRequest(
+                        startCell,
+                        destinationCell,
+                        cell => CanAgentEnterCell(state, agent, cell),
+                        state.Config.EffectivePathfinding.AllowDiagonalMovement,
+                        state.Config.EffectivePathfinding.MaxVisitedCells));
+
+                if (!result.Succeeded || result.Path is null)
+                {
+                    continue;
+                }
+
+                WorldPosition exactDestination = GetCellCenter(destinationCell);
+                candidates.Add(new RouteCandidate(
+                    CreateRoute(result.Path, exactDestination),
+                    result.Path.TotalCost,
+                    exactDestination.DistanceTo(target.Position)));
+            }
+
+            return candidates
+                .OrderBy(candidate => candidate.TotalCost)
+                .ThenBy(candidate => candidate.Distance)
+                .FirstOrDefault();
         }
 
         private static ActiveMovement CreateMovement(
@@ -403,6 +537,11 @@ namespace TabulaRasa.Simulation.Movement.Planning
 
             return state.World.ResourceDeposits.FirstOrDefault(candidate =>
                 candidate.Id == targetId && !candidate.IsEmpty);
+        }
+
+        private static float GetMovementSpeed(SimulationState state, AgentEntity agent)
+        {
+            return state.Config.MovementSpeedPerTick * SpeciesRegistry.Get(agent.SpeciesId).MovementSpeedMultiplier;
         }
 
         private sealed record RouteCandidate(MovementRoute Route, float TotalCost, float Distance);

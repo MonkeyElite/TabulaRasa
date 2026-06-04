@@ -10,6 +10,7 @@ using TabulaRasa.Simulation.Goals;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
+using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Definitions;
 using TabulaRasa.Simulation.Tasks.Jobs;
@@ -52,6 +53,7 @@ namespace TabulaRasa.Api.Services
                 populationCount,
                 aliveAgentCount,
                 deadAgentCount,
+                ToSpeciesPopulation(state),
                 ToDiagnostics(state.GetDiagnosticsForTick(state.Time.Tick)),
                 ToEnvironment(state.World.Environment),
                 ToEcologyStats(state),
@@ -73,7 +75,15 @@ namespace TabulaRasa.Api.Services
                     agent.Id,
                     ToPosition(agent.Position),
                     ToEditableInventory(agent.Inventory),
-                    ToNeeds(state.GetAgentById(agent.Id)?.NeedState))).ToList(),
+                    ToNeeds(state.GetAgentById(agent.Id)?.NeedState),
+                    SpeciesRegistry.NormalizeId(agent.SpeciesId),
+                    agent.AgeTicks,
+                    agent.BornTick,
+                    agent.ParentIds.ToList(),
+                    agent.OffspringIds.ToList(),
+                    agent.LastReproducedTick,
+                    agent.DeathTick,
+                    agent.DeathCause)).ToList(),
                 state.World.ResourceDefinitions.Select(ToEditableResourceDefinition).ToList(),
                 state.World.ResourceContainers.Select(container => new EditableResourceContainerDto(
                     container.Id,
@@ -126,7 +136,11 @@ namespace TabulaRasa.Api.Services
                     config.EffectiveEcology.PlantRegrowthTicks,
                     config.EffectiveEcology.PlantDecayTicksAfterDepleted,
                     config.EffectiveEcology.WaterRefillPerRainTick,
-                    config.EffectiveEcology.WaterEvaporationPerHeatTick));
+                    config.EffectiveEcology.WaterEvaporationPerHeatTick),
+                new SpeciesPopulationConfigDto(
+                    config.EffectiveSpeciesPopulation.Human,
+                    config.EffectiveSpeciesPopulation.Deer,
+                    config.EffectiveSpeciesPopulation.Wolf));
         }
 
         public static SimulationConfig ToConfig(SimulationConfigDto? dto, SimulationConfig fallback)
@@ -164,6 +178,12 @@ namespace TabulaRasa.Api.Services
                     dto.Ecology.PlantDecayTicksAfterDepleted,
                     dto.Ecology.WaterRefillPerRainTick,
                     dto.Ecology.WaterEvaporationPerHeatTick);
+            SpeciesPopulationConfig speciesPopulation = dto.SpeciesPopulation is null
+                ? new SpeciesPopulationConfig(dto.InitialAgentCount, 0, 0)
+                : new SpeciesPopulationConfig(
+                    dto.SpeciesPopulation.Human,
+                    dto.SpeciesPopulation.Deer,
+                    dto.SpeciesPopulation.Wolf);
 
             return new SimulationConfig(
                     dto.Seed,
@@ -188,7 +208,8 @@ namespace TabulaRasa.Api.Services
                     dto.EnabledSystems,
                     memory,
                     environment,
-                    ecology);
+                    ecology,
+                    speciesPopulation);
         }
 
         public static SimulationDraftDto ToDraft(SimulationSnapshotDto snapshot, SimulationConfigDto config)
@@ -206,7 +227,15 @@ namespace TabulaRasa.Api.Services
                     agent.Id,
                     agent.Position,
                     ToEditableInventory(agent.Inventory),
-                    agent.Needs)).ToList(),
+                    agent.Needs,
+                    agent.SpeciesId,
+                    agent.AgeTicks,
+                    agent.BornTick,
+                    agent.ParentIds,
+                    agent.OffspringIds,
+                    agent.LastReproducedTick,
+                    agent.DeathTick,
+                    agent.DeathCause)).ToList(),
                 snapshot.ResourceDefinitions.Select(ToEditableResourceDefinition).ToList(),
                 snapshot.ResourceContainers.Select(container => new EditableResourceContainerDto(
                     container.Id,
@@ -246,6 +275,14 @@ namespace TabulaRasa.Api.Services
                 SpatialQueries.OccupiesSpace(agent),
                 ToHealth(agent),
                 agent.IsDead,
+                SpeciesRegistry.NormalizeId(agent.SpeciesId),
+                agent.AgeTicks,
+                agent.BornTick,
+                agent.ParentIds.ToList(),
+                agent.OffspringIds.ToList(),
+                agent.LastReproducedTick,
+                agent.DeathTick,
+                agent.DeathCause,
                 ToInventory(agent.Inventory, state.World.ResourceDefinitionsById),
                 ToNeeds(agentState?.NeedState),
                 movement is null ? null : ToMovement(movement),
@@ -621,6 +658,25 @@ namespace TabulaRasa.Api.Services
                 state.World.WaterSources.Sum(water => water.CurrentVolume),
                 state.World.ResourceDeposits.Count,
                 state.World.ResourceDeposits.Sum(deposit => deposit.Quantity));
+        }
+
+        private static IReadOnlyList<SpeciesPopulationCountDto> ToSpeciesPopulation(SimulationState state)
+        {
+            return SpeciesRegistry.All
+                .Select(species =>
+                {
+                    List<AgentEntity> agents = state.World.Agents
+                        .Where(agent => string.Equals(SpeciesRegistry.NormalizeId(agent.SpeciesId), species.Id, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    return new SpeciesPopulationCountDto(
+                        species.Id,
+                        species.DisplayName,
+                        agents.Count,
+                        agents.Count(agent => !agent.IsDead),
+                        agents.Count(agent => agent.IsDead));
+                })
+                .ToList();
         }
 
         private static MovementSnapshotDto ToMovement(ActiveMovement movement)

@@ -15,6 +15,8 @@ using TabulaRasa.Simulation.Tasks.Execution;
 using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.World.Spatial.Grid;
 using TabulaRasa.World.Resources;
+using TabulaRasa.Abstractions.Entities;
+using TabulaRasa.Simulation.Species;
 
 namespace TabulaRasa.Simulation.Composition
 {
@@ -25,6 +27,7 @@ namespace TabulaRasa.Simulation.Composition
             ["need-decay"] = "Need Decay System",
             ["environment"] = "Environment System",
             ["ecology"] = "Ecology System",
+            ["lifecycle"] = "Lifecycle System",
             ["memory"] = "Agent Memory System",
             ["planning"] = "Planning System",
             ["goal-generation"] = "Goal Generation System",
@@ -43,10 +46,12 @@ namespace TabulaRasa.Simulation.Composition
         {
             SimulationConfig effectiveConfig = config ?? new SimulationConfig();
             Random random = new(effectiveConfig.Seed);
+            SpeciesPopulationConfig speciesPopulation = effectiveConfig.EffectiveSpeciesPopulation;
+            int initialAgentCount = speciesPopulation.Human + speciesPopulation.Deer + speciesPopulation.Wolf;
             List<WorldPosition> positions = BuildDeterministicPositions(
                 effectiveConfig.WorldWidth,
                 effectiveConfig.WorldHeight,
-                effectiveConfig.InitialAgentCount
+                initialAgentCount
                     + effectiveConfig.InitialFoodCount
                     + effectiveConfig.EffectiveEcology.InitialPlantCount
                     + effectiveConfig.EffectiveEcology.InitialWaterSourceCount
@@ -60,27 +65,14 @@ namespace TabulaRasa.Simulation.Composition
             List<WaterSourceEntity> waterSources = [];
             List<ResourceDepositEntity> resourceDeposits = [];
 
-            for (int index = 0; index < effectiveConfig.InitialAgentCount && index < positions.Count; index++)
-            {
-                string id = $"agent-{index + 1}";
-                agentEntities.Add(new AgentEntity
-                {
-                    Id = id,
-                    Position = positions[index]
-                });
-
-                agentStates.Add(new AgentState(id, new AgentNeedState
-                {
-                    Hunger = 1,
-                    Thirst = 0,
-                    Energy = 10,
-                    Fatigue = 0
-                }, new DefaultAgentMind()));
-            }
+            int nextPositionIndex = 0;
+            CreateAgents(SpeciesRegistry.HumanId, speciesPopulation.Human, ref nextPositionIndex);
+            CreateAgents(SpeciesRegistry.DeerId, speciesPopulation.Deer, ref nextPositionIndex);
+            CreateAgents(SpeciesRegistry.WolfId, speciesPopulation.Wolf, ref nextPositionIndex);
 
             for (int index = 0; index < effectiveConfig.InitialFoodCount; index++)
             {
-                int positionIndex = effectiveConfig.InitialAgentCount + index;
+                int positionIndex = initialAgentCount + index;
                 if (positionIndex >= positions.Count)
                 {
                     break;
@@ -101,7 +93,7 @@ namespace TabulaRasa.Simulation.Composition
             }
 
             GridMap grid = new(effectiveConfig.WorldWidth, effectiveConfig.WorldHeight);
-            int ecologyPositionStart = effectiveConfig.InitialAgentCount + effectiveConfig.InitialFoodCount;
+            int ecologyPositionStart = initialAgentCount + effectiveConfig.InitialFoodCount;
             for (int index = 0; index < effectiveConfig.EffectiveEcology.InitialPlantCount; index++)
             {
                 int positionIndex = ecologyPositionStart + index;
@@ -167,6 +159,25 @@ namespace TabulaRasa.Simulation.Composition
             SimulationState state = new(world, new SimulationTime(Tick: 0), agentStates, effectiveConfig);
 
             return (state, BuildSystems(state.Config));
+
+            void CreateAgents(string speciesId, int count, ref int positionIndex)
+            {
+                SpeciesDefinition species = SpeciesRegistry.Get(speciesId);
+                for (int index = 0; index < count && positionIndex < positions.Count; index++)
+                {
+                    string id = $"{species.Id}-{index + 1}";
+                    agentEntities.Add(new AgentEntity
+                    {
+                        Id = id,
+                        Position = positions[positionIndex],
+                        SpeciesId = species.Id,
+                        Health = new EntityHealth(species.MaxHealth)
+                    });
+
+                    agentStates.Add(new AgentState(id, CreateStartingNeeds(species.Id), new DefaultAgentMind()));
+                    positionIndex++;
+                }
+            }
         }
 
         public static IReadOnlyList<ISystem> BuildSystems(SimulationConfig config)
@@ -175,6 +186,7 @@ namespace TabulaRasa.Simulation.Composition
             {
                 ["environment"] = () => new EnvironmentSystem(),
                 ["ecology"] = () => new EcologySystem(),
+                ["lifecycle"] = () => new LifecycleSystem(),
                 ["need-decay"] = () => new NeedDecaySystem(),
                 ["memory"] = () => new AgentMemorySystem(),
                 ["planning"] = () => new PlanningSystem(),
@@ -194,6 +206,16 @@ namespace TabulaRasa.Simulation.Composition
                 .Where(factories.ContainsKey)
                 .Select(systemId => factories[systemId]())
                 .ToList();
+        }
+
+        private static AgentNeedState CreateStartingNeeds(string speciesId)
+        {
+            return SpeciesRegistry.NormalizeId(speciesId) switch
+            {
+                SpeciesRegistry.WolfId => new AgentNeedState { Hunger = 4, Thirst = 1, Energy = 10, Fatigue = 0 },
+                SpeciesRegistry.DeerId => new AgentNeedState { Hunger = 2, Thirst = 1, Energy = 10, Fatigue = 0 },
+                _ => new AgentNeedState { Hunger = 1, Thirst = 0, Energy = 10, Fatigue = 0 }
+            };
         }
 
         private static List<WorldPosition> BuildDeterministicPositions(

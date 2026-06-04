@@ -38,6 +38,7 @@ import type {
 const systemOptions = [
   ["environment", "Environment"],
   ["ecology", "Ecology"],
+  ["lifecycle", "Lifecycle"],
   ["need-decay", "Need decay"],
   ["memory", "Memory"],
   ["planning", "Planning"],
@@ -97,6 +98,11 @@ const defaultConfig: SimulationConfig = {
     waterRefillPerRainTick: 0.5,
     waterEvaporationPerHeatTick: 0.25
   },
+  speciesPopulation: {
+    human: 1,
+    deer: 0,
+    wolf: 0
+  },
   enabledSystems: systemOptions.map(([id]) => id)
 };
 
@@ -122,6 +128,11 @@ export default function Home() {
   const [hover, setHover] = useState<HoverInfo>(null);
   const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
   const [showPerceptionOverlay, setShowPerceptionOverlay] = useState(false);
+  const [speciesFilters, setSpeciesFilters] = useState<Record<string, boolean>>({
+    human: true,
+    deer: true,
+    wolf: true
+  });
   const [terrainBrush, setTerrainBrush] = useState<(typeof terrainBrushes)[number] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -504,6 +515,21 @@ export default function Home() {
               </button>
             ))}
           </div>
+          <div className="species-filter-list">
+            {(["human", "deer", "wolf"] as const).map((speciesId) => (
+              <label key={speciesId}>
+                <input
+                  type="checkbox"
+                  checked={speciesFilters[speciesId] ?? true}
+                  onChange={(event) => setSpeciesFilters((current) => ({
+                    ...current,
+                    [speciesId]: event.target.checked
+                  }))}
+                />
+                <span>{speciesId}</span>
+              </label>
+            ))}
+          </div>
           <div className="sidebar-actions">
             <button onClick={handleClone} disabled={!activeSimulationId}>
               <Copy size={16} />
@@ -534,6 +560,7 @@ export default function Home() {
             showNavigationOverlay={showNavigationOverlay}
             showPerceptionOverlay={showPerceptionOverlay}
             perceptionRadius={status?.config.perceptionRadius ?? 0}
+            speciesFilters={speciesFilters}
             onSelect={setSelection}
             onMoveAgent={moveAgent}
             onMoveResourceContainer={moveResourceContainer}
@@ -727,7 +754,33 @@ function ConfigFields({
         label="Agents"
         value={config.initialAgentCount}
         disabled={disabled || !includeRebuildFields}
-        onChange={(initialAgentCount) => onChange({ ...config, initialAgentCount })}
+        onChange={(initialAgentCount) => onChange({
+          ...config,
+          initialAgentCount,
+          speciesPopulation: { ...config.speciesPopulation, human: initialAgentCount }
+        })}
+      />
+      <NumberConfigField
+        label="Humans"
+        value={config.speciesPopulation.human}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(human) => onChange({
+          ...config,
+          initialAgentCount: human,
+          speciesPopulation: { ...config.speciesPopulation, human }
+        })}
+      />
+      <NumberConfigField
+        label="Deer"
+        value={config.speciesPopulation.deer}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(deer) => onChange({ ...config, speciesPopulation: { ...config.speciesPopulation, deer } })}
+      />
+      <NumberConfigField
+        label="Wolves"
+        value={config.speciesPopulation.wolf}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(wolf) => onChange({ ...config, speciesPopulation: { ...config.speciesPopulation, wolf } })}
       />
       <NumberConfigField
         label="Food"

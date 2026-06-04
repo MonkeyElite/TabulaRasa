@@ -6,5 +6,9 @@ namespace TabulaRasa.Abstractions.Agents
         string AgentId,
         AgentNeedsSnapshot Needs,
         WorldPosition Position,
-        IReadOnlyDictionary<string, int>? Inventory = null);
+        IReadOnlyDictionary<string, int>? Inventory = null,
+        string SpeciesId = "human",
+        int AgeTicks = 0,
+        bool IsAdult = true,
+        long? LastReproducedTick = null);
 }

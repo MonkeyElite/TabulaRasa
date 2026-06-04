@@ -1,6 +1,8 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Simulation.Memory;
+using TabulaRasa.Simulation.Species;
+using TabulaRasa.Simulation.Systems;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Queries;
@@ -38,6 +40,9 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 AgentActionType.TransferResource => ActionValidationResult.Valid,
                 AgentActionType.Drink => ValidateDrink(state, agentEntity, request),
                 AgentActionType.Rest => ActionValidationResult.Valid,
+                AgentActionType.Attack => ValidateAttack(state, agentEntity, request),
+                AgentActionType.Flee => ValidateFlee(state, agentEntity, request),
+                AgentActionType.Reproduce => ValidateReproduce(state, agentEntity, request),
                 AgentActionType.Wander => ValidateWander(state, agentEntity),
                 AgentActionType.None => ActionValidationResult.Valid,
                 _ => ActionValidationResult.Invalid("Unsupported action type.")
@@ -51,7 +56,9 @@ namespace TabulaRasa.Simulation.Actions.Validation
         {
             if (agentEntity.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0)
             {
-                return ActionValidationResult.Valid;
+                return SpeciesRegistry.NormalizeId(agentEntity.SpeciesId) == SpeciesRegistry.HumanId
+                    ? ActionValidationResult.Valid
+                    : ActionValidationResult.Invalid("Species cannot eat carried food.");
             }
 
             if (request.TargetId is not null
@@ -60,7 +67,10 @@ namespace TabulaRasa.Simulation.Actions.Validation
                     agentEntity.Position,
                     request.TargetId) is not null)
             {
-                return ActionValidationResult.Valid;
+                PlantEntity? plant = state.World.Plants.FirstOrDefault(candidate => candidate.Id == request.TargetId);
+                return plant is not null && SpeciesRegistry.Get(agentEntity.SpeciesId).CanEatResource(plant.ResourceId)
+                    ? ActionValidationResult.Valid
+                    : ActionValidationResult.Invalid("Species cannot eat target plant.");
             }
 
             if (request.TargetId is null)
@@ -83,7 +93,9 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 return ActionValidationResult.Invalid("Target resource container is unavailable or out of reach.");
             }
 
-            return ActionValidationResult.Valid;
+            return SpeciesRegistry.NormalizeId(agentEntity.SpeciesId) == SpeciesRegistry.HumanId
+                ? ActionValidationResult.Valid
+                : ActionValidationResult.Invalid("Species cannot eat target resource container.");
         }
 
         private static ActionValidationResult ValidatePickUpResource(
@@ -180,6 +192,82 @@ namespace TabulaRasa.Simulation.Actions.Validation
             return hasDestination
                 ? ActionValidationResult.Valid
                 : ActionValidationResult.Invalid("Agent has no available adjacent cell to wander to.");
+        }
+
+        private static ActionValidationResult ValidateAttack(
+            SimulationState state,
+            AgentEntity agentEntity,
+            ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return ActionValidationResult.Invalid("Attack action requires a target.");
+            }
+
+            AgentEntity? target = state.World.Agents.FirstOrDefault(candidate => candidate.Id == request.TargetId);
+            if (target is null || target.IsDead)
+            {
+                return ActionValidationResult.Invalid("Attack target is unavailable.");
+            }
+
+            SpeciesDefinition attackerSpecies = SpeciesRegistry.Get(agentEntity.SpeciesId);
+            SpeciesDefinition targetSpecies = SpeciesRegistry.Get(target.SpeciesId);
+            if (!attackerSpecies.CanAttackSpecies(targetSpecies.Id))
+            {
+                return ActionValidationResult.Invalid("Species cannot attack target species.");
+            }
+
+            return agentEntity.Position.DistanceTo(target.Position) <= SpatialQueries.DefaultInteractionTolerance + 0.5f
+                ? ActionValidationResult.Valid
+                : ActionValidationResult.Invalid("Attack target is out of reach.");
+        }
+
+        private static ActionValidationResult ValidateFlee(
+            SimulationState state,
+            AgentEntity agentEntity,
+            ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return ActionValidationResult.Invalid("Flee action requires a target.");
+            }
+
+            AgentEntity? target = state.World.Agents.FirstOrDefault(candidate => candidate.Id == request.TargetId);
+            if (target is null || target.IsDead)
+            {
+                return ActionValidationResult.Invalid("Flee target is unavailable.");
+            }
+
+            return SpeciesRegistry.Get(target.SpeciesId).CanAttackSpecies(SpeciesRegistry.Get(agentEntity.SpeciesId).Id)
+                ? ActionValidationResult.Valid
+                : ActionValidationResult.Invalid("Flee target is not a predator.");
+        }
+
+        private static ActionValidationResult ValidateReproduce(
+            SimulationState state,
+            AgentEntity agentEntity,
+            ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return ActionValidationResult.Invalid("Reproduce action requires a target.");
+            }
+
+            AgentEntity? mate = state.World.Agents.FirstOrDefault(candidate => candidate.Id == request.TargetId);
+            if (mate is null)
+            {
+                return ActionValidationResult.Invalid("Mate is unavailable.");
+            }
+
+            if (!LifecycleSystem.CanReproduce(state, agentEntity, mate))
+            {
+                return ActionValidationResult.Invalid("Agents cannot reproduce right now.");
+            }
+
+            return state.World.Grid.GetAdjacentCells(agentEntity.Position.ToGridCell())
+                .Any(cell => state.World.Grid.IsTraversable(cell) && !SpatialQueries.IsCellOccupied(state.World, cell))
+                ? ActionValidationResult.Valid
+                : ActionValidationResult.Invalid("No free adjacent cell for offspring.");
         }
     }
 }

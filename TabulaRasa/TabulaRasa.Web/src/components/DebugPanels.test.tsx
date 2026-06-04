@@ -97,6 +97,11 @@ const status: SimulationStatus = {
       waterRefillPerRainTick: 0.5,
       waterEvaporationPerHeatTick: 0.25
     },
+    speciesPopulation: {
+      human: 1,
+      deer: 0,
+      wolf: 0
+    },
     enabledSystems: ["need-decay", "planning"]
   },
   latestTickSummary: {
@@ -197,6 +202,11 @@ const snapshot: SimulationSnapshot = {
   populationCount: 1,
   aliveAgentCount: 1,
   deadAgentCount: 0,
+  speciesPopulation: [
+    { speciesId: "human", displayName: "Human", total: 1, alive: 1, dead: 0 },
+    { speciesId: "deer", displayName: "Deer", total: 0, alive: 0, dead: 0 },
+    { speciesId: "wolf", displayName: "Wolf", total: 0, alive: 0, dead: 0 }
+  ],
   environment: {
     dayLengthTicks: 100,
     tickOfDay: 1,

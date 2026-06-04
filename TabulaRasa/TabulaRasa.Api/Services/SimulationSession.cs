@@ -1,6 +1,7 @@
 using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Abstractions.World;
+using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Agents.Minds;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
@@ -9,6 +10,7 @@ using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.Engine;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.Lifecycle;
+using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Construction;
 using TabulaRasa.World.Entities;
@@ -287,6 +289,9 @@ namespace TabulaRasa.Api.Services
                 || current.WorldHeight != requested.WorldHeight
                 || current.InitialAgentCount != requested.InitialAgentCount
                 || current.InitialFoodCount != requested.InitialFoodCount
+                || current.EffectiveSpeciesPopulation.Human != requested.EffectiveSpeciesPopulation.Human
+                || current.EffectiveSpeciesPopulation.Deer != requested.EffectiveSpeciesPopulation.Deer
+                || current.EffectiveSpeciesPopulation.Wolf != requested.EffectiveSpeciesPopulation.Wolf
                 || current.EffectiveEcology.InitialPlantCount != requested.EffectiveEcology.InitialPlantCount
                 || current.EffectiveEcology.InitialWaterSourceCount != requested.EffectiveEcology.InitialWaterSourceCount
                 || current.EffectiveEcology.InitialResourceDepositCount != requested.EffectiveEcology.InitialResourceDepositCount;
@@ -443,7 +448,19 @@ namespace TabulaRasa.Api.Services
             {
                 Id = agent.Id.Trim(),
                 Position = ToWorldPosition(agent.Position),
-                Inventory = ToInventory(agent.Inventory)
+                Inventory = ToInventory(agent.Inventory),
+                SpeciesId = SpeciesRegistry.NormalizeId(agent.SpeciesId),
+                AgeTicks = agent.AgeTicks,
+                BornTick = agent.BornTick,
+                LastReproducedTick = agent.LastReproducedTick,
+                DeathTick = agent.DeathTick,
+                DeathCause = agent.DeathCause,
+                IsDead = agent.DeathTick is not null,
+                Health = new EntityHealth(
+                    SpeciesRegistry.Get(agent.SpeciesId).MaxHealth,
+                    agent.DeathTick is null ? SpeciesRegistry.Get(agent.SpeciesId).MaxHealth : 0),
+                ParentIds = (agent.ParentIds ?? []).ToList(),
+                OffspringIds = (agent.OffspringIds ?? []).ToList()
             }).ToList();
 
             List<AgentState> agentStates = draft.Agents.Select(agent => new AgentState(
@@ -505,8 +522,12 @@ namespace TabulaRasa.Api.Services
             {
                 WorldWidth = draft.Grid.Width,
                 WorldHeight = draft.Grid.Height,
-                InitialAgentCount = agents.Count,
+                InitialAgentCount = agents.Count(agent => SpeciesRegistry.NormalizeId(agent.SpeciesId) == SpeciesRegistry.HumanId),
                 InitialFoodCount = resourceContainers.Count,
+                SpeciesPopulation = new SpeciesPopulationConfig(
+                    agents.Count(agent => SpeciesRegistry.NormalizeId(agent.SpeciesId) == SpeciesRegistry.HumanId),
+                    agents.Count(agent => SpeciesRegistry.NormalizeId(agent.SpeciesId) == SpeciesRegistry.DeerId),
+                    agents.Count(agent => SpeciesRegistry.NormalizeId(agent.SpeciesId) == SpeciesRegistry.WolfId)),
                 Ecology = config.EffectiveEcology with
                 {
                     InitialPlantCount = plants.Count,
@@ -601,6 +622,11 @@ namespace TabulaRasa.Api.Services
 
                 ValidateId(agent.Id, $"{prefix}.id", agentIds);
                 ValidatePosition(agent.Position, $"{prefix}.position", draft.Grid.Width, draft.Grid.Height);
+                AddIf(!SpeciesRegistry.IsKnown(agent.SpeciesId), $"{prefix}.speciesId", "Species id is invalid.");
+                AddIf(agent.AgeTicks < 0, $"{prefix}.ageTicks", "Age must be zero or greater.");
+                AddIf(agent.BornTick < 0, $"{prefix}.bornTick", "Born tick must be zero or greater.");
+                AddIf(agent.LastReproducedTick is < 0, $"{prefix}.lastReproducedTick", "Last reproduced tick must be zero or greater.");
+                AddIf(agent.DeathTick is < 0, $"{prefix}.deathTick", "Death tick must be zero or greater.");
                 ValidateFinite(agent.Needs.Hunger, $"{prefix}.needs.hunger");
                 ValidateFinite(agent.Needs.Thirst, $"{prefix}.needs.thirst");
                 ValidateFinite(agent.Needs.Energy, $"{prefix}.needs.energy");

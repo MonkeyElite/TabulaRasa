@@ -108,6 +108,11 @@ const config = {
     waterRefillPerRainTick: 0.5,
     waterEvaporationPerHeatTick: 0.25
   },
+  speciesPopulation: {
+    human: 1,
+    deer: 0,
+    wolf: 0
+  },
   enabledSystems: ["need-decay", "planning"]
 };
 

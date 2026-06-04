@@ -211,6 +211,14 @@ const snapshot: SimulationSnapshot = {
       occupiesSpace: true,
       health: null,
       isDead: false,
+      speciesId: "human",
+      ageTicks: 12,
+      bornTick: 0,
+      parentIds: [],
+      offspringIds: [],
+      lastReproducedTick: null,
+      deathTick: null,
+      deathCause: null,
       inventory: {
         maxSlots: 8,
         maxWeight: 10,
@@ -426,6 +434,11 @@ const snapshot: SimulationSnapshot = {
   populationCount: 1,
   aliveAgentCount: 1,
   deadAgentCount: 0,
+  speciesPopulation: [
+    { speciesId: "human", displayName: "Human", total: 1, alive: 1, dead: 0 },
+    { speciesId: "deer", displayName: "Deer", total: 0, alive: 0, dead: 0 },
+    { speciesId: "wolf", displayName: "Wolf", total: 0, alive: 0, dead: 0 }
+  ],
   environment: {
     dayLengthTicks: 100,
     tickOfDay: 3,
@@ -465,7 +478,15 @@ const draft: SimulationDraft = {
       maxWeight: agent.inventory.maxWeight,
       stacks: agent.inventory.stacks
     },
-    needs: agent.needs
+    needs: agent.needs,
+    speciesId: agent.speciesId,
+    ageTicks: agent.ageTicks,
+    bornTick: agent.bornTick,
+    parentIds: agent.parentIds,
+    offspringIds: agent.offspringIds,
+    lastReproducedTick: agent.lastReproducedTick,
+    deathTick: agent.deathTick,
+    deathCause: agent.deathCause
   })),
   resourceDefinitions: snapshot.resourceDefinitions,
   resourceContainers: [],

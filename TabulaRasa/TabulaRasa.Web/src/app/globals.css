@@ -653,6 +653,56 @@ select {
   padding: 4px 8px;
 }
 
+.species-filter-list {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.species-filter-list label {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 6px;
+  text-transform: capitalize;
+}
+
+.species-population-chart {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.species-population-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 58px minmax(80px, 1fr) 48px;
+}
+
+.species-population-row span,
+.species-population-row strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.species-population-row div {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.species-population-row i {
+  background: var(--blue);
+  display: block;
+  height: 100%;
+}
+
 .modal-backdrop {
   align-items: center;
   background: rgba(0, 0, 0, 0.58);

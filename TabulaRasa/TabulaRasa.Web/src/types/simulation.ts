@@ -81,7 +81,14 @@ export type SimulationConfig = {
     waterRefillPerRainTick: number;
     waterEvaporationPerHeatTick: number;
   };
+  speciesPopulation: SpeciesPopulationConfig;
   enabledSystems: string[];
+};
+
+export type SpeciesPopulationConfig = {
+  human: number;
+  deer: number;
+  wolf: number;
 };
 
 export type SimulationTickSummary = {
@@ -212,6 +219,7 @@ export type SimulationSnapshot = {
   populationCount: number;
   aliveAgentCount: number;
   deadAgentCount: number;
+  speciesPopulation: SpeciesPopulationCount[];
   diagnostics: SimulationTickDiagnostics | null;
   environment: EnvironmentState | null;
   ecologyStats: EcologyStats | null;
@@ -237,6 +245,14 @@ export type EcologyStats = {
   totalWaterVolume: number;
   resourceDepositCount: number;
   totalDepositQuantity: number;
+};
+
+export type SpeciesPopulationCount = {
+  speciesId: string;
+  displayName: string;
+  total: number;
+  alive: number;
+  dead: number;
 };
 
 export type SimulationEvent = {
@@ -276,6 +292,14 @@ export type AgentSnapshot = {
   occupiesSpace: boolean;
   health: EntityHealth | null;
   isDead: boolean;
+  speciesId: string;
+  ageTicks: number;
+  bornTick: number;
+  parentIds: string[];
+  offspringIds: string[];
+  lastReproducedTick: number | null;
+  deathTick: number | null;
+  deathCause: string | null;
   inventory: Inventory;
   needs: AgentNeeds;
   movement: MovementSnapshot | null;
@@ -563,6 +587,14 @@ export type EditableAgent = {
   position: Position;
   inventory: EditableInventory;
   needs: AgentNeeds;
+  speciesId: string;
+  ageTicks: number;
+  bornTick: number;
+  parentIds: string[];
+  offspringIds: string[];
+  lastReproducedTick: number | null;
+  deathTick: number | null;
+  deathCause: string | null;
 };
 
 export type EditableResourceDefinition = ResourceDefinition;

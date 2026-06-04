@@ -75,6 +75,24 @@ export function RuntimePanel({
           Seed <strong>{status?.config.seed ?? "-"}</strong>
         </span>
       </div>
+      {snapshot && snapshot.speciesPopulation.length > 0 && (
+        <div className="species-population-chart">
+          {snapshot.speciesPopulation.map((species) => {
+            const maxTotal = Math.max(1, ...snapshot.speciesPopulation.map((item) => item.total));
+            const width = (species.total / maxTotal) * 100;
+
+            return (
+              <div className="species-population-row" key={species.speciesId}>
+                <span>{species.displayName}</span>
+                <div>
+                  <i style={{ width: `${width}%` }} />
+                </div>
+                <strong>{species.alive}/{species.total}</strong>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {configDraft && (
         <div className="field-grid compact-fields">
           <NumberConfigField

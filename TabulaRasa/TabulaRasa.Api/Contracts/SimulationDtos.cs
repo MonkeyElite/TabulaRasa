@@ -49,6 +49,11 @@ namespace TabulaRasa.Api.Contracts
         float WaterRefillPerRainTick,
         float WaterEvaporationPerHeatTick);
 
+    public sealed record SpeciesPopulationConfigDto(
+        int Human,
+        int Deer,
+        int Wolf);
+
     public sealed record SimulationConfigDto(
         int Seed,
         int WorldWidth,
@@ -65,7 +70,8 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<string> EnabledSystems,
         MemoryConfigDto? Memory = null,
         EnvironmentConfigDto? Environment = null,
-        EcologyConfigDto? Ecology = null);
+        EcologyConfigDto? Ecology = null,
+        SpeciesPopulationConfigDto? SpeciesPopulation = null);
 
     public sealed record SimulationSummaryDto(
         string SimulationId,
@@ -120,6 +126,7 @@ namespace TabulaRasa.Api.Contracts
         int PopulationCount,
         int AliveAgentCount,
         int DeadAgentCount,
+        IReadOnlyList<SpeciesPopulationCountDto> SpeciesPopulation,
         SimulationTickDiagnosticsDto? Diagnostics,
         EnvironmentStateDto? Environment = null,
         EcologyStatsDto? EcologyStats = null,
@@ -143,6 +150,13 @@ namespace TabulaRasa.Api.Contracts
         float TotalWaterVolume,
         int ResourceDepositCount,
         int TotalDepositQuantity);
+
+    public sealed record SpeciesPopulationCountDto(
+        string SpeciesId,
+        string DisplayName,
+        int Total,
+        int Alive,
+        int Dead);
 
     public sealed record SimulationEventDto(
         long Tick,
@@ -216,6 +230,14 @@ namespace TabulaRasa.Api.Contracts
         bool OccupiesSpace,
         EntityHealthDto? Health,
         bool IsDead,
+        string SpeciesId,
+        int AgeTicks,
+        long BornTick,
+        IReadOnlyList<string> ParentIds,
+        IReadOnlyList<string> OffspringIds,
+        long? LastReproducedTick,
+        long? DeathTick,
+        string? DeathCause,
         InventoryDto Inventory,
         AgentNeedsDto Needs,
         MovementSnapshotDto? Movement,
@@ -511,7 +533,15 @@ namespace TabulaRasa.Api.Contracts
         string Id,
         PositionDto Position,
         EditableInventoryDto Inventory,
-        AgentNeedsDto Needs);
+        AgentNeedsDto Needs,
+        string SpeciesId = "human",
+        int AgeTicks = 0,
+        long BornTick = 0,
+        IReadOnlyList<string>? ParentIds = null,
+        IReadOnlyList<string>? OffspringIds = null,
+        long? LastReproducedTick = null,
+        long? DeathTick = null,
+        string? DeathCause = null);
 
     public sealed record EditableResourceDefinitionDto(
         string Id,

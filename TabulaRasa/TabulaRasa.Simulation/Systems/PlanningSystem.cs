@@ -3,6 +3,7 @@ using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.Memory;
+using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.State;
@@ -30,7 +31,7 @@ namespace TabulaRasa.Simulation.Systems
                 }
 
                 AgentPerception perception = AgentPerceptionBuilder.Build(
-                    world,
+                    state,
                     agentEntity,
                     state.Config.PerceptionRadius);
                 AgentPerception enrichedPerception = AgentMemoryService.RememberAndEnrichPerception(
@@ -44,7 +45,11 @@ namespace TabulaRasa.Simulation.Systems
                     agentEntity.Position,
                     agentEntity.Inventory.Stacks
                         .GroupBy(stack => stack.ResourceId, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(group => group.Key, group => group.Sum(stack => stack.Quantity), StringComparer.OrdinalIgnoreCase));
+                        .ToDictionary(group => group.Key, group => group.Sum(stack => stack.Quantity), StringComparer.OrdinalIgnoreCase),
+                    SpeciesRegistry.NormalizeId(agentEntity.SpeciesId),
+                    agentEntity.AgeTicks,
+                    agentEntity.AgeTicks >= SpeciesRegistry.Get(agentEntity.SpeciesId).AdultAgeTicks,
+                    agentEntity.LastReproducedTick);
 
                 state.PendingIntents.Add(agentState.Mind.Decide(
                     enrichedPerception,
