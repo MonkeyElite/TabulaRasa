@@ -150,6 +150,26 @@ namespace TabulaRasa.Agents.Minds
             }
 
             foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Communicate))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Social", "Agent", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Communicate);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Communicate,
+                    opportunity.TargetId,
+                    "Social",
+                    contextKey,
+                    "Agent",
+                    channel,
+                    0.1f,
+                    relevance,
+                    learnedWeight,
+                    0.08f + (relevance * 0.08f) + learnedWeight));
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
                 .Where(opportunity => opportunity.ActionType == AgentActionType.Eat))
             {
                 string channel = opportunity.Channel.ToString();

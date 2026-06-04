@@ -10,6 +10,7 @@ using TabulaRasa.Simulation.Goals;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
+using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Definitions;
@@ -54,6 +55,7 @@ namespace TabulaRasa.Api.Services
                 aliveAgentCount,
                 deadAgentCount,
                 ToSpeciesPopulation(state),
+                ToSocialGraph(state),
                 ToDiagnostics(state.GetDiagnosticsForTick(state.Time.Tick)),
                 ToEnvironment(state.World.Environment),
                 ToEcologyStats(state),
@@ -290,6 +292,7 @@ namespace TabulaRasa.Api.Services
                 ToTaskQueue(agent.Id, state),
                 ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)),
                 ToMemory(state.MemoryStoresByAgentId.GetValueOrDefault(agent.Id)),
+                ToSocial(state, agent.Id),
                 ToDecision(agentState?.Learning.LatestDecision),
                 ToLearning(agentState?.Learning));
         }
@@ -352,6 +355,104 @@ namespace TabulaRasa.Api.Services
                 memory.ExpiresAtTick,
                 memory.Summary,
                 memory.Metadata);
+        }
+
+        private static AgentSocialSnapshotDto ToSocial(SimulationState state, string agentId)
+        {
+            AgentSocialStore? store = state.SocialStoresByAgentId.GetValueOrDefault(agentId);
+
+            return new AgentSocialSnapshotDto(
+                (store?.Relationships ?? [])
+                    .Select(relationship => ToRelationship(state, relationship))
+                    .ToList(),
+                (store?.Groups ?? [])
+                    .Select(ToGroupMembership)
+                    .ToList());
+        }
+
+        private static SocialRelationshipSnapshotDto ToRelationship(
+            SimulationState state,
+            SocialRelationship relationship)
+        {
+            return new SocialRelationshipSnapshotDto(
+                relationship.AgentId,
+                relationship.OtherAgentId,
+                relationship.Familiarity,
+                relationship.Trust,
+                relationship.Fear,
+                relationship.Affinity,
+                relationship.InteractionCount,
+                relationship.CreatedTick,
+                relationship.LastUpdatedTick,
+                relationship.LastSeenTick,
+                relationship.LastInteractionTick,
+                SharedGroups(state, relationship.AgentId, relationship.OtherAgentId));
+        }
+
+        private static SocialGroupMembershipSnapshotDto ToGroupMembership(SocialGroupMembership membership)
+        {
+            return new SocialGroupMembershipSnapshotDto(
+                membership.GroupId,
+                membership.DisplayName,
+                membership.Kind,
+                membership.JoinedTick);
+        }
+
+        private static SocialGraphSnapshotDto ToSocialGraph(SimulationState state)
+        {
+            IReadOnlyList<SocialGraphNodeDto> nodes = state.World.Agents
+                .Select(agent =>
+                {
+                    AgentSocialStore? store = state.SocialStoresByAgentId.GetValueOrDefault(agent.Id);
+
+                    return new SocialGraphNodeDto(
+                        agent.Id,
+                        SpeciesRegistry.NormalizeId(agent.SpeciesId),
+                        agent.IsDead,
+                        ToPosition(agent.Position),
+                        (store?.Groups ?? [])
+                            .Select(group => group.GroupId)
+                            .ToList());
+                })
+                .ToList();
+
+            IReadOnlyList<SocialGraphEdgeDto> edges = state.SocialStoresByAgentId.Values
+                .SelectMany(store => store.Relationships)
+                .Select(relationship => new SocialGraphEdgeDto(
+                    relationship.AgentId,
+                    relationship.OtherAgentId,
+                    relationship.Familiarity,
+                    relationship.Trust,
+                    relationship.Fear,
+                    relationship.Affinity,
+                    relationship.InteractionCount,
+                    relationship.LastInteractionTick,
+                    SharedGroups(state, relationship.AgentId, relationship.OtherAgentId)))
+                .ToList();
+
+            return new SocialGraphSnapshotDto(nodes, edges);
+        }
+
+        private static IReadOnlyList<string> SharedGroups(
+            SimulationState state,
+            string firstAgentId,
+            string secondAgentId)
+        {
+            if (!state.SocialStoresByAgentId.TryGetValue(firstAgentId, out AgentSocialStore? firstStore)
+                || !state.SocialStoresByAgentId.TryGetValue(secondAgentId, out AgentSocialStore? secondStore))
+            {
+                return [];
+            }
+
+            HashSet<string> firstGroups = firstStore.Groups
+                .Select(group => group.GroupId)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return secondStore.Groups
+                .Where(group => firstGroups.Contains(group.GroupId))
+                .Select(group => group.GroupId)
+                .OrderBy(groupId => groupId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static AgentDecisionSnapshotDto? ToDecision(AgentDecisionExplanation? decision)

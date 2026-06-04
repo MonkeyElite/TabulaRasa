@@ -220,6 +220,7 @@ export type SimulationSnapshot = {
   aliveAgentCount: number;
   deadAgentCount: number;
   speciesPopulation: SpeciesPopulationCount[];
+  socialGraph: SocialGraphSnapshot;
   diagnostics: SimulationTickDiagnostics | null;
   environment: EnvironmentState | null;
   ecologyStats: EcologyStats | null;
@@ -307,6 +308,7 @@ export type AgentSnapshot = {
   taskQueue: TaskSnapshot[];
   perception: AgentPerceptionSnapshot;
   memory: AgentMemorySnapshot;
+  social: AgentSocialSnapshot;
   decision: AgentDecisionSnapshot | null;
   learning: AgentLearningSnapshot;
 };
@@ -353,6 +355,58 @@ export type AgentMemoryRecordSnapshot = {
   expiresAtTick: number | null;
   summary: string;
   metadata: Record<string, string>;
+};
+
+export type AgentSocialSnapshot = {
+  relationships: SocialRelationshipSnapshot[];
+  groups: SocialGroupMembershipSnapshot[];
+};
+
+export type SocialRelationshipSnapshot = {
+  agentId: string;
+  otherAgentId: string;
+  familiarity: number;
+  trust: number;
+  fear: number;
+  affinity: number;
+  interactionCount: number;
+  createdTick: number;
+  lastUpdatedTick: number;
+  lastSeenTick: number | null;
+  lastInteractionTick: number | null;
+  sharedGroupIds: string[];
+};
+
+export type SocialGroupMembershipSnapshot = {
+  groupId: string;
+  displayName: string;
+  kind: string;
+  joinedTick: number;
+};
+
+export type SocialGraphSnapshot = {
+  nodes: SocialGraphNode[];
+  edges: SocialGraphEdge[];
+};
+
+export type SocialGraphNode = {
+  agentId: string;
+  speciesId: string;
+  isDead: boolean;
+  position: Position;
+  groupIds: string[];
+};
+
+export type SocialGraphEdge = {
+  fromAgentId: string;
+  toAgentId: string;
+  familiarity: number;
+  trust: number;
+  fear: number;
+  affinity: number;
+  interactionCount: number;
+  lastInteractionTick: number | null;
+  sharedGroupIds: string[];
 };
 
 export type AgentDecisionSnapshot = {

@@ -3,6 +3,7 @@ using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.Memory;
+using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
@@ -38,6 +39,7 @@ namespace TabulaRasa.Simulation.Systems
                     state,
                     agentEntity,
                     perception);
+                SocialService.RememberPerceivedAgents(state, agentEntity, perception);
                 state.LatestPerceptionsByAgentId[agentEntity.Id] = enrichedPerception;
                 AgentSnapshot snapshot = new(
                     agentEntity.Id,

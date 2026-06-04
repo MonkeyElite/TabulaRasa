@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { AgentMemoryRecordSnapshot, AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
+import type { AgentMemoryRecordSnapshot, AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, SimulationDraftSchema, SocialRelationshipSnapshot, TerrainType } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
 import {
   addAgentDraft,
@@ -38,7 +38,7 @@ type Props = {
 
 export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange, onTerrainChange }: Props) {
   const [inspectorTab, setInspectorTab] = React.useState<"state" | "entities" | "selection">("selection");
-  const [agentTab, setAgentTab] = React.useState<"overview" | "work" | "perception" | "memory" | "learning">("overview");
+  const [agentTab, setAgentTab] = React.useState<"overview" | "work" | "perception" | "memory" | "relationships" | "learning">("overview");
   const editable = editing && canEdit && draft;
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
   const listedResourceContainers = editable ? draft.resourceContainers : snapshot?.resourceContainers ?? [];
@@ -323,6 +323,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               <button className={agentTab === "work" ? "selected" : ""} onClick={() => setAgentTab("work")}>Work</button>
               <button className={agentTab === "perception" ? "selected" : ""} onClick={() => setAgentTab("perception")}>Perception</button>
               <button className={agentTab === "memory" ? "selected" : ""} onClick={() => setAgentTab("memory")}>Memory</button>
+              <button className={agentTab === "relationships" ? "selected" : ""} onClick={() => setAgentTab("relationships")}>Relationships</button>
               <button className={agentTab === "learning" ? "selected" : ""} onClick={() => setAgentTab("learning")}>Decision</button>
             </div>
           )}
@@ -382,6 +383,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           {!editing && selectedSnapshotAgent && agentTab === "work" && <WorkDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "perception" && <PerceptionDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "memory" && <MemoryDetails agent={selectedSnapshotAgent} />}
+          {!editing && selectedSnapshotAgent && agentTab === "relationships" && <RelationshipDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "learning" && <LearningDetails agent={selectedSnapshotAgent} />}
           {editable && (
             <button
@@ -790,6 +792,68 @@ function MemoryRow({ memory }: { memory: AgentMemoryRecordSnapshot }) {
       </small>
       <small>{memory.summary}</small>
     </div>
+  );
+}
+
+function RelationshipDetails({ agent }: { agent: AgentSnapshot }) {
+  const relationships = agent.social.relationships;
+  const groups = agent.social.groups;
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Groups</div>
+      {groups.length === 0 ? (
+        <span className="empty-state">No groups.</span>
+      ) : (
+        <div className="perception-list">
+          {groups.map((group) => (
+            <div className="perception-row" key={group.groupId}>
+              <strong>{group.displayName}</strong>
+              <small>{group.groupId} / {group.kind} / joined {group.joinedTick}</small>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="subsection-title">Relationships</div>
+      {relationships.length === 0 ? (
+        <span className="empty-state">No relationships.</span>
+      ) : (
+        <div className="perception-list">
+          {relationships.map((relationship) => (
+            <RelationshipRow key={relationship.otherAgentId} relationship={relationship} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RelationshipRow({ relationship }: { relationship: SocialRelationshipSnapshot }) {
+  return (
+    <div className="perception-row">
+      <strong>{relationship.otherAgentId}</strong>
+      <small>
+        interactions {relationship.interactionCount} / seen {relationship.lastSeenTick ?? "never"} / talked {relationship.lastInteractionTick ?? "never"}
+      </small>
+      <RelationshipMeter label="Familiarity" value={relationship.familiarity} />
+      <RelationshipMeter label="Trust" value={relationship.trust} />
+      <RelationshipMeter label="Fear" value={relationship.fear} />
+      <RelationshipMeter label="Affinity" value={relationship.affinity} />
+      <small>{relationship.sharedGroupIds.length > 0 ? relationship.sharedGroupIds.join(", ") : "no shared groups"}</small>
+    </div>
+  );
+}
+
+function RelationshipMeter({ label, value }: { label: string; value: number }) {
+  const clamped = Math.max(0, Math.min(1, value));
+
+  return (
+    <span className="relationship-meter">
+      <span>{label}</span>
+      <i><b style={{ width: `${clamped * 100}%` }} /></i>
+      <strong>{formatNumber(value)}</strong>
+    </span>
   );
 }
 

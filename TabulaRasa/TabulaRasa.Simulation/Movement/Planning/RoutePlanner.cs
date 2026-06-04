@@ -38,6 +38,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 AgentActionType.PickUpResource => PlanResourceTargetRoute(state, request),
                 AgentActionType.Attack => PlanAgentInteractionRoute(state, request, "Attack target is unavailable.", "Attack target is unreachable."),
                 AgentActionType.Reproduce => PlanAgentInteractionRoute(state, request, "Mate is unavailable.", "Mate is unreachable."),
+                AgentActionType.Communicate => PlanAgentInteractionRoute(state, request, "Communication target is unavailable.", "Communication target is unreachable."),
                 AgentActionType.Flee => PlanFleeRoute(state, request),
                 AgentActionType.Wander => PlanWanderRoute(state, request),
                 _ => RoutePlanningResult.NotNeeded()

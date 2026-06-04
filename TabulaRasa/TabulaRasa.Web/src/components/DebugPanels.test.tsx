@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { EventLogPanel, RuntimePanel } from "./DebugPanels";
+import { EventLogPanel, RuntimePanel, SocialGraphPanel } from "./DebugPanels";
 import type { SimulationSnapshot, SimulationStatus } from "@/types/simulation";
 
 describe("DebugPanels", () => {
@@ -39,6 +39,22 @@ describe("DebugPanels", () => {
     expect(screen.getAllByText("tick.started").length).toBeGreaterThan(1);
     expect(screen.getByText("Action Execution System")).toBeTruthy();
     expect(screen.getByText("agent-1 Eat succeeded.")).toBeTruthy();
+  });
+
+  it("renders the social graph", () => {
+    const onSelectAgent = vi.fn();
+
+    render(
+      <SocialGraphPanel
+        snapshot={snapshot}
+        selectedAgentId="agent-1"
+        onSelectAgent={onSelectAgent}
+      />
+    );
+
+    expect(screen.getByText("Social")).toBeTruthy();
+    expect(screen.getByText("agent-1")).toBeTruthy();
+    expect(screen.getByText("agent-1 -> agent-2")).toBeTruthy();
   });
 });
 
@@ -102,7 +118,7 @@ const status: SimulationStatus = {
       deer: 0,
       wolf: 0
     },
-    enabledSystems: ["need-decay", "planning"]
+    enabledSystems: ["need-decay", "social", "planning"]
   },
   latestTickSummary: {
     tick: 1,
@@ -207,6 +223,37 @@ const snapshot: SimulationSnapshot = {
     { speciesId: "deer", displayName: "Deer", total: 0, alive: 0, dead: 0 },
     { speciesId: "wolf", displayName: "Wolf", total: 0, alive: 0, dead: 0 }
   ],
+  socialGraph: {
+    nodes: [
+      {
+        agentId: "agent-1",
+        speciesId: "human",
+        isDead: false,
+        position: { x: 0.5, y: 0.5 },
+        groupIds: ["species:human"]
+      },
+      {
+        agentId: "agent-2",
+        speciesId: "human",
+        isDead: false,
+        position: { x: 1.5, y: 0.5 },
+        groupIds: ["species:human"]
+      }
+    ],
+    edges: [
+      {
+        fromAgentId: "agent-1",
+        toAgentId: "agent-2",
+        familiarity: 0.6,
+        trust: 0.4,
+        fear: 0.1,
+        affinity: 0.3,
+        interactionCount: 2,
+        lastInteractionTick: 1,
+        sharedGroupIds: ["species:human"]
+      }
+    ]
+  },
   environment: {
     dayLengthTicks: 100,
     tickOfDay: 1,

@@ -154,6 +154,30 @@ describe("Inspector", () => {
     expect(screen.getByText("Location / Food / strength 0.85 / certainty 0.90")).toBeTruthy();
   });
 
+  it("renders selected agent relationships", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Relationships"));
+
+    expect(screen.getByText("Groups")).toBeTruthy();
+    expect(screen.getByText("Human species")).toBeTruthy();
+    expect(screen.getByText("agent-2")).toBeTruthy();
+    expect(screen.getByText("interactions 2 / seen 3 / talked 3")).toBeTruthy();
+    expect(screen.getByText("species:human")).toBeTruthy();
+  });
+
   it("renders selected agent decision scores and learned outcomes", () => {
     render(
       <Inspector
@@ -342,6 +366,32 @@ const snapshot: SimulationSnapshot = {
           }
         ]
       },
+      social: {
+        relationships: [
+          {
+            agentId: "agent-1",
+            otherAgentId: "agent-2",
+            familiarity: 0.7,
+            trust: 0.45,
+            fear: 0.1,
+            affinity: 0.35,
+            interactionCount: 2,
+            createdTick: 1,
+            lastUpdatedTick: 3,
+            lastSeenTick: 3,
+            lastInteractionTick: 3,
+            sharedGroupIds: ["species:human"]
+          }
+        ],
+        groups: [
+          {
+            groupId: "species:human",
+            displayName: "Human species",
+            kind: "Species",
+            joinedTick: 1
+          }
+        ]
+      },
       decision: {
         needPressures: {
           Hunger: 0.7,
@@ -439,6 +489,37 @@ const snapshot: SimulationSnapshot = {
     { speciesId: "deer", displayName: "Deer", total: 0, alive: 0, dead: 0 },
     { speciesId: "wolf", displayName: "Wolf", total: 0, alive: 0, dead: 0 }
   ],
+  socialGraph: {
+    nodes: [
+      {
+        agentId: "agent-1",
+        speciesId: "human",
+        isDead: false,
+        position: { x: 0.5, y: 0.5 },
+        groupIds: ["species:human"]
+      },
+      {
+        agentId: "agent-2",
+        speciesId: "human",
+        isDead: false,
+        position: { x: 1.5, y: 0.5 },
+        groupIds: ["species:human"]
+      }
+    ],
+    edges: [
+      {
+        fromAgentId: "agent-1",
+        toAgentId: "agent-2",
+        familiarity: 0.7,
+        trust: 0.45,
+        fear: 0.1,
+        affinity: 0.35,
+        interactionCount: 2,
+        lastInteractionTick: 3,
+        sharedGroupIds: ["species:human"]
+      }
+    ]
+  },
   environment: {
     dayLengthTicks: 100,
     tickOfDay: 3,

@@ -127,6 +127,7 @@ namespace TabulaRasa.Api.Contracts
         int AliveAgentCount,
         int DeadAgentCount,
         IReadOnlyList<SpeciesPopulationCountDto> SpeciesPopulation,
+        SocialGraphSnapshotDto SocialGraph,
         SimulationTickDiagnosticsDto? Diagnostics,
         EnvironmentStateDto? Environment = null,
         EcologyStatsDto? EcologyStats = null,
@@ -245,6 +246,7 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<TaskSnapshotDto> TaskQueue,
         AgentPerceptionSnapshotDto Perception,
         AgentMemorySnapshotDto Memory,
+        AgentSocialSnapshotDto Social,
         AgentDecisionSnapshotDto? Decision,
         AgentLearningSnapshotDto Learning);
 
@@ -288,6 +290,52 @@ namespace TabulaRasa.Api.Contracts
         long? ExpiresAtTick,
         string Summary,
         IReadOnlyDictionary<string, string> Metadata);
+
+    public sealed record AgentSocialSnapshotDto(
+        IReadOnlyList<SocialRelationshipSnapshotDto> Relationships,
+        IReadOnlyList<SocialGroupMembershipSnapshotDto> Groups);
+
+    public sealed record SocialRelationshipSnapshotDto(
+        string AgentId,
+        string OtherAgentId,
+        float Familiarity,
+        float Trust,
+        float Fear,
+        float Affinity,
+        int InteractionCount,
+        long CreatedTick,
+        long LastUpdatedTick,
+        long? LastSeenTick,
+        long? LastInteractionTick,
+        IReadOnlyList<string> SharedGroupIds);
+
+    public sealed record SocialGroupMembershipSnapshotDto(
+        string GroupId,
+        string DisplayName,
+        string Kind,
+        long JoinedTick);
+
+    public sealed record SocialGraphSnapshotDto(
+        IReadOnlyList<SocialGraphNodeDto> Nodes,
+        IReadOnlyList<SocialGraphEdgeDto> Edges);
+
+    public sealed record SocialGraphNodeDto(
+        string AgentId,
+        string SpeciesId,
+        bool IsDead,
+        PositionDto Position,
+        IReadOnlyList<string> GroupIds);
+
+    public sealed record SocialGraphEdgeDto(
+        string FromAgentId,
+        string ToAgentId,
+        float Familiarity,
+        float Trust,
+        float Fear,
+        float Affinity,
+        int InteractionCount,
+        long? LastInteractionTick,
+        IReadOnlyList<string> SharedGroupIds);
 
     public sealed record AgentDecisionSnapshotDto(
         IReadOnlyDictionary<string, float> NeedPressures,
