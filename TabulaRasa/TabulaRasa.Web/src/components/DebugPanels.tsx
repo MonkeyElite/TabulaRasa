@@ -1,5 +1,5 @@
 import React from "react";
-import type { SimulationEvent, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
+import type { DiscoveryMarkerSnapshot, RecipeDefinitionSnapshot, SimulationEvent, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
 
 export function RuntimePanel({
   status,
@@ -303,6 +303,130 @@ export function SocialGraphPanel({
       )}
     </section>
   );
+}
+
+export function KnowledgePanel({
+  snapshot,
+  selectedAgentId,
+  onSelectAgent
+}: {
+  snapshot: SimulationSnapshot | null;
+  selectedAgentId: string | null;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const selectedAgent = selectedAgentId
+    ? snapshot?.agents.find((agent) => agent.id === selectedAgentId) ?? null
+    : null;
+  const recipes = snapshot?.recipeCatalog ?? [];
+  const knownRecipeIds = new Set(selectedAgent?.knowledge.records
+    .filter((record) => record.kind === "Recipe")
+    .map((record) => record.subjectId) ?? []);
+
+  return (
+    <section className="debug-panel knowledge-panel">
+      <div className="debug-header">
+        <h2>Knowledge</h2>
+        <span className="pill">{selectedAgent ? selectedAgent.id : "no agent"}</span>
+      </div>
+      <div className="knowledge-summary">
+        <span className="metric">
+          Recipes <strong>{selectedAgent?.knowledge.records.filter((record) => record.kind === "Recipe").length ?? 0}/{recipes.length}</strong>
+        </span>
+        <span className="metric">
+          Groups <strong>{snapshot?.groupKnowledge.length ?? 0}</strong>
+        </span>
+        <span className="metric">
+          Discoveries <strong>{snapshot?.discoveryMarkers.length ?? 0}</strong>
+        </span>
+      </div>
+      <div className="system-list">
+        <div className="subsection-title">Recipe catalog</div>
+        {recipes.map((recipe) => (
+          <RecipeCatalogRow key={recipe.id} recipe={recipe} known={knownRecipeIds.has(recipe.id)} />
+        ))}
+        {recipes.length === 0 && <span className="metric">No recipes registered.</span>}
+
+        <div className="subsection-title">Group knowledge</div>
+        {(snapshot?.groupKnowledge ?? []).map((group) => (
+          <div className="system-row" key={group.groupId}>
+            <span>
+              <strong>{group.displayName}</strong>
+              <small>{group.knownRecipeIds.length} recipes / {group.knownActionUnlockIds.length} unlocks</small>
+            </span>
+            <span>{group.memberAgentIds.length}</span>
+            <span>{group.knownRecipeIds.length}</span>
+          </div>
+        ))}
+        {(snapshot?.groupKnowledge.length ?? 0) === 0 && <span className="metric">No group knowledge.</span>}
+
+        <div className="subsection-title">Agents</div>
+        {(snapshot?.agents ?? []).map((agent) => (
+          <button
+            key={agent.id}
+            className={`entity-row ${selectedAgentId === agent.id ? "selected" : ""}`}
+            onClick={() => onSelectAgent(agent.id)}
+          >
+            <span className="entity-dot agent" />
+            <span>
+              <strong>{agent.id}</strong>
+              <small>{agent.knowledge.records.filter((record) => record.kind === "Recipe").length} recipes known</small>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function DiscoveryTimelineMarkers({
+  markers,
+  minimumTick,
+  maximumTick,
+  onSelectTick
+}: {
+  markers: DiscoveryMarkerSnapshot[];
+  minimumTick: number;
+  maximumTick: number;
+  onSelectTick: (tick: number) => void;
+}) {
+  if (markers.length === 0 || maximumTick <= minimumTick) {
+    return <div className="timeline-markers" />;
+  }
+
+  return (
+    <div className="timeline-markers">
+      {markers.map((marker) => {
+        const left = ((marker.tick - minimumTick) / (maximumTick - minimumTick)) * 100;
+
+        return (
+          <button
+            key={`${marker.tick}:${marker.agentId}:${marker.recipeId}`}
+            className="timeline-marker"
+            style={{ left: `${left}%` }}
+            title={`${marker.displayName} discovered by ${marker.agentId} at tick ${marker.tick}`}
+            onClick={() => onSelectTick(marker.tick)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function RecipeCatalogRow({ recipe, known }: { recipe: RecipeDefinitionSnapshot; known: boolean }) {
+  return (
+    <div className={`perception-row ${known ? "known" : ""}`}>
+      <strong>{recipe.displayName}</strong>
+      <small>{known ? "known" : "unknown"} / chance {formatNumber(recipe.discoveryChance)}</small>
+      <small>in {formatRecipeParts(recipe.inputs)} / tools {formatRecipeParts(recipe.tools)} / out {formatRecipeParts(recipe.outputs)}</small>
+      <small>{recipe.unlocks.map((unlock) => unlock.displayName).join(", ") || "no unlocks"}</small>
+    </div>
+  );
+}
+
+function formatRecipeParts(parts: Array<{ resourceId: string; quantity: number }>) {
+  return parts.length === 0
+    ? "none"
+    : parts.map((part) => `${part.resourceId} x${part.quantity}`).join(", ");
 }
 
 function NumberConfigField({

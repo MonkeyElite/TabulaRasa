@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { EventLogPanel, RuntimePanel, SocialGraphPanel } from "./DebugPanels";
+import { DiscoveryTimelineMarkers, EventLogPanel, KnowledgePanel, RuntimePanel, SocialGraphPanel } from "./DebugPanels";
 import type { SimulationSnapshot, SimulationStatus } from "@/types/simulation";
 
 describe("DebugPanels", () => {
@@ -55,6 +55,42 @@ describe("DebugPanels", () => {
     expect(screen.getByText("Social")).toBeTruthy();
     expect(screen.getByText("agent-1")).toBeTruthy();
     expect(screen.getByText("agent-1 -> agent-2")).toBeTruthy();
+  });
+
+  it("renders knowledge catalog and group knowledge", () => {
+    render(
+      <KnowledgePanel
+        snapshot={knowledgeSnapshot}
+        selectedAgentId="agent-1"
+        onSelectAgent={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Knowledge")).toBeTruthy();
+    expect(screen.getByText("Stone Knapping")).toBeTruthy();
+    expect(screen.getByText("known / chance 0.7")).toBeTruthy();
+    expect(screen.getByText("Human species")).toBeTruthy();
+    expect(screen.getByText("agent-1")).toBeTruthy();
+    expect(screen.getByText("1 recipes known")).toBeTruthy();
+  });
+
+  it("renders discovery timeline markers", () => {
+    const onSelectTick = vi.fn();
+
+    render(
+      <DiscoveryTimelineMarkers
+        markers={knowledgeSnapshot.discoveryMarkers}
+        minimumTick={0}
+        maximumTick={10}
+        onSelectTick={onSelectTick}
+      />
+    );
+
+    const marker = screen.getByTitle("Stone Knapping discovered by agent-1 at tick 4");
+    fireEvent.click(marker);
+
+    expect(marker).toBeTruthy();
+    expect(onSelectTick).toHaveBeenCalledWith(4);
   });
 });
 
@@ -254,6 +290,9 @@ const snapshot: SimulationSnapshot = {
       }
     ]
   },
+  recipeCatalog: [],
+  groupKnowledge: [],
+  discoveryMarkers: [],
   environment: {
     dayLengthTicks: 100,
     tickOfDay: 1,
@@ -298,3 +337,57 @@ const snapshot: SimulationSnapshot = {
     ]
   }
 };
+
+const knowledgeSnapshot = {
+  ...snapshot,
+  agents: [
+    {
+      id: "agent-1",
+      knowledge: {
+        records: [
+          {
+            id: "knowledge:Recipe:stone-knapping",
+            kind: "Recipe",
+            subjectId: "stone-knapping",
+            displayName: "Stone Knapping",
+            discoveredTick: 4,
+            lastUpdatedTick: 4,
+            source: "Experiment",
+            sourceAgentId: null,
+            metadata: { description: "Shape stone." }
+          }
+        ]
+      }
+    }
+  ],
+  recipeCatalog: [
+    {
+      id: "stone-knapping",
+      displayName: "Stone Knapping",
+      description: "Shape stone.",
+      inputs: [{ resourceId: "stone", quantity: 2 }],
+      tools: [],
+      outputs: [{ resourceId: "stone-tool", quantity: 1 }],
+      unlocks: [{ id: "use-stone-tool", displayName: "Use Stone Tool", description: "Use a stone tool." }],
+      discoveryChance: 0.65
+    }
+  ],
+  groupKnowledge: [
+    {
+      groupId: "species:human",
+      displayName: "Human species",
+      memberAgentIds: ["agent-1"],
+      knownRecipeIds: ["stone-knapping"],
+      knownActionUnlockIds: ["use-stone-tool"]
+    }
+  ],
+  discoveryMarkers: [
+    {
+      tick: 4,
+      agentId: "agent-1",
+      recipeId: "stone-knapping",
+      displayName: "Stone Knapping",
+      source: "Experiment"
+    }
+  ]
+} as SimulationSnapshot;

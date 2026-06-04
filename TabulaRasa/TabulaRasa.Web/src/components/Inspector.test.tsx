@@ -154,6 +154,61 @@ describe("Inspector", () => {
     expect(screen.getByText("Location / Food / strength 0.85 / certainty 0.90")).toBeTruthy();
   });
 
+  it("renders selected agent knowledge records", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Knowledge"));
+
+    expect(screen.getByText("Known recipes and unlocks")).toBeTruthy();
+    expect(screen.getByText("Stone Knapping")).toBeTruthy();
+    expect(screen.getByText("Recipe / stone-knapping / Taught")).toBeTruthy();
+    expect(screen.getByText("discovered 2 / updated 3 / from agent-2")).toBeTruthy();
+  });
+
+  it("renders empty knowledge states for selected agents", () => {
+    const emptySnapshot: SimulationSnapshot = {
+      ...snapshot,
+      agents: [
+        {
+          ...snapshot.agents[0],
+          knowledge: {
+            records: []
+          }
+        }
+      ]
+    };
+
+    render(
+      <Inspector
+        snapshot={emptySnapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Knowledge"));
+
+    expect(screen.getByText("No known recipes.")).toBeTruthy();
+  });
+
   it("renders selected agent relationships", () => {
     render(
       <Inspector
@@ -392,6 +447,23 @@ const snapshot: SimulationSnapshot = {
           }
         ]
       },
+      knowledge: {
+        records: [
+          {
+            id: "knowledge:Recipe:stone-knapping",
+            kind: "Recipe",
+            subjectId: "stone-knapping",
+            displayName: "Stone Knapping",
+            discoveredTick: 2,
+            lastUpdatedTick: 3,
+            source: "Taught",
+            sourceAgentId: "agent-2",
+            metadata: {
+              description: "Shape stone into a basic tool."
+            }
+          }
+        ]
+      },
       decision: {
         needPressures: {
           Hunger: 0.7,
@@ -520,6 +592,36 @@ const snapshot: SimulationSnapshot = {
       }
     ]
   },
+  recipeCatalog: [
+    {
+      id: "stone-knapping",
+      displayName: "Stone Knapping",
+      description: "Shape stone into a basic tool.",
+      inputs: [{ resourceId: "stone", quantity: 2 }],
+      tools: [],
+      outputs: [{ resourceId: "stone-tool", quantity: 1 }],
+      unlocks: [{ id: "use-stone-tool", displayName: "Use Stone Tool", description: "Use a stone tool." }],
+      discoveryChance: 0.65
+    }
+  ],
+  groupKnowledge: [
+    {
+      groupId: "species:human",
+      displayName: "Human species",
+      memberAgentIds: ["agent-1", "agent-2"],
+      knownRecipeIds: ["stone-knapping"],
+      knownActionUnlockIds: ["use-stone-tool"]
+    }
+  ],
+  discoveryMarkers: [
+    {
+      tick: 2,
+      agentId: "agent-2",
+      recipeId: "stone-knapping",
+      displayName: "Stone Knapping",
+      source: "Experiment"
+    }
+  ],
   environment: {
     dayLengthTicks: 100,
     tickOfDay: 3,

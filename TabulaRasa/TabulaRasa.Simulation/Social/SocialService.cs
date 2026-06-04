@@ -2,6 +2,7 @@ using System.Globalization;
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Models;
+using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
@@ -101,9 +102,10 @@ namespace TabulaRasa.Simulation.Social
                     ["interactionCount"] = speakerToListener.InteractionCount.ToString(CultureInfo.InvariantCulture)
                 });
 
+            bool knowledgeTransferred = TryTransferKnowledge(state, speakerId, listenerId);
             bool memoryTransferred = TryTransferMemory(state, speakerId, listenerId);
             bool learningTransferred = TryTransferLearningHint(state, speakerId, listenerId);
-            if (!memoryTransferred && !learningTransferred)
+            if (!knowledgeTransferred && !memoryTransferred && !learningTransferred)
             {
                 state.EmitEvent(
                     "teaching.hook.empty",
@@ -194,6 +196,50 @@ namespace TabulaRasa.Simulation.Social
             ApplyRelationshipChange(state, relationship, familiarity, trust, fear, affinity, reason);
 
             return relationship;
+        }
+
+        private static bool TryTransferKnowledge(SimulationState state, string speakerId, string listenerId)
+        {
+            if (!state.KnowledgeStoresByAgentId.TryGetValue(speakerId, out AgentKnowledgeStore? speakerStore))
+            {
+                return false;
+            }
+
+            KnowledgeRecord? sourceKnowledge = speakerStore.Records
+                .Where(record => record.Kind == KnowledgeKind.Recipe)
+                .OrderByDescending(record => record.LastUpdatedTick)
+                .ThenBy(record => record.SubjectId, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(record => !state.GetKnowledgeStore(listenerId).KnowsRecipe(record.SubjectId));
+
+            if (sourceKnowledge is null)
+            {
+                return false;
+            }
+
+            RecipeDefinition? recipe = RecipeRegistry.Find(sourceKnowledge.SubjectId);
+            if (recipe is null)
+            {
+                return false;
+            }
+
+            bool transferred = KnowledgeService.DiscoverRecipe(
+                state,
+                listenerId,
+                recipe,
+                "Taught",
+                speakerId);
+
+            if (transferred)
+            {
+                KnowledgeRecord? listenerRecord = state.GetKnowledgeStore(listenerId).Find(KnowledgeKind.Recipe, recipe.Id);
+                if (listenerRecord is not null)
+                {
+                    listenerRecord.Metadata["sourceKnowledgeId"] = sourceKnowledge.Id;
+                    listenerRecord.Metadata["transferType"] = "communication";
+                }
+            }
+
+            return transferred;
         }
 
         private static void ApplyRelationshipChange(

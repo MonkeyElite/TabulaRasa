@@ -6,6 +6,7 @@ using TabulaRasa.Agents.Needs;
 using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Simulation.State;
+using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Lifecycle;
 using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Species;
@@ -45,6 +46,8 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 AgentActionType.Flee => new ActionResult(request.AgentId, request.ActionType, true),
                 AgentActionType.Reproduce => ResolveReproduce(state, request),
                 AgentActionType.Communicate => ResolveCommunicate(state, request),
+                AgentActionType.Experiment => ResolveExperiment(state, request),
+                AgentActionType.Craft => ResolveCraft(state, request),
                 AgentActionType.Wander => ResolveWander(state, request),
                 AgentActionType.None => new ActionResult(request.AgentId, request.ActionType, true),
                 _ => new ActionResult(request.AgentId, request.ActionType, false, "Unsupported action type.")
@@ -279,6 +282,72 @@ namespace TabulaRasa.Simulation.Actions.Resolution
             }
 
             SocialService.RecordCommunication(state, speaker.Id, listener.Id);
+
+            return new ActionResult(request.AgentId, request.ActionType, true);
+        }
+
+        private static ActionResult ResolveExperiment(SimulationState state, ActionRequest request)
+        {
+            RecipeDefinition? recipe = RecipeRegistry.Find(request.TargetId);
+            if (recipe is null)
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, "Experiment recipe is unavailable.");
+            }
+
+            bool succeeded = state.Random.NextDouble() <= Math.Clamp(recipe.DiscoveryChance, 0, 1);
+            if (!succeeded)
+            {
+                state.EmitEvent(
+                    "experiment.failed",
+                    "Action Resolver",
+                    $"{request.AgentId} failed to discover {recipe.DisplayName}.",
+                    request.AgentId,
+                    new Dictionary<string, string>
+                    {
+                        ["agentId"] = request.AgentId,
+                        ["recipeId"] = recipe.Id,
+                        ["displayName"] = recipe.DisplayName
+                    });
+
+                return new ActionResult(request.AgentId, request.ActionType, false, "Experiment did not produce a discovery.");
+            }
+
+            KnowledgeService.DiscoverRecipe(state, request.AgentId, recipe, "Experiment");
+
+            return new ActionResult(request.AgentId, request.ActionType, true);
+        }
+
+        private ActionResult ResolveCraft(SimulationState state, ActionRequest request)
+        {
+            RecipeDefinition? recipe = RecipeRegistry.Find(request.TargetId);
+            AgentEntity? agentEntity = state.World.Agents.FirstOrDefault(agent => agent.Id == request.AgentId);
+            if (recipe is null || agentEntity is null)
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, "Craft action could not be resolved.");
+            }
+
+            WorldMutationResult mutation = _mutations.TryTransformResources(
+                state.World,
+                agentEntity.Inventory,
+                recipe.Inputs.ToDictionary(input => input.ResourceId, input => input.Quantity, StringComparer.OrdinalIgnoreCase),
+                recipe.Outputs.ToDictionary(output => output.ResourceId, output => output.Quantity, StringComparer.OrdinalIgnoreCase));
+
+            if (!mutation.Succeeded)
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, mutation.Reason);
+            }
+
+            state.EmitEvent(
+                "recipe.crafted",
+                "Action Resolver",
+                $"{request.AgentId} crafted {recipe.DisplayName}.",
+                request.AgentId,
+                new Dictionary<string, string>
+                {
+                    ["agentId"] = request.AgentId,
+                    ["recipeId"] = recipe.Id,
+                    ["displayName"] = recipe.DisplayName
+                });
 
             return new ActionResult(request.AgentId, request.ActionType, true);
         }

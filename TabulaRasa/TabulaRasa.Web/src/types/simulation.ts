@@ -221,6 +221,9 @@ export type SimulationSnapshot = {
   deadAgentCount: number;
   speciesPopulation: SpeciesPopulationCount[];
   socialGraph: SocialGraphSnapshot;
+  recipeCatalog: RecipeDefinitionSnapshot[];
+  groupKnowledge: GroupKnowledgeSnapshot[];
+  discoveryMarkers: DiscoveryMarkerSnapshot[];
   diagnostics: SimulationTickDiagnostics | null;
   environment: EnvironmentState | null;
   ecologyStats: EcologyStats | null;
@@ -309,6 +312,7 @@ export type AgentSnapshot = {
   perception: AgentPerceptionSnapshot;
   memory: AgentMemorySnapshot;
   social: AgentSocialSnapshot;
+  knowledge: AgentKnowledgeSnapshot;
   decision: AgentDecisionSnapshot | null;
   learning: AgentLearningSnapshot;
 };
@@ -362,6 +366,22 @@ export type AgentSocialSnapshot = {
   groups: SocialGroupMembershipSnapshot[];
 };
 
+export type AgentKnowledgeSnapshot = {
+  records: KnowledgeRecordSnapshot[];
+};
+
+export type KnowledgeRecordSnapshot = {
+  id: string;
+  kind: "Recipe" | "ActionUnlock" | string;
+  subjectId: string;
+  displayName: string;
+  discoveredTick: number;
+  lastUpdatedTick: number;
+  source: string;
+  sourceAgentId: string | null;
+  metadata: Record<string, string>;
+};
+
 export type SocialRelationshipSnapshot = {
   agentId: string;
   otherAgentId: string;
@@ -387,6 +407,49 @@ export type SocialGroupMembershipSnapshot = {
 export type SocialGraphSnapshot = {
   nodes: SocialGraphNode[];
   edges: SocialGraphEdge[];
+};
+
+export type GroupKnowledgeSnapshot = {
+  groupId: string;
+  displayName: string;
+  memberAgentIds: string[];
+  knownRecipeIds: string[];
+  knownActionUnlockIds: string[];
+};
+
+export type DiscoveryMarkerSnapshot = {
+  tick: number;
+  agentId: string;
+  recipeId: string;
+  displayName: string;
+  source: string;
+};
+
+export type RecipeDefinitionSnapshot = {
+  id: string;
+  displayName: string;
+  description: string;
+  inputs: RecipeIngredientSnapshot[];
+  tools: RecipeIngredientSnapshot[];
+  outputs: RecipeOutputSnapshot[];
+  unlocks: ActionUnlockSnapshot[];
+  discoveryChance: number;
+};
+
+export type RecipeIngredientSnapshot = {
+  resourceId: string;
+  quantity: number;
+};
+
+export type RecipeOutputSnapshot = {
+  resourceId: string;
+  quantity: number;
+};
+
+export type ActionUnlockSnapshot = {
+  id: string;
+  displayName: string;
+  description: string;
 };
 
 export type SocialGraphNode = {

@@ -5,6 +5,7 @@ namespace TabulaRasa.Simulation.Memory
         Entity = 0,
         Location = 1,
         Event = 2,
-        ActionOutcome = 3
+        ActionOutcome = 3,
+        Knowledge = 4
     }
 }

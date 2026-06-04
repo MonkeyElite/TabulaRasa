@@ -128,6 +128,9 @@ namespace TabulaRasa.Api.Contracts
         int DeadAgentCount,
         IReadOnlyList<SpeciesPopulationCountDto> SpeciesPopulation,
         SocialGraphSnapshotDto SocialGraph,
+        IReadOnlyList<RecipeDefinitionSnapshotDto> RecipeCatalog,
+        IReadOnlyList<GroupKnowledgeSnapshotDto> GroupKnowledge,
+        IReadOnlyList<DiscoveryMarkerSnapshotDto> DiscoveryMarkers,
         SimulationTickDiagnosticsDto? Diagnostics,
         EnvironmentStateDto? Environment = null,
         EcologyStatsDto? EcologyStats = null,
@@ -247,6 +250,7 @@ namespace TabulaRasa.Api.Contracts
         AgentPerceptionSnapshotDto Perception,
         AgentMemorySnapshotDto Memory,
         AgentSocialSnapshotDto Social,
+        AgentKnowledgeSnapshotDto Knowledge,
         AgentDecisionSnapshotDto? Decision,
         AgentLearningSnapshotDto Learning);
 
@@ -295,6 +299,20 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<SocialRelationshipSnapshotDto> Relationships,
         IReadOnlyList<SocialGroupMembershipSnapshotDto> Groups);
 
+    public sealed record AgentKnowledgeSnapshotDto(
+        IReadOnlyList<KnowledgeRecordSnapshotDto> Records);
+
+    public sealed record KnowledgeRecordSnapshotDto(
+        string Id,
+        string Kind,
+        string SubjectId,
+        string DisplayName,
+        long DiscoveredTick,
+        long LastUpdatedTick,
+        string Source,
+        string? SourceAgentId,
+        IReadOnlyDictionary<string, string> Metadata);
+
     public sealed record SocialRelationshipSnapshotDto(
         string AgentId,
         string OtherAgentId,
@@ -318,6 +336,43 @@ namespace TabulaRasa.Api.Contracts
     public sealed record SocialGraphSnapshotDto(
         IReadOnlyList<SocialGraphNodeDto> Nodes,
         IReadOnlyList<SocialGraphEdgeDto> Edges);
+
+    public sealed record GroupKnowledgeSnapshotDto(
+        string GroupId,
+        string DisplayName,
+        IReadOnlyList<string> MemberAgentIds,
+        IReadOnlyList<string> KnownRecipeIds,
+        IReadOnlyList<string> KnownActionUnlockIds);
+
+    public sealed record DiscoveryMarkerSnapshotDto(
+        long Tick,
+        string AgentId,
+        string RecipeId,
+        string DisplayName,
+        string Source);
+
+    public sealed record RecipeDefinitionSnapshotDto(
+        string Id,
+        string DisplayName,
+        string Description,
+        IReadOnlyList<RecipeIngredientSnapshotDto> Inputs,
+        IReadOnlyList<RecipeIngredientSnapshotDto> Tools,
+        IReadOnlyList<RecipeOutputSnapshotDto> Outputs,
+        IReadOnlyList<ActionUnlockSnapshotDto> Unlocks,
+        float DiscoveryChance);
+
+    public sealed record RecipeIngredientSnapshotDto(
+        string ResourceId,
+        int Quantity);
+
+    public sealed record RecipeOutputSnapshotDto(
+        string ResourceId,
+        int Quantity);
+
+    public sealed record ActionUnlockSnapshotDto(
+        string Id,
+        string DisplayName,
+        string Description);
 
     public sealed record SocialGraphNodeDto(
         string AgentId,

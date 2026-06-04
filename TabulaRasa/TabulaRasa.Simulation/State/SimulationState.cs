@@ -5,6 +5,7 @@ using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.Goals;
+using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
@@ -30,6 +31,7 @@ namespace TabulaRasa.Simulation.State
         public ReservationRegistry Reservations { get; } = new();
         public Dictionary<string, AgentPerception> LatestPerceptionsByAgentId { get; } = [];
         public Dictionary<string, AgentMemoryStore> MemoryStoresByAgentId { get; } = [];
+        public Dictionary<string, AgentKnowledgeStore> KnowledgeStoresByAgentId { get; } = [];
         public Dictionary<string, AgentSocialStore> SocialStoresByAgentId { get; } = [];
         public SimulationConfig Config { get; private set; }
         public Random Random { get; private set; }
@@ -85,6 +87,17 @@ namespace TabulaRasa.Simulation.State
             {
                 store = new AgentSocialStore();
                 SocialStoresByAgentId[agentId] = store;
+            }
+
+            return store;
+        }
+
+        public AgentKnowledgeStore GetKnowledgeStore(string agentId)
+        {
+            if (!KnowledgeStoresByAgentId.TryGetValue(agentId, out AgentKnowledgeStore? store))
+            {
+                store = new AgentKnowledgeStore();
+                KnowledgeStoresByAgentId[agentId] = store;
             }
 
             return store;

@@ -30,7 +30,9 @@ namespace TabulaRasa.World.State
             ResourceDefinition.CreateFood(),
             ResourceDefinition.CreateWater(),
             ResourceDefinition.CreateWood(),
-            ResourceDefinition.CreateStone()
+            ResourceDefinition.CreateStone(),
+            ResourceDefinition.CreateStoneTool(),
+            ResourceDefinition.CreateWoodenTool()
         ];
         public EnvironmentState Environment { get; } = new();
 

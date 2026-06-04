@@ -7,6 +7,7 @@ using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.Goals;
+using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
@@ -56,6 +57,9 @@ namespace TabulaRasa.Api.Services
                 deadAgentCount,
                 ToSpeciesPopulation(state),
                 ToSocialGraph(state),
+                RecipeRegistry.All.Select(ToRecipeDefinition).ToList(),
+                ToGroupKnowledge(state),
+                ToDiscoveryMarkers(state),
                 ToDiagnostics(state.GetDiagnosticsForTick(state.Time.Tick)),
                 ToEnvironment(state.World.Environment),
                 ToEcologyStats(state),
@@ -293,6 +297,7 @@ namespace TabulaRasa.Api.Services
                 ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)),
                 ToMemory(state.MemoryStoresByAgentId.GetValueOrDefault(agent.Id)),
                 ToSocial(state, agent.Id),
+                ToKnowledge(state.KnowledgeStoresByAgentId.GetValueOrDefault(agent.Id)),
                 ToDecision(agentState?.Learning.LatestDecision),
                 ToLearning(agentState?.Learning));
         }
@@ -370,6 +375,30 @@ namespace TabulaRasa.Api.Services
                     .ToList());
         }
 
+        private static AgentKnowledgeSnapshotDto ToKnowledge(AgentKnowledgeStore? store)
+        {
+            return new AgentKnowledgeSnapshotDto(
+                (store?.Records ?? [])
+                    .OrderBy(record => record.Kind)
+                    .ThenBy(record => record.SubjectId, StringComparer.OrdinalIgnoreCase)
+                    .Select(ToKnowledgeRecord)
+                    .ToList());
+        }
+
+        private static KnowledgeRecordSnapshotDto ToKnowledgeRecord(KnowledgeRecord record)
+        {
+            return new KnowledgeRecordSnapshotDto(
+                record.Id,
+                record.Kind.ToString(),
+                record.SubjectId,
+                record.DisplayName,
+                record.DiscoveredTick,
+                record.LastUpdatedTick,
+                record.Source,
+                record.SourceAgentId,
+                record.Metadata);
+        }
+
         private static SocialRelationshipSnapshotDto ToRelationship(
             SimulationState state,
             SocialRelationship relationship)
@@ -431,6 +460,71 @@ namespace TabulaRasa.Api.Services
                 .ToList();
 
             return new SocialGraphSnapshotDto(nodes, edges);
+        }
+
+        private static IReadOnlyList<GroupKnowledgeSnapshotDto> ToGroupKnowledge(SimulationState state)
+        {
+            return state.SocialStoresByAgentId
+                .SelectMany(pair => pair.Value.Groups.Select(group => new { AgentId = pair.Key, Group = group }))
+                .GroupBy(item => item.Group.GroupId, StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    IReadOnlyList<string> memberAgentIds = group
+                        .Select(item => item.AgentId)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(agentId => agentId, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    IReadOnlyList<KnowledgeRecord> records = memberAgentIds
+                        .Select(agentId => state.KnowledgeStoresByAgentId.GetValueOrDefault(agentId))
+                        .OfType<AgentKnowledgeStore>()
+                        .SelectMany(store => store.Records)
+                        .ToList();
+
+                    return new GroupKnowledgeSnapshotDto(
+                        group.Key,
+                        group.First().Group.DisplayName,
+                        memberAgentIds,
+                        records
+                            .Where(record => record.Kind == KnowledgeKind.Recipe)
+                            .Select(record => record.SubjectId)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                            .ToList(),
+                        records
+                            .Where(record => record.Kind == KnowledgeKind.ActionUnlock)
+                            .Select(record => record.SubjectId)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                            .ToList());
+                })
+                .OrderBy(group => group.GroupId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static IReadOnlyList<DiscoveryMarkerSnapshotDto> ToDiscoveryMarkers(SimulationState state)
+        {
+            return state.GetRecentEvents()
+                .Where(simulationEvent => simulationEvent.Type == "knowledge.discovered")
+                .Select(simulationEvent => new DiscoveryMarkerSnapshotDto(
+                    simulationEvent.Tick,
+                    simulationEvent.Metadata.GetValueOrDefault("agentId", simulationEvent.EntityId ?? ""),
+                    simulationEvent.Metadata.GetValueOrDefault("recipeId", ""),
+                    simulationEvent.Metadata.GetValueOrDefault("displayName", "Discovery"),
+                    simulationEvent.Metadata.GetValueOrDefault("source", "")))
+                .ToList();
+        }
+
+        private static RecipeDefinitionSnapshotDto ToRecipeDefinition(RecipeDefinition recipe)
+        {
+            return new RecipeDefinitionSnapshotDto(
+                recipe.Id,
+                recipe.DisplayName,
+                recipe.Description,
+                recipe.Inputs.Select(input => new RecipeIngredientSnapshotDto(input.ResourceId, input.Quantity)).ToList(),
+                recipe.Tools.Select(tool => new RecipeIngredientSnapshotDto(tool.ResourceId, tool.Quantity)).ToList(),
+                recipe.Outputs.Select(output => new RecipeOutputSnapshotDto(output.ResourceId, output.Quantity)).ToList(),
+                recipe.Unlocks.Select(unlock => new ActionUnlockSnapshotDto(unlock.Id, unlock.DisplayName, unlock.Description)).ToList(),
+                recipe.DiscoveryChance);
         }
 
         private static IReadOnlyList<string> SharedGroups(

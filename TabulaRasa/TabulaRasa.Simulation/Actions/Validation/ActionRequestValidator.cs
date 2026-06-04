@@ -1,5 +1,6 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
+using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Species;
@@ -45,6 +46,8 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 AgentActionType.Flee => ValidateFlee(state, agentEntity, request),
                 AgentActionType.Reproduce => ValidateReproduce(state, agentEntity, request),
                 AgentActionType.Communicate => ValidateCommunicate(state, agentEntity, request),
+                AgentActionType.Experiment => ValidateExperiment(state, agentEntity, request),
+                AgentActionType.Craft => ValidateCraft(state, agentEntity, request),
                 AgentActionType.Wander => ValidateWander(state, agentEntity),
                 AgentActionType.None => ActionValidationResult.Valid,
                 _ => ActionValidationResult.Invalid("Unsupported action type.")
@@ -291,6 +294,102 @@ namespace TabulaRasa.Simulation.Actions.Validation
             return SocialService.CanCommunicate(state, agentEntity, listener)
                 ? ActionValidationResult.Valid
                 : ActionValidationResult.Invalid("Communication target is out of reach or incompatible.");
+        }
+
+        private static ActionValidationResult ValidateExperiment(
+            SimulationState state,
+            AgentEntity agentEntity,
+            ActionRequest request)
+        {
+            RecipeDefinition? recipe = RecipeRegistry.Find(request.TargetId);
+            if (recipe is null)
+            {
+                return ActionValidationResult.Invalid("Experiment requires a known recipe candidate.");
+            }
+
+            AgentKnowledgeStore knowledge = state.GetKnowledgeStore(agentEntity.Id);
+            if (knowledge.KnowsRecipe(recipe.Id))
+            {
+                return ActionValidationResult.Invalid("Recipe is already known.");
+            }
+
+            return RecipeRegistry.FindExperimentCandidates(GetAvailableExperimentResources(state, agentEntity), knowledge)
+                .Any(candidate => string.Equals(candidate.Id, recipe.Id, StringComparison.OrdinalIgnoreCase))
+                    ? ActionValidationResult.Valid
+                    : ActionValidationResult.Invalid("Experiment lacks relevant resources or tools.");
+        }
+
+        private static ActionValidationResult ValidateCraft(
+            SimulationState state,
+            AgentEntity agentEntity,
+            ActionRequest request)
+        {
+            RecipeDefinition? recipe = RecipeRegistry.Find(request.TargetId);
+            if (recipe is null)
+            {
+                return ActionValidationResult.Invalid("Craft action requires a recipe.");
+            }
+
+            AgentKnowledgeStore knowledge = state.GetKnowledgeStore(agentEntity.Id);
+            if (!knowledge.KnowsRecipe(recipe.Id))
+            {
+                return ActionValidationResult.Invalid("Recipe is unknown.");
+            }
+
+            return RecipeRegistry.HasRequirements(recipe, GetInventoryResources(agentEntity))
+                ? ActionValidationResult.Valid
+                : ActionValidationResult.Invalid("Craft action lacks required resources or tools.");
+        }
+
+        private static IReadOnlyDictionary<string, int> GetAvailableExperimentResources(
+            SimulationState state,
+            AgentEntity agentEntity)
+        {
+            Dictionary<string, int> resources = new(GetInventoryResources(agentEntity), StringComparer.OrdinalIgnoreCase);
+            AgentPerception perception = state.LatestPerceptionsByAgentId.GetValueOrDefault(agentEntity.Id)
+                ?? AgentPerception.Empty;
+
+            foreach (PerceivedEntity entity in perception.NearbyEntities)
+            {
+                switch (entity.EntityType)
+                {
+                    case PerceivedEntityType.ResourceDeposit:
+                        ResourceDepositEntity? deposit = state.World.ResourceDeposits.FirstOrDefault(candidate => candidate.Id == entity.EntityId);
+                        if (deposit is not null && !deposit.IsEmpty)
+                        {
+                            resources[deposit.ResourceId] = resources.GetValueOrDefault(deposit.ResourceId) + 1;
+                        }
+
+                        break;
+                    case PerceivedEntityType.Plant:
+                    case PerceivedEntityType.Food:
+                        PlantEntity? plant = state.World.Plants.FirstOrDefault(candidate => candidate.Id == entity.EntityId);
+                        if (plant is not null && plant.IsHarvestable)
+                        {
+                            resources[plant.ResourceId] = resources.GetValueOrDefault(plant.ResourceId) + 1;
+                        }
+
+                        ResourceContainerEntity? container = state.World.ResourceContainers.FirstOrDefault(candidate => candidate.Id == entity.EntityId);
+                        if (container is not null && !container.IsEmpty)
+                        {
+                            foreach (ResourceStack stack in container.Inventory.Stacks)
+                            {
+                                resources[stack.ResourceId] = resources.GetValueOrDefault(stack.ResourceId) + stack.Quantity;
+                            }
+                        }
+
+                        break;
+                }
+            }
+
+            return resources;
+        }
+
+        private static IReadOnlyDictionary<string, int> GetInventoryResources(AgentEntity agentEntity)
+        {
+            return agentEntity.Inventory.Stacks
+                .GroupBy(stack => stack.ResourceId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Sum(stack => stack.Quantity), StringComparer.OrdinalIgnoreCase);
         }
     }
 }

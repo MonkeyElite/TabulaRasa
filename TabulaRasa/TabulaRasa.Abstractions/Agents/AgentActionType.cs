@@ -14,6 +14,8 @@
         Attack = 9,
         Flee = 10,
         Reproduce = 11,
-        Communicate = 12
+        Communicate = 12,
+        Experiment = 13,
+        Craft = 14
     }
 }

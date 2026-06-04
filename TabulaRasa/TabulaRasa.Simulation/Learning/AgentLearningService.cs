@@ -66,6 +66,11 @@ namespace TabulaRasa.Simulation.Learning
                 return 0.15f;
             }
 
+            if (result.ActionType is AgentActionType.Experiment or AgentActionType.Craft)
+            {
+                return result.Succeeded ? 0.25f : -0.25f;
+            }
+
             if (result.NeedsBefore is null || needsAfter is null)
             {
                 return 0;

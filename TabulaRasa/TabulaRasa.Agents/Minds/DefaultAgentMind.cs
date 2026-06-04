@@ -170,6 +170,46 @@ namespace TabulaRasa.Agents.Minds
             }
 
             foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Craft))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Invention", "Recipe", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Craft);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Craft,
+                    opportunity.TargetId,
+                    "Invention",
+                    contextKey,
+                    "Recipe",
+                    channel,
+                    0.25f,
+                    relevance,
+                    learnedWeight,
+                    0.22f + (relevance * 0.25f) + learnedWeight));
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Experiment))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Invention", "Recipe", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Experiment);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Experiment,
+                    opportunity.TargetId,
+                    "Invention",
+                    contextKey,
+                    "Recipe",
+                    channel,
+                    0.18f,
+                    relevance,
+                    learnedWeight,
+                    0.12f + (relevance * 0.18f) + learnedWeight));
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
                 .Where(opportunity => opportunity.ActionType == AgentActionType.Eat))
             {
                 string channel = opportunity.Channel.ToString();

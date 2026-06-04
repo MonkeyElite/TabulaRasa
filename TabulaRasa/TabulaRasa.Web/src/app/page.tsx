@@ -17,7 +17,7 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import { EventLogPanel, RuntimePanel, SocialGraphPanel } from "@/components/DebugPanels";
+import { DiscoveryTimelineMarkers, EventLogPanel, KnowledgePanel, RuntimePanel, SocialGraphPanel } from "@/components/DebugPanels";
 import { Inspector } from "@/components/Inspector";
 import { WorldCanvas } from "@/components/WorldCanvas";
 import { simulationApi } from "@/lib/api";
@@ -124,7 +124,7 @@ export default function Home() {
   const [configDraft, setConfigDraft] = useState<SimulationConfig | null>(null);
   const [eventScope, setEventScope] = useState<"recent" | "current">("recent");
   const [eventType, setEventType] = useState("all");
-  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events" | "social">("inspect");
+  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events" | "social" | "knowledge">("inspect");
   const [editing, setEditing] = useState(false);
   const [hover, setHover] = useState<HoverInfo>(null);
   const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
@@ -582,6 +582,7 @@ export default function Home() {
             <button className={rightRailTab === "inspect" ? "selected" : ""} onClick={() => setRightRailTab("inspect")}>Inspect</button>
             <button className={rightRailTab === "runtime" ? "selected" : ""} onClick={() => setRightRailTab("runtime")}>Runtime</button>
             <button className={rightRailTab === "social" ? "selected" : ""} onClick={() => setRightRailTab("social")}>Social</button>
+            <button className={rightRailTab === "knowledge" ? "selected" : ""} onClick={() => setRightRailTab("knowledge")}>Knowledge</button>
             <button className={rightRailTab === "settings" ? "selected" : ""} onClick={() => setRightRailTab("settings")}>Settings</button>
             <button className={rightRailTab === "events" ? "selected" : ""} onClick={() => setRightRailTab("events")}>Events</button>
           </div>
@@ -622,6 +623,13 @@ export default function Home() {
                 onSelectAgent={(id) => setSelection({ type: "agent", id })}
               />
             )}
+            {rightRailTab === "knowledge" && (
+              <KnowledgePanel
+                snapshot={snapshot}
+                selectedAgentId={selection?.type === "agent" ? selection.id : null}
+                onSelectAgent={(id) => setSelection({ type: "agent", id })}
+              />
+            )}
             {rightRailTab === "events" && (
               <EventLogPanel
                 events={visibleEvents}
@@ -648,6 +656,12 @@ export default function Home() {
           onChange={(event) => previewTick(Number(event.target.value))}
           onPointerUp={commitSliderTick}
           onKeyUp={commitSliderTick}
+        />
+        <DiscoveryTimelineMarkers
+          markers={snapshot?.discoveryMarkers ?? []}
+          minimumTick={status?.minimumTick ?? 0}
+          maximumTick={status?.maximumTick ?? 0}
+          onSelectTick={(tick) => loadTick(tick)}
         />
         <label className="tick-jump">
           <span>Go to</span>

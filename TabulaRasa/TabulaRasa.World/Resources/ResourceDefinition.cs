@@ -17,6 +17,8 @@ namespace TabulaRasa.World.Resources
         public const string WaterId = "water";
         public const string WoodId = "wood";
         public const string StoneId = "stone";
+        public const string StoneToolId = "stone-tool";
+        public const string WoodenToolId = "wooden-tool";
 
         public static ResourceDefinition CreateFood()
         {
@@ -77,6 +79,36 @@ namespace TabulaRasa.World.Resources
                 IsConsumable = false,
                 Renewability = ResourceRenewability.Nonrenewable,
                 Category = "deposit"
+            };
+        }
+
+        public static ResourceDefinition CreateStoneTool()
+        {
+            return new ResourceDefinition
+            {
+                Id = StoneToolId,
+                DisplayName = "Stone Tool",
+                IconKey = "stone-tool",
+                UnitWeight = 1.5f,
+                MaxStackQuantity = 5,
+                IsConsumable = false,
+                Renewability = ResourceRenewability.Nonrenewable,
+                Category = "tool"
+            };
+        }
+
+        public static ResourceDefinition CreateWoodenTool()
+        {
+            return new ResourceDefinition
+            {
+                Id = WoodenToolId,
+                DisplayName = "Wooden Tool",
+                IconKey = "wooden-tool",
+                UnitWeight = 1,
+                MaxStackQuantity = 5,
+                IsConsumable = false,
+                Renewability = ResourceRenewability.Renewable,
+                Category = "tool"
             };
         }
     }
