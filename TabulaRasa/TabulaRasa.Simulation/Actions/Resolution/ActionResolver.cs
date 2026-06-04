@@ -7,6 +7,7 @@ using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Lifecycle;
+using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.Systems;
 using TabulaRasa.World.Entities;
@@ -43,6 +44,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 AgentActionType.Attack => ResolveAttack(state, request),
                 AgentActionType.Flee => new ActionResult(request.AgentId, request.ActionType, true),
                 AgentActionType.Reproduce => ResolveReproduce(state, request),
+                AgentActionType.Communicate => ResolveCommunicate(state, request),
                 AgentActionType.Wander => ResolveWander(state, request),
                 AgentActionType.None => new ActionResult(request.AgentId, request.ActionType, true),
                 _ => new ActionResult(request.AgentId, request.ActionType, false, "Unsupported action type.")
@@ -196,6 +198,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                     ["damage"] = attackerSpecies.AttackDamage.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
                     ["health"] = target.Health.Current.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
                 });
+            SocialService.RecordAttack(state, attacker.Id, target.Id);
 
             if (target.Health.IsDepleted)
             {
@@ -241,6 +244,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
             second.OffspringIds.Add(child.Id);
             first.LastReproducedTick = state.ActiveTick;
             second.LastReproducedTick = state.ActiveTick;
+            SocialService.RecordReproduction(state, first.Id, second.Id);
             state.World.Agents.Add(child);
             state.Agents.Add(new AgentState(
                 child.Id,
@@ -256,6 +260,25 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                     ["speciesId"] = species.Id,
                     ["parentIds"] = string.Join(",", child.ParentIds)
                 });
+
+            return new ActionResult(request.AgentId, request.ActionType, true);
+        }
+
+        private static ActionResult ResolveCommunicate(SimulationState state, ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, "Communicate action requires a target.");
+            }
+
+            AgentEntity? speaker = state.World.Agents.FirstOrDefault(agent => agent.Id == request.AgentId);
+            AgentEntity? listener = state.World.Agents.FirstOrDefault(agent => agent.Id == request.TargetId);
+            if (speaker is null || listener is null || !SocialService.CanCommunicate(state, speaker, listener))
+            {
+                return new ActionResult(request.AgentId, request.ActionType, false, "Communication target is unavailable.");
+            }
+
+            SocialService.RecordCommunication(state, speaker.Id, listener.Id);
 
             return new ActionResult(request.AgentId, request.ActionType, true);
         }

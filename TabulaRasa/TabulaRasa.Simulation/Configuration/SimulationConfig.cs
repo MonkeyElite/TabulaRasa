@@ -64,6 +64,7 @@ namespace TabulaRasa.Simulation.Configuration
             "lifecycle",
             "need-decay",
             "memory",
+            "social",
             "planning",
             "goal-generation",
             "action-request-creation",

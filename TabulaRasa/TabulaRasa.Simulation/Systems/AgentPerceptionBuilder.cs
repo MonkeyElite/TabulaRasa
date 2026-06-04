@@ -94,6 +94,17 @@ namespace TabulaRasa.Simulation.Systems
                             Channel: PerceptionChannel.Sight,
                             Relevance: relevance));
                     }
+
+                    if (string.Equals(viewerSpecies.Id, otherSpecies.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        opportunities.Add(new InteractionOpportunity(
+                            AgentActionType.Communicate,
+                            otherAgent.Id,
+                            otherAgent.Position,
+                            SourceEntityId: otherAgent.Id,
+                            Channel: PerceptionChannel.Sight,
+                            Relevance: relevance));
+                    }
                 }
 
                 if (entity is ResourceContainerEntity container

@@ -8,6 +8,7 @@ using TabulaRasa.Simulation.Goals;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
+using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Tasks.Jobs;
 using TabulaRasa.Simulation.Tasks.Reservations;
 using TabulaRasa.World.State;
@@ -29,6 +30,7 @@ namespace TabulaRasa.Simulation.State
         public ReservationRegistry Reservations { get; } = new();
         public Dictionary<string, AgentPerception> LatestPerceptionsByAgentId { get; } = [];
         public Dictionary<string, AgentMemoryStore> MemoryStoresByAgentId { get; } = [];
+        public Dictionary<string, AgentSocialStore> SocialStoresByAgentId { get; } = [];
         public SimulationConfig Config { get; private set; }
         public Random Random { get; private set; }
         public long ActiveTick => _activeEventTick;
@@ -72,6 +74,17 @@ namespace TabulaRasa.Simulation.State
             {
                 store = new AgentMemoryStore();
                 MemoryStoresByAgentId[agentId] = store;
+            }
+
+            return store;
+        }
+
+        public AgentSocialStore GetSocialStore(string agentId)
+        {
+            if (!SocialStoresByAgentId.TryGetValue(agentId, out AgentSocialStore? store))
+            {
+                store = new AgentSocialStore();
+                SocialStoresByAgentId[agentId] = store;
             }
 
             return store;

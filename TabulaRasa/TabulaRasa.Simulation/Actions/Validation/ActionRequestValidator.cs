@@ -1,6 +1,7 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Simulation.Memory;
+using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.Systems;
 using TabulaRasa.Simulation.State;
@@ -43,6 +44,7 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 AgentActionType.Attack => ValidateAttack(state, agentEntity, request),
                 AgentActionType.Flee => ValidateFlee(state, agentEntity, request),
                 AgentActionType.Reproduce => ValidateReproduce(state, agentEntity, request),
+                AgentActionType.Communicate => ValidateCommunicate(state, agentEntity, request),
                 AgentActionType.Wander => ValidateWander(state, agentEntity),
                 AgentActionType.None => ActionValidationResult.Valid,
                 _ => ActionValidationResult.Invalid("Unsupported action type.")
@@ -268,6 +270,27 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 .Any(cell => state.World.Grid.IsTraversable(cell) && !SpatialQueries.IsCellOccupied(state.World, cell))
                 ? ActionValidationResult.Valid
                 : ActionValidationResult.Invalid("No free adjacent cell for offspring.");
+        }
+
+        private static ActionValidationResult ValidateCommunicate(
+            SimulationState state,
+            AgentEntity agentEntity,
+            ActionRequest request)
+        {
+            if (request.TargetId is null)
+            {
+                return ActionValidationResult.Invalid("Communicate action requires a target.");
+            }
+
+            AgentEntity? listener = state.World.Agents.FirstOrDefault(candidate => candidate.Id == request.TargetId);
+            if (listener is null || listener.IsDead)
+            {
+                return ActionValidationResult.Invalid("Communication target is unavailable.");
+            }
+
+            return SocialService.CanCommunicate(state, agentEntity, listener)
+                ? ActionValidationResult.Valid
+                : ActionValidationResult.Invalid("Communication target is out of reach or incompatible.");
         }
     }
 }

@@ -493,6 +493,67 @@ select {
   color: var(--muted);
 }
 
+.social-panel {
+  gap: 12px;
+}
+
+.social-graph {
+  width: 100%;
+  min-height: 260px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #15191f;
+}
+
+.social-node {
+  cursor: pointer;
+}
+
+.social-node text {
+  fill: var(--text);
+  font-size: 11px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.social-edge-label {
+  fill: var(--muted);
+  font-size: 10px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #15191f;
+  stroke-width: 4px;
+}
+
+.relationship-meter {
+  display: grid;
+  grid-template-columns: 78px 1fr 42px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.relationship-meter i {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #252b33;
+}
+
+.relationship-meter b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #6aa8ff;
+}
+
+.relationship-meter strong {
+  color: var(--text);
+  font-size: 11px;
+  text-align: right;
+}
+
 .spacer {
   flex: 1;
 }

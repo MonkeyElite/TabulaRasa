@@ -13,6 +13,7 @@
         ConsumeResource = 8,
         Attack = 9,
         Flee = 10,
-        Reproduce = 11
+        Reproduce = 11,
+        Communicate = 12
     }
 }

@@ -199,6 +199,112 @@ export function EventLogPanel({
   );
 }
 
+export function SocialGraphPanel({
+  snapshot,
+  selectedAgentId,
+  onSelectAgent
+}: {
+  snapshot: SimulationSnapshot | null;
+  selectedAgentId: string | null;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const graph = snapshot?.socialGraph;
+  const width = 360;
+  const height = 300;
+  const nodes = graph?.nodes ?? [];
+  const edges = graph?.edges ?? [];
+  const nodePositions = new Map(nodes.map((node, index) => {
+    const angle = nodes.length <= 1 ? 0 : (Math.PI * 2 * index) / nodes.length - Math.PI / 2;
+    const radius = nodes.length <= 2 ? 82 : 112;
+    return [
+      node.agentId,
+      {
+        x: width / 2 + Math.cos(angle) * radius,
+        y: height / 2 + Math.sin(angle) * radius
+      }
+    ];
+  }));
+
+  return (
+    <section className="debug-panel social-panel">
+      <div className="debug-header">
+        <h2>Social</h2>
+        <span className="pill">{edges.length} ties</span>
+      </div>
+      {!graph || nodes.length === 0 ? (
+        <span className="metric">No social graph.</span>
+      ) : (
+        <>
+          <svg className="social-graph" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Social graph">
+            {edges.map((edge) => {
+              const from = nodePositions.get(edge.fromAgentId);
+              const to = nodePositions.get(edge.toAgentId);
+              if (!from || !to) {
+                return null;
+              }
+
+              const midX = (from.x + to.x) / 2;
+              const midY = (from.y + to.y) / 2;
+              return (
+                <g key={`${edge.fromAgentId}:${edge.toAgentId}`}>
+                  <line
+                    x1={from.x}
+                    y1={from.y}
+                    x2={to.x}
+                    y2={to.y}
+                    stroke={edge.fear > edge.trust ? "#e06767" : "#6aa8ff"}
+                    strokeWidth={1 + edge.familiarity * 5}
+                    strokeOpacity={0.35 + edge.familiarity * 0.45}
+                  />
+                  <text x={midX} y={midY} className="social-edge-label">
+                    {compactMetric(edge.trust)} / {compactMetric(edge.fear)} / {compactMetric(edge.affinity)}
+                  </text>
+                </g>
+              );
+            })}
+            {nodes.map((node) => {
+              const position = nodePositions.get(node.agentId);
+              if (!position) {
+                return null;
+              }
+
+              const selected = selectedAgentId === node.agentId;
+              return (
+                <g
+                  key={node.agentId}
+                  className="social-node"
+                  transform={`translate(${position.x} ${position.y})`}
+                  onClick={() => onSelectAgent(node.agentId)}
+                >
+                  <circle
+                    r={selected ? 20 : 16}
+                    fill={node.isDead ? "#5a5f68" : speciesColor(node.speciesId)}
+                    stroke={selected ? "#ffffff" : "#20262b"}
+                    strokeWidth={selected ? 4 : 2}
+                  />
+                  <text y={34}>{node.agentId}</text>
+                </g>
+              );
+            })}
+          </svg>
+          <div className="system-list">
+            {edges.slice(0, 8).map((edge) => (
+              <div className="system-row" key={`${edge.fromAgentId}:${edge.toAgentId}`}>
+                <span>
+                  <strong>{`${edge.fromAgentId} -> ${edge.toAgentId}`}</strong>
+                  <small>seen {compactMetric(edge.familiarity)} / trust {compactMetric(edge.trust)} / fear {compactMetric(edge.fear)}</small>
+                </span>
+                <span>{edge.interactionCount}</span>
+                <span>{edge.lastInteractionTick ?? "-"}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 function NumberConfigField({
   label,
   value,
@@ -230,4 +336,20 @@ function formatMilliseconds(value: number | undefined) {
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
+function compactMetric(value: number) {
+  return value.toFixed(2);
+}
+
+function speciesColor(speciesId: string) {
+  if (speciesId === "deer") {
+    return "#d2a45f";
+  }
+
+  if (speciesId === "wolf") {
+    return "#d76b6b";
+  }
+
+  return "#54c475";
 }

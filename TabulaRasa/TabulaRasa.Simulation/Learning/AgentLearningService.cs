@@ -61,6 +61,11 @@ namespace TabulaRasa.Simulation.Learning
                 return 0.05f;
             }
 
+            if (result.ActionType == AgentActionType.Communicate)
+            {
+                return 0.15f;
+            }
+
             if (result.NeedsBefore is null || needsAfter is null)
             {
                 return 0;
