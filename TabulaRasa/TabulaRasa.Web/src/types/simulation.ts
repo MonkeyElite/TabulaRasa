@@ -13,6 +13,62 @@ export type SimulationSummary = {
   updatedAt: string;
 };
 
+export type SimulationRun = {
+  simulationId: string;
+  name: string;
+  status: "Idle" | "Running" | "Paused" | "Stopped" | string;
+  currentTick: number;
+  minimumTick: number;
+  maximumTick: number;
+  agentCount: number;
+  aliveAgentCount: number;
+  deadAgentCount: number;
+  storageBytes: number;
+  checkpointBytes: number;
+  eventBytes: number;
+  createdAt: string;
+  updatedAt: string;
+  sourceSimulationId: string | null;
+  sourceTick: number | null;
+};
+
+export type SimulationRunPage = {
+  runs: SimulationRun[];
+  offset: number;
+  limit: number;
+  total: number;
+};
+
+export type SimulationCheckpointSummary = {
+  simulationId: string;
+  tick: number;
+  payloadBytes: number;
+  isCompressed: boolean;
+  createdAt: string;
+};
+
+export type SaveSimulationResponse = {
+  simulationId: string;
+  tick: number;
+  savedAt: string;
+  checkpointBytes: number;
+};
+
+export type ScenarioExport = {
+  name: string;
+  version: number;
+  exportedAt: string;
+  scenario: SimulationDraft;
+};
+
+export type RetentionResult = {
+  deletedRuns: number;
+  deletedCheckpoints: number;
+  deletedEvents: number;
+  deletedTickSummaries: number;
+  removedBytes: number;
+};
+
 export type SimulationResourceLimits = {
   maxConcurrentRunningSimulations: number;
   maxTicksPerSecond: number;

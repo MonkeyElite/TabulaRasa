@@ -5,6 +5,7 @@ using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Agents.Minds;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
+using TabulaRasa.Api.Persistence;
 using TabulaRasa.Simulation.Composition;
 using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.Engine;
@@ -24,6 +25,7 @@ namespace TabulaRasa.Api.Services
     {
         private readonly object _sync = new();
         private readonly SortedDictionary<long, SimulationSnapshotDto> _snapshots = [];
+        private readonly ISimulationPersistenceStore _persistence;
 
         private SimulationState _state;
         private IReadOnlyList<ISystem> _systems;
@@ -33,8 +35,13 @@ namespace TabulaRasa.Api.Services
         private SimulationLifecycleState _lifecycle = SimulationLifecycleState.Idle;
         private bool _disposed;
 
-        public SimulationSession(string simulationId, string name, SimulationConfig? config = null)
+        public SimulationSession(
+            string simulationId,
+            string name,
+            SimulationConfig? config = null,
+            ISimulationPersistenceStore? persistence = null)
         {
+            _persistence = persistence ?? new NullSimulationPersistenceStore();
             SimulationId = simulationId;
             Name = string.IsNullOrWhiteSpace(name) ? simulationId : name.Trim();
             CreatedAt = DateTimeOffset.UtcNow;
@@ -103,7 +110,7 @@ namespace TabulaRasa.Api.Services
         {
             lock (_sync)
             {
-                return _snapshots.GetValueOrDefault(tick);
+                return _snapshots.GetValueOrDefault(tick) ?? ReconstructSnapshot(tick);
             }
         }
 
@@ -252,6 +259,24 @@ namespace TabulaRasa.Api.Services
             }
         }
 
+        public SaveSimulationResponseDto Save()
+        {
+            lock (_sync)
+            {
+                SimulationSnapshotDto snapshot = _snapshots[_state.Time.Tick];
+                return SaveCheckpoint(snapshot);
+            }
+        }
+
+        public ScenarioExportDto ExportScenario()
+        {
+            lock (_sync)
+            {
+                SimulationDraftDto draft = SimulationSnapshotMapper.ToDraft(_state);
+                return _persistence.SaveScenario(Name, draft, []);
+            }
+        }
+
         public void Dispose()
         {
             lock (_sync)
@@ -303,6 +328,7 @@ namespace TabulaRasa.Api.Services
             _snapshots[_state.Time.Tick] = snapshot;
             TrimSnapshots();
             UpdatedAt = DateTimeOffset.UtcNow;
+            PersistSnapshot(snapshot);
 
             return snapshot;
         }
@@ -365,7 +391,7 @@ namespace TabulaRasa.Api.Services
         {
             _lifecycle = lifecycle;
             RecordLifecycleEvent(lifecycle);
-            StoreCurrentSnapshot();
+            SaveCheckpoint(StoreCurrentSnapshot());
         }
 
         private void RecordLifecycleEvent(SimulationLifecycleState lifecycle)
@@ -423,6 +449,77 @@ namespace TabulaRasa.Api.Services
             {
                 _snapshots.Remove(_snapshots.Keys.First());
             }
+        }
+
+        private void PersistSnapshot(SimulationSnapshotDto snapshot)
+        {
+            if (!_persistence.IsDurable)
+            {
+                return;
+            }
+
+            _persistence.UpsertRun(GetSummary(), SimulationSnapshotMapper.ToConfig(_config));
+            _persistence.SaveTick(SimulationId, snapshot);
+            if (ShouldStoreCheckpoint(snapshot.Tick))
+            {
+                SaveCheckpoint(snapshot);
+            }
+        }
+
+        private bool ShouldStoreCheckpoint(long tick)
+        {
+            int interval = Math.Max(1, _persistence.Options.CheckpointIntervalTicks);
+            return tick == 0 || tick % interval == 0;
+        }
+
+        private SaveSimulationResponseDto SaveCheckpoint(SimulationSnapshotDto snapshot)
+        {
+            SimulationDraftDto draft = SimulationSnapshotMapper.ToDraft(snapshot, SimulationSnapshotMapper.ToConfig(_config));
+            SimulationStateCheckpointDto checkpoint = new(
+                snapshot.Tick,
+                _lifecycle.ToString(),
+                SimulationSnapshotMapper.ToConfig(_config),
+                snapshot,
+                draft,
+                DateTimeOffset.UtcNow);
+
+            return _persistence.SaveCheckpoint(SimulationId, checkpoint);
+        }
+
+        private SimulationSnapshotDto? ReconstructSnapshot(long tick)
+        {
+            if (!_persistence.IsDurable)
+            {
+                return null;
+            }
+
+            SimulationStateCheckpointDto? checkpoint = _persistence.GetNearestCheckpoint(SimulationId, tick);
+            if (checkpoint is null)
+            {
+                return null;
+            }
+
+            if (checkpoint.Tick == tick)
+            {
+                return checkpoint.Snapshot;
+            }
+
+            SimulationSession replay = new(
+                $"{SimulationId}-replay",
+                $"{Name} replay",
+                SimulationSnapshotMapper.ToConfig(checkpoint.Config, _config));
+            RestartFromDraftResult restart = replay.RestartFromDraft(checkpoint.Draft);
+            if (!restart.Succeeded)
+            {
+                return null;
+            }
+
+            while (replay.GetStatus().CurrentTick < tick)
+            {
+                replay.Step();
+            }
+
+            return replay.GetCurrentSnapshot();
         }
 
         private static SimulationState BuildStateFromDraft(SimulationDraftDto draft, SimulationConfig config)

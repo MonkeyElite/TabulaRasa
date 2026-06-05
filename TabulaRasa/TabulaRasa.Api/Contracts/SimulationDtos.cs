@@ -10,6 +10,60 @@ namespace TabulaRasa.Api.Contracts
 
     public sealed record UpdateSimulationConfigRequestDto(SimulationConfigDto Config);
 
+    public sealed record SaveSimulationResponseDto(
+        string SimulationId,
+        long Tick,
+        DateTimeOffset SavedAt,
+        long CheckpointBytes);
+
+    public sealed record SimulationRunBrowserDto(
+        string SimulationId,
+        string Name,
+        string Status,
+        long CurrentTick,
+        long MinimumTick,
+        long MaximumTick,
+        int AgentCount,
+        int AliveAgentCount,
+        int DeadAgentCount,
+        long StorageBytes,
+        long CheckpointBytes,
+        long EventBytes,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt,
+        string? SourceSimulationId = null,
+        long? SourceTick = null);
+
+    public sealed record SimulationRunPageDto(
+        IReadOnlyList<SimulationRunBrowserDto> Runs,
+        int Offset,
+        int Limit,
+        int Total);
+
+    public sealed record SimulationCheckpointSummaryDto(
+        string SimulationId,
+        long Tick,
+        long PayloadBytes,
+        bool IsCompressed,
+        DateTimeOffset CreatedAt);
+
+    public sealed record ForkSimulationRunRequestDto(string? Name = null, long? SourceTick = null);
+
+    public sealed record ImportScenarioRequestDto(string? Name, SimulationDraftDto Scenario);
+
+    public sealed record ScenarioExportDto(
+        string Name,
+        int Version,
+        DateTimeOffset ExportedAt,
+        SimulationDraftDto Scenario);
+
+    public sealed record RetentionResultDto(
+        int DeletedRuns,
+        int DeletedCheckpoints,
+        int DeletedEvents,
+        int DeletedTickSummaries,
+        long RemovedBytes);
+
     public sealed record SimulationResourceLimitsDto(
         int MaxConcurrentRunningSimulations,
         int MaxTicksPerSecond,

@@ -2,10 +2,15 @@ import type {
   SimulationConfig,
   SimulationDraft,
   SimulationDraftSchema,
+  SimulationCheckpointSummary,
   SimulationResourceLimits,
+  SimulationRunPage,
   SimulationSnapshot,
   SimulationStatus,
-  SimulationSummary
+  SimulationSummary,
+  SaveSimulationResponse,
+  ScenarioExport,
+  RetentionResult
 } from "@/types/simulation";
 
 const defaultBaseUrl = "/api";
@@ -36,6 +41,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const simulationApi = {
   list: () => request<SimulationSummary[]>("/simulations"),
+  runs: (offset = 0, limit = 50) => request<SimulationRunPage>(`/simulations/runs?offset=${offset}&limit=${limit}`),
+  checkpoints: (runId: string) => request<SimulationCheckpointSummary[]>(`/simulations/runs/${runId}/checkpoints`),
+  loadRun: (runId: string) =>
+    request<SimulationSummary>(`/simulations/runs/${runId}/load`, { method: "POST" }),
+  forkRun: (runId: string, requestBody: { name?: string; sourceTick?: number } = {}) =>
+    request<SimulationSummary>(`/simulations/runs/${runId}/fork`, {
+      method: "POST",
+      body: JSON.stringify(requestBody)
+    }),
+  applyRetention: () =>
+    request<RetentionResult>("/simulations/storage/retention/apply", { method: "POST" }),
   resourceLimits: () => request<SimulationResourceLimits>("/simulations/resource-limits"),
   create: (requestBody: { name?: string; config?: SimulationConfig }) =>
     request<SimulationSummary>("/simulations", {
@@ -53,6 +69,15 @@ export const simulationApi = {
   current: (simulationId: string) => request<SimulationSnapshot>(`/simulations/${simulationId}/current`),
   tick: (simulationId: string, tick: number) => request<SimulationSnapshot>(`/simulations/${simulationId}/ticks/${tick}`),
   step: (simulationId: string) => request<SimulationSnapshot>(`/simulations/${simulationId}/step`, { method: "POST" }),
+  save: (simulationId: string) =>
+    request<SaveSimulationResponse>(`/simulations/${simulationId}/save`, { method: "POST" }),
+  exportScenario: (simulationId: string) =>
+    request<ScenarioExport>(`/simulations/${simulationId}/export-scenario`),
+  importScenario: (requestBody: { name?: string; scenario: SimulationDraft }) =>
+    request<SimulationSummary>("/simulations/import-scenario", {
+      method: "POST",
+      body: JSON.stringify(requestBody)
+    }),
   run: (simulationId: string, intervalMilliseconds: number) =>
     request<SimulationStatus>(`/simulations/${simulationId}/run`, {
       method: "POST",

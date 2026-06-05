@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Copy,
+  Database,
+  Download,
   Eye,
+  GitFork,
   Map,
   Pause,
   Play,
@@ -15,6 +18,7 @@ import {
   Square,
   StepForward,
   Trash2,
+  Upload,
   X
 } from "lucide-react";
 import { DiscoveryTimelineMarkers, EventLogPanel, GenealogyPanel, KnowledgePanel, RuntimePanel, SocialGraphPanel } from "@/components/DebugPanels";
@@ -30,6 +34,7 @@ import type {
   SimulationDraft,
   SimulationDraftSchema,
   SimulationResourceLimits,
+  SimulationRunPage,
   SimulationSnapshot,
   SimulationStatus,
   SimulationSummary
@@ -116,6 +121,7 @@ const terrainBrushes = ["Plain", "Road", "Forest", "Mud", "Water"] as const;
 
 export default function Home() {
   const [simulations, setSimulations] = useState<SimulationSummary[]>([]);
+  const [runPage, setRunPage] = useState<SimulationRunPage | null>(null);
   const [activeSimulationId, setActiveSimulationId] = useState<string | null>(null);
   const [limits, setLimits] = useState<SimulationResourceLimits | null>(null);
   const [status, setStatus] = useState<SimulationStatus | null>(null);
@@ -144,6 +150,7 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState("Simulation");
   const [createConfig, setCreateConfig] = useState<SimulationConfig>(defaultConfig);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const tickRequestIdRef = useRef(0);
 
   const activeSummary = simulations.find((simulation) => simulation.simulationId === activeSimulationId) ?? null;
@@ -153,12 +160,14 @@ export default function Home() {
   const canTune = status?.status === "Paused";
 
   const loadSimulations = useCallback(async () => {
-    const [nextSimulations, nextLimits] = await Promise.all([
+    const [nextSimulations, nextLimits, nextRuns] = await Promise.all([
       simulationApi.list(),
-      simulationApi.resourceLimits()
+      simulationApi.resourceLimits(),
+      simulationApi.runs()
     ]);
     setSimulations(nextSimulations);
     setLimits(nextLimits);
+    setRunPage(nextRuns);
     setActiveSimulationId((current) => {
       if (current && nextSimulations.some((simulation) => simulation.simulationId === current)) {
         return current;
@@ -281,6 +290,70 @@ export default function Home() {
     const clone = await simulationApi.clone(activeSimulationId, { name: `${activeSummary.name} copy` });
     await loadSimulations();
     setActiveSimulationId(clone.simulationId);
+  }
+
+  async function handleLoadRun(runId: string) {
+    setError(null);
+    const loaded = await simulationApi.loadRun(runId);
+    await loadSimulations();
+    setActiveSimulationId(loaded.simulationId);
+  }
+
+  async function handleForkViewedTick() {
+    if (!activeSimulationId || !activeSummary) {
+      return;
+    }
+
+    setError(null);
+    const fork = await simulationApi.forkRun(activeSimulationId, {
+      name: `${activeSummary.name} @ ${viewedTick}`,
+      sourceTick: viewedTick
+    });
+    await loadSimulations();
+    setActiveSimulationId(fork.simulationId);
+  }
+
+  async function handleSave() {
+    if (!activeSimulationId) {
+      return;
+    }
+
+    setError(null);
+    await simulationApi.save(activeSimulationId);
+    await loadSimulations();
+  }
+
+  async function handleExportScenario() {
+    if (!activeSimulationId) {
+      return;
+    }
+
+    setError(null);
+    const exported = await simulationApi.exportScenario(activeSimulationId);
+    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${exported.name.replace(/[^a-z0-9-_]+/gi, "-").toLowerCase()}-scenario.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImportScenarioFile(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    setError(null);
+    const parsed = JSON.parse(await file.text()) as { name?: string; scenario?: SimulationDraft } | SimulationDraft;
+    const scenario = "scenario" in parsed && parsed.scenario ? parsed.scenario : parsed as SimulationDraft;
+    const name = "name" in parsed && parsed.name ? parsed.name : file.name.replace(/\.[^.]+$/, "");
+    const imported = await simulationApi.importScenario({ name, scenario });
+    await loadSimulations();
+    setActiveSimulationId(imported.simulationId);
+    if (importInputRef.current) {
+      importInputRef.current.value = "";
+    }
   }
 
   async function handleDelete() {
@@ -445,6 +518,22 @@ export default function Home() {
         <button className="icon" onClick={handleReset} title="Reset" disabled={!activeSimulationId}>
           <RotateCcw size={18} />
         </button>
+        <button className="icon" onClick={handleSave} title="Save checkpoint" disabled={!activeSimulationId}>
+          <Save size={17} />
+        </button>
+        <button className="icon" onClick={handleExportScenario} title="Export scenario" disabled={!activeSimulationId}>
+          <Download size={17} />
+        </button>
+        <button className="icon" onClick={() => importInputRef.current?.click()} title="Import scenario">
+          <Upload size={17} />
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(event) => handleImportScenarioFile(event.target.files?.[0] ?? null).catch((reason: unknown) => setError(toMessage(reason)))}
+        />
         <button
           className={`icon ${showNavigationOverlay ? "selected" : ""}`}
           onClick={() => setShowNavigationOverlay((value) => !value)}
@@ -507,19 +596,45 @@ export default function Home() {
             </button>
           </div>
           <div className="simulation-list">
-            {simulations.map((simulation) => (
+            {(runPage?.runs ?? simulations.map((simulation) => ({
+              simulationId: simulation.simulationId,
+              name: simulation.name,
+              status: simulation.status,
+              currentTick: simulation.currentTick,
+              minimumTick: 0,
+              maximumTick: simulation.currentTick,
+              agentCount: simulation.agentCount,
+              aliveAgentCount: simulation.aliveAgentCount,
+              deadAgentCount: simulation.deadAgentCount,
+              storageBytes: 0,
+              checkpointBytes: 0,
+              eventBytes: 0,
+              createdAt: simulation.createdAt,
+              updatedAt: simulation.updatedAt,
+              sourceSimulationId: null,
+              sourceTick: null
+            }))).map((simulation) => {
+              const isLoaded = simulations.some((active) => active.simulationId === simulation.simulationId);
+              return (
               <button
                 key={simulation.simulationId}
                 className={`simulation-row ${simulation.simulationId === activeSimulationId ? "selected" : ""}`}
-                onClick={() => setActiveSimulationId(simulation.simulationId)}
+                onClick={() => {
+                  if (isLoaded) {
+                    setActiveSimulationId(simulation.simulationId);
+                  } else {
+                    handleLoadRun(simulation.simulationId).catch((reason: unknown) => setError(toMessage(reason)));
+                  }
+                }}
               >
                 <span>
                   <strong>{simulation.name}</strong>
-                  <small>{simulation.status} / tick {simulation.currentTick}</small>
+                  <small>{simulation.status} / ticks {simulation.minimumTick}-{simulation.maximumTick}</small>
+                  <small>{formatBytes(simulation.storageBytes)} stored / {isLoaded ? "loaded" : "click to load"}</small>
                 </span>
                 <span className="pill">{simulation.aliveAgentCount}/{simulation.agentCount}a</span>
               </button>
-            ))}
+            );})}
           </div>
           <div className="species-filter-list">
             {(["human", "deer", "wolf"] as const).map((speciesId) => (
@@ -541,6 +656,10 @@ export default function Home() {
               <Copy size={16} />
               Clone
             </button>
+            <button onClick={handleForkViewedTick} disabled={!activeSimulationId || !status || viewedTick < status.minimumTick || viewedTick > status.maximumTick}>
+              <GitFork size={16} />
+              Fork
+            </button>
             <button className="danger" onClick={handleDelete} disabled={!activeSimulationId}>
               <Trash2 size={16} />
               Delete
@@ -552,6 +671,8 @@ export default function Home() {
               <span>TPS {limits.maxTicksPerSecond}</span>
               <span>Agents {limits.maxAgents}</span>
               <span>Snapshots {limits.maxRetainedSnapshots}</span>
+              <span>Runs {runPage?.total ?? simulations.length}</span>
+              <span><Database size={12} /> {formatBytes((runPage?.runs ?? []).reduce((sum, run) => sum + run.storageBytes, 0))}</span>
             </div>
           )}
         </aside>
@@ -1053,4 +1174,16 @@ function NumberConfigField({
 
 function toMessage(reason: unknown) {
   return reason instanceof Error ? reason.message : "Request failed";
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
