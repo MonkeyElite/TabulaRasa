@@ -1,5 +1,5 @@
 import React from "react";
-import type { DiscoveryMarkerSnapshot, RecipeDefinitionSnapshot, SimulationEvent, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
+import type { AgentSnapshot, DiscoveryMarkerSnapshot, PopulationTraitMetric, RecipeDefinitionSnapshot, SimulationEvent, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
 
 export function RuntimePanel({
   status,
@@ -91,6 +91,14 @@ export function RuntimePanel({
               </div>
             );
           })}
+        </div>
+      )}
+      {snapshot && snapshot.evolution.currentTraits.length > 0 && (
+        <div className="trait-population-chart">
+          <div className="subsection-title">Selection pressure</div>
+          {snapshot.evolution.currentTraits.map((metric) => (
+            <TraitMetricRow key={metric.trait} metric={metric} />
+          ))}
         </div>
       )}
       {configDraft && (
@@ -195,6 +203,97 @@ export function EventLogPanel({
         ))}
         {events.length === 0 && <span className="metric">No events match the current filter.</span>}
       </div>
+    </section>
+  );
+}
+
+export function GenealogyPanel({
+  snapshot,
+  selectedAgentId,
+  onSelectAgent
+}: {
+  snapshot: SimulationSnapshot | null;
+  selectedAgentId: string | null;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const agents = snapshot?.agents ?? [];
+  const selectedAgent = selectedAgentId
+    ? agents.find((agent) => agent.id === selectedAgentId) ?? null
+    : agents[0] ?? null;
+  const parents = selectedAgent ? selectedAgent.parentIds
+    .map((id) => agents.find((agent) => agent.id === id))
+    .filter((agent): agent is AgentSnapshot => Boolean(agent)) : [];
+  const offspring = selectedAgent ? selectedAgent.offspringIds
+    .map((id) => agents.find((agent) => agent.id === id))
+    .filter((agent): agent is AgentSnapshot => Boolean(agent)) : [];
+  const width = 360;
+  const height = 300;
+  const selectedPosition = { x: width / 2, y: height / 2 };
+  const parentPositions = rowPositions(parents.length, width, 64);
+  const offspringPositions = rowPositions(offspring.length, width, 236);
+
+  return (
+    <section className="debug-panel genealogy-panel">
+      <div className="debug-header">
+        <h2>Family</h2>
+        <span className="pill">{selectedAgent?.id ?? "no agent"}</span>
+      </div>
+      {!selectedAgent ? (
+        <span className="metric">No genealogy.</span>
+      ) : (
+        <>
+          <svg className="social-graph genealogy-graph" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Family tree">
+            {parents.map((parent, index) => (
+              <line
+                key={`parent-line:${parent.id}`}
+                x1={parentPositions[index].x}
+                y1={parentPositions[index].y + 18}
+                x2={selectedPosition.x}
+                y2={selectedPosition.y - 18}
+                stroke="#6aa8ff"
+                strokeOpacity="0.55"
+              />
+            ))}
+            {offspring.map((child, index) => (
+              <line
+                key={`child-line:${child.id}`}
+                x1={selectedPosition.x}
+                y1={selectedPosition.y + 18}
+                x2={offspringPositions[index].x}
+                y2={offspringPositions[index].y - 18}
+                stroke="#54c475"
+                strokeOpacity="0.55"
+              />
+            ))}
+            {parents.map((parent, index) => (
+              <GenealogyNode key={parent.id} agent={parent} position={parentPositions[index]} selected={false} onSelectAgent={onSelectAgent} />
+            ))}
+            <GenealogyNode agent={selectedAgent} position={selectedPosition} selected onSelectAgent={onSelectAgent} />
+            {offspring.map((child, index) => (
+              <GenealogyNode key={child.id} agent={child} position={offspringPositions[index]} selected={false} onSelectAgent={onSelectAgent} />
+            ))}
+          </svg>
+          <div className="system-list">
+            <div className="system-row">
+              <span>
+                <strong>Parents</strong>
+                <small>{selectedAgent.parentIds.length > 0 ? selectedAgent.parentIds.join(", ") : "none"}</small>
+              </span>
+              <span>{parents.length}</span>
+              <span>{selectedAgent.parentIds.length}</span>
+            </div>
+            <div className="system-row">
+              <span>
+                <strong>Offspring</strong>
+                <small>{selectedAgent.offspringIds.length > 0 ? selectedAgent.offspringIds.join(", ") : "none"}</small>
+              </span>
+              <span>{offspring.length}</span>
+              <span>{selectedAgent.offspringIds.length}</span>
+            </div>
+            <TraitSummary agent={selectedAgent} />
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -421,6 +520,124 @@ function RecipeCatalogRow({ recipe, known }: { recipe: RecipeDefinitionSnapshot;
       <small>{recipe.unlocks.map((unlock) => unlock.displayName).join(", ") || "no unlocks"}</small>
     </div>
   );
+}
+
+function TraitMetricRow({ metric }: { metric: PopulationTraitMetric }) {
+  const average = clamp01(metric.average);
+  const minimum = clamp01(metric.minimum);
+  const maximum = clamp01(metric.maximum);
+  const left = minimum * 100;
+  const width = Math.max(2, (maximum - minimum) * 100);
+
+  return (
+    <div className="trait-population-row">
+      <span>{traitDisplayName(metric.trait)}</span>
+      <div>
+        <i style={{ left: `${left}%`, width: `${width}%` }} />
+        <b style={{ left: `${average * 100}%` }} />
+      </div>
+      <strong>{formatNumber(metric.average)}</strong>
+      <small>alive {formatNumber(metric.aliveAverage)} / dead {formatNumber(metric.deadAverage)}</small>
+    </div>
+  );
+}
+
+function GenealogyNode({
+  agent,
+  position,
+  selected,
+  onSelectAgent
+}: {
+  agent: AgentSnapshot;
+  position: { x: number; y: number };
+  selected: boolean;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  return (
+    <g className="social-node" transform={`translate(${position.x} ${position.y})`} onClick={() => onSelectAgent(agent.id)}>
+      <circle
+        r={selected ? 21 : 17}
+        fill={agent.isDead ? "#5a5f68" : speciesColor(agent.speciesId)}
+        stroke={selected ? "#ffffff" : "#20262b"}
+        strokeWidth={selected ? 4 : 2}
+      />
+      <text y={34}>{agent.id}</text>
+      <text y={47} className="genealogy-trait-label">{formatNumber(agent.traits.speed)} spd / {formatNumber(agent.traits.perception)} per</text>
+    </g>
+  );
+}
+
+function TraitSummary({ agent }: { agent: AgentSnapshot }) {
+  return (
+    <>
+      {traitEntries(agent).map(([key, value]) => (
+        <div className="system-row" key={key}>
+          <span>
+            <strong>{traitDisplayName(key)}</strong>
+            <small>{traitEffectText(key, value)}</small>
+          </span>
+          <span>{formatNumber(value)}</span>
+          <span>{Math.round(value * 100)}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function rowPositions(count: number, width: number, y: number) {
+  if (count <= 0) {
+    return [];
+  }
+
+  if (count === 1) {
+    return [{ x: width / 2, y }];
+  }
+
+  const spacing = Math.min(108, (width - 80) / Math.max(1, count - 1));
+  const start = width / 2 - (spacing * (count - 1)) / 2;
+
+  return Array.from({ length: count }, (_, index) => ({ x: start + spacing * index, y }));
+}
+
+function traitEntries(agent: AgentSnapshot): Array<[string, number]> {
+  return [
+    ["perception", agent.traits.perception],
+    ["speed", agent.traits.speed],
+    ["metabolism", agent.traits.metabolism],
+    ["riskTolerance", agent.traits.riskTolerance],
+    ["learningRate", agent.traits.learningRate]
+  ];
+}
+
+function traitDisplayName(trait: string) {
+  switch (trait) {
+    case "riskTolerance":
+      return "Risk";
+    case "learningRate":
+      return "Learning";
+    default:
+      return trait.charAt(0).toUpperCase() + trait.slice(1);
+  }
+}
+
+function traitEffectText(trait: string, value: number) {
+  if (trait === "metabolism") {
+    return `need decay x${formatNumber(1.2 - clamp01(value) * 0.4)}`;
+  }
+
+  if (trait === "learningRate") {
+    return `learning ${formatNumber(0.1 + clamp01(value) * 0.3)}`;
+  }
+
+  if (trait === "riskTolerance") {
+    return `risk score ${formatNumber((clamp01(value) - 0.5) * 0.7)}`;
+  }
+
+  return `effect x${formatNumber(0.75 + clamp01(value) * 0.5)}`;
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
 }
 
 function formatRecipeParts(parts: Array<{ resourceId: string; quantity: number }>) {

@@ -1,4 +1,5 @@
 using TabulaRasa.Abstractions.Entities;
+using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.Spatial.Footprints;
 using TabulaRasa.Abstractions.World;
@@ -26,5 +27,6 @@ namespace TabulaRasa.World.Entities
         public long? LastReproducedTick { get; set; }
         public long? DeathTick { get; set; }
         public string? DeathCause { get; set; }
+        public AgentTraits Traits { get; set; } = AgentTraits.Default;
     }
 }

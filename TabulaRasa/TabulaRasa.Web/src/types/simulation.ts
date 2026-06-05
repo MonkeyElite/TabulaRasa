@@ -67,6 +67,7 @@ export type SimulationConfig = {
     minimumStrength: number;
     recallThreshold: number;
   };
+  traits: TraitConfig;
   environment: {
     dayLengthTicks: number;
     weatherChangeIntervalTicks: number;
@@ -89,6 +90,12 @@ export type SpeciesPopulationConfig = {
   human: number;
   deer: number;
   wolf: number;
+};
+
+export type TraitConfig = {
+  initialVariation: number;
+  mutationChancePerTrait: number;
+  mutationDelta: number;
 };
 
 export type SimulationTickSummary = {
@@ -221,6 +228,7 @@ export type SimulationSnapshot = {
   deadAgentCount: number;
   speciesPopulation: SpeciesPopulationCount[];
   socialGraph: SocialGraphSnapshot;
+  evolution: EvolutionSummary;
   recipeCatalog: RecipeDefinitionSnapshot[];
   groupKnowledge: GroupKnowledgeSnapshot[];
   discoveryMarkers: DiscoveryMarkerSnapshot[];
@@ -257,6 +265,32 @@ export type SpeciesPopulationCount = {
   total: number;
   alive: number;
   dead: number;
+};
+
+export type AgentTraits = {
+  perception: number;
+  speed: number;
+  metabolism: number;
+  riskTolerance: number;
+  learningRate: number;
+};
+
+export type EvolutionSummary = {
+  currentTraits: PopulationTraitMetric[];
+  traitHistory: TraitHistoryPoint[];
+};
+
+export type PopulationTraitMetric = {
+  trait: string;
+  average: number;
+  minimum: number;
+  maximum: number;
+  aliveAverage: number;
+  deadAverage: number;
+};
+
+export type TraitHistoryPoint = PopulationTraitMetric & {
+  tick: number;
 };
 
 export type SimulationEvent = {
@@ -306,6 +340,7 @@ export type AgentSnapshot = {
   deathCause: string | null;
   inventory: Inventory;
   needs: AgentNeeds;
+  traits: AgentTraits;
   movement: MovementSnapshot | null;
   currentGoal: GoalSnapshot | null;
   taskQueue: TaskSnapshot[];
@@ -712,6 +747,7 @@ export type EditableAgent = {
   lastReproducedTick: number | null;
   deathTick: number | null;
   deathCause: string | null;
+  traits: AgentTraits;
 };
 
 export type EditableResourceDefinition = ResourceDefinition;

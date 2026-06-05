@@ -28,7 +28,9 @@ namespace TabulaRasa.Api.Services
 {
     public static class SimulationSnapshotMapper
     {
-        public static SimulationSnapshotDto ToSnapshot(SimulationState state)
+        public static SimulationSnapshotDto ToSnapshot(
+            SimulationState state,
+            IReadOnlyList<SimulationSnapshotDto>? retainedSnapshots = null)
         {
             Dictionary<string, ActiveMovement> movementsByAgent = state.ActiveMovements
                 .GroupBy(movement => movement.AgentId)
@@ -57,6 +59,7 @@ namespace TabulaRasa.Api.Services
                 deadAgentCount,
                 ToSpeciesPopulation(state),
                 ToSocialGraph(state),
+                ToEvolutionSummary(state, retainedSnapshots ?? []),
                 RecipeRegistry.All.Select(ToRecipeDefinition).ToList(),
                 ToGroupKnowledge(state),
                 ToDiscoveryMarkers(state),
@@ -89,7 +92,8 @@ namespace TabulaRasa.Api.Services
                     agent.OffspringIds.ToList(),
                     agent.LastReproducedTick,
                     agent.DeathTick,
-                    agent.DeathCause)).ToList(),
+                    agent.DeathCause,
+                    ToTraits(agent.Traits))).ToList(),
                 state.World.ResourceDefinitions.Select(ToEditableResourceDefinition).ToList(),
                 state.World.ResourceContainers.Select(container => new EditableResourceContainerDto(
                     container.Id,
@@ -146,7 +150,11 @@ namespace TabulaRasa.Api.Services
                 new SpeciesPopulationConfigDto(
                     config.EffectiveSpeciesPopulation.Human,
                     config.EffectiveSpeciesPopulation.Deer,
-                    config.EffectiveSpeciesPopulation.Wolf));
+                    config.EffectiveSpeciesPopulation.Wolf),
+                new TraitConfigDto(
+                    config.EffectiveTraits.InitialVariation,
+                    config.EffectiveTraits.MutationChancePerTrait,
+                    config.EffectiveTraits.MutationDelta));
         }
 
         public static SimulationConfig ToConfig(SimulationConfigDto? dto, SimulationConfig fallback)
@@ -190,6 +198,12 @@ namespace TabulaRasa.Api.Services
                     dto.SpeciesPopulation.Human,
                     dto.SpeciesPopulation.Deer,
                     dto.SpeciesPopulation.Wolf);
+            TraitConfig traits = dto.Traits is null
+                ? fallback.EffectiveTraits
+                : new TraitConfig(
+                    dto.Traits.InitialVariation,
+                    dto.Traits.MutationChancePerTrait,
+                    dto.Traits.MutationDelta);
 
             return new SimulationConfig(
                     dto.Seed,
@@ -215,7 +229,8 @@ namespace TabulaRasa.Api.Services
                     memory,
                     environment,
                     ecology,
-                    speciesPopulation);
+                    speciesPopulation,
+                    traits);
         }
 
         public static SimulationDraftDto ToDraft(SimulationSnapshotDto snapshot, SimulationConfigDto config)
@@ -241,7 +256,8 @@ namespace TabulaRasa.Api.Services
                     agent.OffspringIds,
                     agent.LastReproducedTick,
                     agent.DeathTick,
-                    agent.DeathCause)).ToList(),
+                    agent.DeathCause,
+                    agent.Traits)).ToList(),
                 snapshot.ResourceDefinitions.Select(ToEditableResourceDefinition).ToList(),
                 snapshot.ResourceContainers.Select(container => new EditableResourceContainerDto(
                     container.Id,
@@ -291,6 +307,7 @@ namespace TabulaRasa.Api.Services
                 agent.DeathCause,
                 ToInventory(agent.Inventory, state.World.ResourceDefinitionsById),
                 ToNeeds(agentState?.NeedState),
+                ToTraits(agent.Traits),
                 movement is null ? null : ToMovement(movement),
                 ToCurrentGoal(agent.Id, state),
                 ToTaskQueue(agent.Id, state),
@@ -461,6 +478,108 @@ namespace TabulaRasa.Api.Services
 
             return new SocialGraphSnapshotDto(nodes, edges);
         }
+
+        private static EvolutionSummaryDto ToEvolutionSummary(
+            SimulationState state,
+            IReadOnlyList<SimulationSnapshotDto> retainedSnapshots)
+        {
+            IReadOnlyList<PopulationTraitMetricDto> currentTraits = ToPopulationTraitMetrics(
+                state.World.Agents.Select(agent => new TraitMetricAgent(agent.Traits, agent.IsDead)).ToList());
+
+            List<TraitHistoryPointDto> history = retainedSnapshots
+                .SelectMany(snapshot => ToTraitHistoryPoints(snapshot.Tick, snapshot.Agents))
+                .Concat(ToTraitHistoryPoints(
+                    state.Time.Tick,
+                    state.World.Agents.Select(agent => new TraitMetricAgent(agent.Traits, agent.IsDead)).ToList()))
+                .GroupBy(point => $"{point.Tick}:{point.Trait}", StringComparer.Ordinal)
+                .Select(group => group.Last())
+                .OrderBy(point => point.Tick)
+                .ThenBy(point => point.Trait, StringComparer.Ordinal)
+                .ToList();
+
+            return new EvolutionSummaryDto(currentTraits, history);
+        }
+
+        private static IReadOnlyList<TraitHistoryPointDto> ToTraitHistoryPoints(
+            long tick,
+            IReadOnlyList<AgentSnapshotDto> agents)
+        {
+            return ToPopulationTraitMetrics(
+                    agents.Select(agent => new TraitMetricAgent(ToAgentTraits(agent.Traits), agent.IsDead)).ToList())
+                .Select(metric => new TraitHistoryPointDto(
+                    tick,
+                    metric.Trait,
+                    metric.Average,
+                    metric.Minimum,
+                    metric.Maximum,
+                    metric.AliveAverage,
+                    metric.DeadAverage))
+                .ToList();
+        }
+
+        private static IReadOnlyList<TraitHistoryPointDto> ToTraitHistoryPoints(
+            long tick,
+            IReadOnlyList<TraitMetricAgent> agents)
+        {
+            return ToPopulationTraitMetrics(agents)
+                .Select(metric => new TraitHistoryPointDto(
+                    tick,
+                    metric.Trait,
+                    metric.Average,
+                    metric.Minimum,
+                    metric.Maximum,
+                    metric.AliveAverage,
+                    metric.DeadAverage))
+                .ToList();
+        }
+
+        private static IReadOnlyList<PopulationTraitMetricDto> ToPopulationTraitMetrics(
+            IReadOnlyList<TraitMetricAgent> agents)
+        {
+            return new[]
+                {
+                    "perception",
+                    "speed",
+                    "metabolism",
+                    "riskTolerance",
+                    "learningRate"
+                }
+                .Select(trait =>
+                {
+                    List<float> values = agents.Select(agent => GetTraitValue(agent.Traits, trait)).ToList();
+                    List<float> aliveValues = agents.Where(agent => !agent.IsDead).Select(agent => GetTraitValue(agent.Traits, trait)).ToList();
+                    List<float> deadValues = agents.Where(agent => agent.IsDead).Select(agent => GetTraitValue(agent.Traits, trait)).ToList();
+
+                    return new PopulationTraitMetricDto(
+                        trait,
+                        AverageOrZero(values),
+                        values.Count == 0 ? 0 : values.Min(),
+                        values.Count == 0 ? 0 : values.Max(),
+                        AverageOrZero(aliveValues),
+                        AverageOrZero(deadValues));
+                })
+                .ToList();
+        }
+
+        private static float GetTraitValue(AgentTraits traits, string trait)
+        {
+            return trait switch
+            {
+                "perception" => traits.Perception,
+                "speed" => traits.Speed,
+                "metabolism" => traits.Metabolism,
+                "riskTolerance" => traits.RiskTolerance,
+                "learningRate" => traits.LearningRate,
+                _ => 0
+            };
+        }
+
+        private static float AverageOrZero(IReadOnlyList<float> values)
+        {
+            return values.Count == 0 ? 0 : values.Average();
+        }
+
+        private sealed record TraitMetricAgent(AgentTraits Traits, bool IsDead);
 
         private static IReadOnlyList<GroupKnowledgeSnapshotDto> ToGroupKnowledge(SimulationState state)
         {
@@ -1045,6 +1164,28 @@ namespace TabulaRasa.Api.Services
                 needs?.Thirst ?? 0,
                 needs?.Energy ?? 0,
                 needs?.Fatigue ?? 0);
+        }
+
+        private static AgentTraitsDto ToTraits(AgentTraits traits)
+        {
+            return new AgentTraitsDto(
+                traits.Perception,
+                traits.Speed,
+                traits.Metabolism,
+                traits.RiskTolerance,
+                traits.LearningRate);
+        }
+
+        private static AgentTraits ToAgentTraits(AgentTraitsDto? traits)
+        {
+            return traits is null
+                ? AgentTraits.Default
+                : new AgentTraits(
+                    traits.Perception,
+                    traits.Speed,
+                    traits.Metabolism,
+                    traits.RiskTolerance,
+                    traits.LearningRate);
         }
 
         private static PositionDto ToPosition(WorldPosition position)

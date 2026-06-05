@@ -10,5 +10,6 @@ namespace TabulaRasa.Abstractions.Agents
         string SpeciesId = "human",
         int AgeTicks = 0,
         bool IsAdult = true,
-        long? LastReproducedTick = null);
+        long? LastReproducedTick = null,
+        AgentTraits? Traits = null);
 }

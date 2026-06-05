@@ -35,6 +35,11 @@ namespace TabulaRasa.Api.Contracts
         float MinimumStrength,
         float RecallThreshold);
 
+    public sealed record TraitConfigDto(
+        float InitialVariation,
+        float MutationChancePerTrait,
+        float MutationDelta);
+
     public sealed record EnvironmentConfigDto(
         int DayLengthTicks,
         int WeatherChangeIntervalTicks,
@@ -71,7 +76,8 @@ namespace TabulaRasa.Api.Contracts
         MemoryConfigDto? Memory = null,
         EnvironmentConfigDto? Environment = null,
         EcologyConfigDto? Ecology = null,
-        SpeciesPopulationConfigDto? SpeciesPopulation = null);
+        SpeciesPopulationConfigDto? SpeciesPopulation = null,
+        TraitConfigDto? Traits = null);
 
     public sealed record SimulationSummaryDto(
         string SimulationId,
@@ -128,6 +134,7 @@ namespace TabulaRasa.Api.Contracts
         int DeadAgentCount,
         IReadOnlyList<SpeciesPopulationCountDto> SpeciesPopulation,
         SocialGraphSnapshotDto SocialGraph,
+        EvolutionSummaryDto Evolution,
         IReadOnlyList<RecipeDefinitionSnapshotDto> RecipeCatalog,
         IReadOnlyList<GroupKnowledgeSnapshotDto> GroupKnowledge,
         IReadOnlyList<DiscoveryMarkerSnapshotDto> DiscoveryMarkers,
@@ -244,6 +251,7 @@ namespace TabulaRasa.Api.Contracts
         string? DeathCause,
         InventoryDto Inventory,
         AgentNeedsDto Needs,
+        AgentTraitsDto Traits,
         MovementSnapshotDto? Movement,
         GoalSnapshotDto? CurrentGoal,
         IReadOnlyList<TaskSnapshotDto> TaskQueue,
@@ -255,6 +263,34 @@ namespace TabulaRasa.Api.Contracts
         AgentLearningSnapshotDto Learning);
 
     public sealed record AgentNeedsDto(float Hunger, float Thirst, float Energy, float Fatigue = 0);
+
+    public sealed record AgentTraitsDto(
+        float Perception,
+        float Speed,
+        float Metabolism,
+        float RiskTolerance,
+        float LearningRate);
+
+    public sealed record EvolutionSummaryDto(
+        IReadOnlyList<PopulationTraitMetricDto> CurrentTraits,
+        IReadOnlyList<TraitHistoryPointDto> TraitHistory);
+
+    public sealed record PopulationTraitMetricDto(
+        string Trait,
+        float Average,
+        float Minimum,
+        float Maximum,
+        float AliveAverage,
+        float DeadAverage);
+
+    public sealed record TraitHistoryPointDto(
+        long Tick,
+        string Trait,
+        float Average,
+        float Minimum,
+        float Maximum,
+        float AliveAverage,
+        float DeadAverage);
 
     public sealed record AgentPerceptionSnapshotDto(
         IReadOnlyList<PerceivedEntitySnapshotDto> NearbyEntities,
@@ -644,7 +680,8 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<string>? OffspringIds = null,
         long? LastReproducedTick = null,
         long? DeathTick = null,
-        string? DeathCause = null);
+        string? DeathCause = null,
+        AgentTraitsDto? Traits = null);
 
     public sealed record EditableResourceDefinitionDto(
         string Id,

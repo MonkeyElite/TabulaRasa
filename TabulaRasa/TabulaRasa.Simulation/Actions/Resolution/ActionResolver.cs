@@ -7,6 +7,7 @@ using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Knowledge;
+using TabulaRasa.Simulation.Evolution;
 using TabulaRasa.Simulation.Lifecycle;
 using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Species;
@@ -233,6 +234,12 @@ namespace TabulaRasa.Simulation.Actions.Resolution
 
             SpeciesDefinition species = SpeciesRegistry.Get(first.SpeciesId);
             string childId = NextAgentId(state, species.Id);
+            AgentTraits childTraits = AgentTraitService.Inherit(
+                first.Traits,
+                second.Traits,
+                state.Config.EffectiveTraits,
+                state.Random,
+                out IReadOnlyList<string> mutatedTraits);
             AgentEntity child = new()
             {
                 Id = childId,
@@ -241,6 +248,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 BornTick = state.ActiveTick,
                 AgeTicks = 0,
                 Health = new EntityHealth(species.MaxHealth),
+                Traits = childTraits,
                 ParentIds = { first.Id, second.Id }
             };
             first.OffspringIds.Add(child.Id);
@@ -253,16 +261,22 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 child.Id,
                 new AgentNeedState { Hunger = 1, Thirst = 1, Energy = 10, Fatigue = 0 },
                 new DefaultAgentMind()));
+            Dictionary<string, string> metadata = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["speciesId"] = species.Id,
+                ["parentIds"] = string.Join(",", child.ParentIds)
+            };
+            foreach (var pair in AgentTraitService.ToMetadata(childTraits, mutatedTraits))
+            {
+                metadata[pair.Key] = pair.Value;
+            }
+
             state.EmitEvent(
                 "agent.born",
                 "Action Resolver",
                 $"{child.Id} was born.",
                 child.Id,
-                new Dictionary<string, string>
-                {
-                    ["speciesId"] = species.Id,
-                    ["parentIds"] = string.Join(",", child.ParentIds)
-                });
+                metadata);
 
             return new ActionResult(request.AgentId, request.ActionType, true);
         }

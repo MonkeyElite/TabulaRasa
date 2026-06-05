@@ -94,6 +94,11 @@ const config = {
     minimumStrength: 0.2,
     recallThreshold: 0.35
   },
+  traits: {
+    initialVariation: 0.12,
+    mutationChancePerTrait: 0.08,
+    mutationDelta: 0.06
+  },
   environment: {
     dayLengthTicks: 100,
     weatherChangeIntervalTicks: 50,

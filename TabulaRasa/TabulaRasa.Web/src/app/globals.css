@@ -242,7 +242,7 @@ select {
   border-bottom: 1px solid var(--line);
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   padding: 10px;
 }
 
@@ -321,7 +321,7 @@ select {
 .tabs {
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   margin-bottom: 12px;
 }
 
@@ -657,6 +657,16 @@ select {
   height: 100%;
 }
 
+.trait-vital {
+  grid-template-columns: 74px minmax(0, 1fr) 40px;
+}
+
+.trait-vital small {
+  color: var(--muted);
+  font-size: 11px;
+  grid-column: 2 / -1;
+}
+
 .vital.warn .vital-track div {
   background: var(--amber);
 }
@@ -781,6 +791,13 @@ select {
   padding-top: 10px;
 }
 
+.trait-population-chart {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
+}
+
 .species-population-row {
   align-items: center;
   display: grid;
@@ -805,6 +822,63 @@ select {
   background: var(--blue);
   display: block;
   height: 100%;
+}
+
+.trait-population-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 82px minmax(86px, 1fr) 38px;
+}
+
+.trait-population-row span,
+.trait-population-row strong,
+.trait-population-row small {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trait-population-row small {
+  grid-column: 2 / -1;
+}
+
+.trait-population-row div {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.trait-population-row i {
+  background: rgba(106, 168, 255, 0.35);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  position: absolute;
+}
+
+.trait-population-row b {
+  background: var(--blue);
+  border-radius: 999px;
+  display: block;
+  height: 100%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 4px;
+}
+
+.genealogy-panel {
+  gap: 12px;
+}
+
+.genealogy-trait-label {
+  fill: var(--muted);
+  font-size: 9px;
 }
 
 .modal-backdrop {

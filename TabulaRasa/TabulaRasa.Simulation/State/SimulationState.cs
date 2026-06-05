@@ -201,6 +201,7 @@ namespace TabulaRasa.Simulation.State
             MemoryConfig memory = config.EffectiveMemory;
             EnvironmentConfig environment = config.EffectiveEnvironment;
             EcologyConfig ecology = config.EffectiveEcology;
+            TraitConfig traits = config.EffectiveTraits;
             SpeciesPopulationConfig speciesPopulation = config.EffectiveSpeciesPopulation;
             IReadOnlyList<string> enabledSystems = config.EffectiveEnabledSystems
                 .Where(systemId => !string.IsNullOrWhiteSpace(systemId))
@@ -247,6 +248,10 @@ namespace TabulaRasa.Simulation.State
                     Math.Clamp(ecology.PlantDecayTicksAfterDepleted, 1, 1_000_000),
                     ClampFinite(ecology.WaterRefillPerRainTick, 0, 1_000),
                     ClampFinite(ecology.WaterEvaporationPerHeatTick, 0, 1_000)),
+                Traits = new TraitConfig(
+                    ClampFinite(traits.InitialVariation, 0, 1),
+                    ClampFinite(traits.MutationChancePerTrait, 0, 1),
+                    ClampFinite(traits.MutationDelta, 0, 1)),
                 SpeciesPopulation = new SpeciesPopulationConfig(
                     Math.Clamp(speciesPopulation.Human, 0, 10_000),
                     Math.Clamp(speciesPopulation.Deer, 0, 10_000),

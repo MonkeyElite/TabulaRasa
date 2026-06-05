@@ -38,6 +38,11 @@ namespace TabulaRasa.Simulation.Configuration
         float MinimumStrength = 0.2f,
         float RecallThreshold = 0.35f);
 
+    public sealed record TraitConfig(
+        float InitialVariation = 0.12f,
+        float MutationChancePerTrait = 0.08f,
+        float MutationDelta = 0.06f);
+
     public sealed record SimulationConfig(
         int Seed = 12345,
         int WorldWidth = 10,
@@ -55,7 +60,8 @@ namespace TabulaRasa.Simulation.Configuration
         MemoryConfig? Memory = null,
         EnvironmentConfig? Environment = null,
         EcologyConfig? Ecology = null,
-        SpeciesPopulationConfig? SpeciesPopulation = null)
+        SpeciesPopulationConfig? SpeciesPopulation = null,
+        TraitConfig? Traits = null)
     {
         public static readonly IReadOnlyList<string> DefaultEnabledSystems =
         [
@@ -83,6 +89,7 @@ namespace TabulaRasa.Simulation.Configuration
         public MemoryConfig EffectiveMemory => Memory ?? new MemoryConfig();
         public EnvironmentConfig EffectiveEnvironment => Environment ?? new EnvironmentConfig();
         public EcologyConfig EffectiveEcology => Ecology ?? new EcologyConfig();
+        public TraitConfig EffectiveTraits => Traits ?? new TraitConfig();
         public SpeciesPopulationConfig EffectiveSpeciesPopulation =>
             SpeciesPopulation ?? new SpeciesPopulationConfig(Human: InitialAgentCount, Deer: 0, Wolf: 0);
         public IReadOnlyList<string> EffectiveEnabledSystems => EnabledSystems ?? DefaultEnabledSystems;

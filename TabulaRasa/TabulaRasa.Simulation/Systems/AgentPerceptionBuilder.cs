@@ -9,6 +9,7 @@ using TabulaRasa.World.Spatial.Grid;
 using TabulaRasa.World.State;
 using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
+using TabulaRasa.Simulation.Evolution;
 
 namespace TabulaRasa.Simulation.Systems
 {
@@ -22,7 +23,10 @@ namespace TabulaRasa.Simulation.Systems
             GridTerrainProfile agentTerrain = world.Grid.GetTerrainProfile(agent.Position.ToGridCell());
             SpeciesDefinition viewerSpecies = SpeciesRegistry.Get(agent.SpeciesId);
             agent.SpeciesId = viewerSpecies.Id;
-            float effectiveRadius = perceptionRadius * agentTerrain.PerceptionMultiplier * viewerSpecies.PerceptionMultiplier;
+            float effectiveRadius = perceptionRadius
+                * agentTerrain.PerceptionMultiplier
+                * viewerSpecies.PerceptionMultiplier
+                * AgentTraitService.TraitMultiplier(agent.Traits.Perception);
 
             foreach (ISpatialEntity entity in world.SpatialEntities)
             {

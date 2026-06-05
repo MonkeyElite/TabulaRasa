@@ -38,7 +38,7 @@ type Props = {
 
 export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange, onTerrainChange }: Props) {
   const [inspectorTab, setInspectorTab] = React.useState<"state" | "entities" | "selection">("selection");
-  const [agentTab, setAgentTab] = React.useState<"overview" | "work" | "perception" | "memory" | "knowledge" | "relationships" | "learning">("overview");
+  const [agentTab, setAgentTab] = React.useState<"overview" | "traits" | "work" | "perception" | "memory" | "knowledge" | "relationships" | "learning">("overview");
   const editable = editing && canEdit && draft;
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
   const listedResourceContainers = editable ? draft.resourceContainers : snapshot?.resourceContainers ?? [];
@@ -320,6 +320,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           {!editing && selectedSnapshotAgent && (
             <div className="tabs">
               <button className={agentTab === "overview" ? "selected" : ""} onClick={() => setAgentTab("overview")}>Overview</button>
+              <button className={agentTab === "traits" ? "selected" : ""} onClick={() => setAgentTab("traits")}>Traits</button>
               <button className={agentTab === "work" ? "selected" : ""} onClick={() => setAgentTab("work")}>Work</button>
               <button className={agentTab === "perception" ? "selected" : ""} onClick={() => setAgentTab("perception")}>Perception</button>
               <button className={agentTab === "memory" ? "selected" : ""} onClick={() => setAgentTab("memory")}>Memory</button>
@@ -382,6 +383,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             </>
           )}
           {!editing && selectedSnapshotAgent && agentTab === "work" && <WorkDetails agent={selectedSnapshotAgent} />}
+          {!editing && selectedSnapshotAgent && agentTab === "traits" && <TraitDetails agent={selectedSnapshotAgent} snapshot={snapshot} />}
           {!editing && selectedSnapshotAgent && agentTab === "perception" && <PerceptionDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "memory" && <MemoryDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "knowledge" && <KnowledgeDetails agent={selectedSnapshotAgent} />}
@@ -816,6 +818,45 @@ function KnowledgeDetails({ agent }: { agent: AgentSnapshot }) {
   );
 }
 
+function TraitDetails({ agent, snapshot }: { agent: AgentSnapshot; snapshot: SimulationSnapshot | null }) {
+  const mutationNote = birthMutationNote(agent, snapshot);
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Inherited traits</div>
+      <div className="vitals trait-vitals">
+        <TraitBar label="Perception" value={agent.traits.perception} detail={`sight x${formatNumber(traitMultiplier(agent.traits.perception))}`} />
+        <TraitBar label="Speed" value={agent.traits.speed} detail={`move x${formatNumber(traitMultiplier(agent.traits.speed))}`} />
+        <TraitBar label="Metabolism" value={agent.traits.metabolism} detail={`decay x${formatNumber(metabolismMultiplier(agent.traits.metabolism))}`} />
+        <TraitBar label="Risk" value={agent.traits.riskTolerance} detail={`score ${formatNumber(riskAdjustment(agent.traits.riskTolerance))}`} />
+        <TraitBar label="Learning" value={agent.traits.learningRate} detail={`rate ${formatNumber(learningRate(agent.traits.learningRate))}`} />
+      </div>
+      <EntitySummary
+        rows={[
+          ["Parents", agent.parentIds.length > 0 ? agent.parentIds.join(", ") : "none"],
+          ["Offspring", agent.offspringIds.length > 0 ? agent.offspringIds.join(", ") : "none"],
+          ["Mutation", mutationNote]
+        ]}
+      />
+    </div>
+  );
+}
+
+function TraitBar({ label, value, detail }: { label: string; value: number; detail: string }) {
+  const clamped = Math.max(0, Math.min(1, value));
+
+  return (
+    <div className="vital trait-vital">
+      <span>{label}</span>
+      <div className="vital-track">
+        <div style={{ width: `${clamped * 100}%` }} />
+      </div>
+      <strong>{formatNumber(value)}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
 function KnowledgeRow({ record }: { record: KnowledgeRecordSnapshot }) {
   return (
     <div className="perception-row">
@@ -1070,6 +1111,33 @@ function NeedBar({
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(2);
+}
+
+function traitMultiplier(value: number) {
+  return 0.75 + clamp01(value) * 0.5;
+}
+
+function metabolismMultiplier(value: number) {
+  return 1.2 - clamp01(value) * 0.4;
+}
+
+function learningRate(value: number) {
+  return 0.1 + clamp01(value) * 0.3;
+}
+
+function riskAdjustment(value: number) {
+  return (clamp01(value) - 0.5) * 0.7;
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function birthMutationNote(agent: AgentSnapshot, snapshot: SimulationSnapshot | null) {
+  const birthEvent = snapshot?.recentEvents.find((event) => event.type === "agent.born" && event.entityId === agent.id);
+  const mutated = birthEvent?.metadata["traits.mutated"];
+
+  return mutated && mutated.length > 0 ? mutated : "none recorded";
 }
 
 function entityType(entity: unknown, fallback: string) {

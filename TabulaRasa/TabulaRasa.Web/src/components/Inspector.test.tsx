@@ -256,6 +256,29 @@ describe("Inspector", () => {
     expect(screen.getByText("Learned outcomes")).toBeTruthy();
     expect(screen.getByText("Eat / weight 0.25 / avg 1 / last 1")).toBeTruthy();
   });
+
+  it("renders selected agent traits and genealogy context", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Traits"));
+
+    expect(screen.getByText("Inherited traits")).toBeTruthy();
+    expect(screen.getAllByText("Perception").length).toBeGreaterThan(1);
+    expect(screen.getByText("sight x1")).toBeTruthy();
+    expect(screen.getByText("riskTolerance")).toBeTruthy();
+  });
 });
 
 const snapshot: SimulationSnapshot = {
@@ -298,6 +321,13 @@ const snapshot: SimulationSnapshot = {
       lastReproducedTick: null,
       deathTick: null,
       deathCause: null,
+      traits: {
+        perception: 0.5,
+        speed: 0.5,
+        metabolism: 0.5,
+        riskTolerance: 0.5,
+        learningRate: 0.5
+      },
       inventory: {
         maxSlots: 8,
         maxWeight: 10,
@@ -552,7 +582,19 @@ const snapshot: SimulationSnapshot = {
   pendingIntentCount: 0,
   pendingActionRequestCount: 0,
   events: [],
-  recentEvents: [],
+  recentEvents: [
+    {
+      tick: 0,
+      sequence: 1,
+      type: "agent.born",
+      sourceSystem: "Action Resolver",
+      message: "agent-1 was born.",
+      entityId: "agent-1",
+      metadata: {
+        "traits.mutated": "riskTolerance"
+      }
+    }
+  ],
   populationCount: 1,
   aliveAgentCount: 1,
   deadAgentCount: 0,
@@ -561,6 +603,14 @@ const snapshot: SimulationSnapshot = {
     { speciesId: "deer", displayName: "Deer", total: 0, alive: 0, dead: 0 },
     { speciesId: "wolf", displayName: "Wolf", total: 0, alive: 0, dead: 0 }
   ],
+  evolution: {
+    currentTraits: [
+      { trait: "perception", average: 0.5, minimum: 0.5, maximum: 0.5, aliveAverage: 0.5, deadAverage: 0 }
+    ],
+    traitHistory: [
+      { tick: 3, trait: "perception", average: 0.5, minimum: 0.5, maximum: 0.5, aliveAverage: 0.5, deadAverage: 0 }
+    ]
+  },
   socialGraph: {
     nodes: [
       {
@@ -669,7 +719,8 @@ const draft: SimulationDraft = {
     offspringIds: agent.offspringIds,
     lastReproducedTick: agent.lastReproducedTick,
     deathTick: agent.deathTick,
-    deathCause: agent.deathCause
+    deathCause: agent.deathCause,
+    traits: agent.traits
   })),
   resourceDefinitions: snapshot.resourceDefinitions,
   resourceContainers: [],

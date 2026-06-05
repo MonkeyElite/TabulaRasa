@@ -299,7 +299,7 @@ namespace TabulaRasa.Api.Services
 
         private SimulationSnapshotDto StoreCurrentSnapshot()
         {
-            SimulationSnapshotDto snapshot = SimulationSnapshotMapper.ToSnapshot(_state);
+            SimulationSnapshotDto snapshot = SimulationSnapshotMapper.ToSnapshot(_state, _snapshots.Values.ToList());
             _snapshots[_state.Time.Tick] = snapshot;
             TrimSnapshots();
             UpdatedAt = DateTimeOffset.UtcNow;
@@ -456,6 +456,7 @@ namespace TabulaRasa.Api.Services
                 DeathTick = agent.DeathTick,
                 DeathCause = agent.DeathCause,
                 IsDead = agent.DeathTick is not null,
+                Traits = ToAgentTraits(agent.Traits),
                 Health = new EntityHealth(
                     SpeciesRegistry.Get(agent.SpeciesId).MaxHealth,
                     agent.DeathTick is null ? SpeciesRegistry.Get(agent.SpeciesId).MaxHealth : 0),
@@ -627,6 +628,7 @@ namespace TabulaRasa.Api.Services
                 AddIf(agent.BornTick < 0, $"{prefix}.bornTick", "Born tick must be zero or greater.");
                 AddIf(agent.LastReproducedTick is < 0, $"{prefix}.lastReproducedTick", "Last reproduced tick must be zero or greater.");
                 AddIf(agent.DeathTick is < 0, $"{prefix}.deathTick", "Death tick must be zero or greater.");
+                ValidateTraits(agent.Traits, $"{prefix}.traits");
                 ValidateFinite(agent.Needs.Hunger, $"{prefix}.needs.hunger");
                 ValidateFinite(agent.Needs.Thirst, $"{prefix}.needs.thirst");
                 ValidateFinite(agent.Needs.Energy, $"{prefix}.needs.energy");
@@ -762,6 +764,20 @@ namespace TabulaRasa.Api.Services
                 AddIf(float.IsNaN(value) || float.IsInfinity(value), key, "Value must be finite.");
             }
 
+            void ValidateTraits(AgentTraitsDto? traits, string key)
+            {
+                if (traits is null)
+                {
+                    return;
+                }
+
+                ValidateFinite(traits.Perception, $"{key}.perception");
+                ValidateFinite(traits.Speed, $"{key}.speed");
+                ValidateFinite(traits.Metabolism, $"{key}.metabolism");
+                ValidateFinite(traits.RiskTolerance, $"{key}.riskTolerance");
+                ValidateFinite(traits.LearningRate, $"{key}.learningRate");
+            }
+
             void ValidateInventory(
                 EditableInventoryDto inventory,
                 string key,
@@ -873,6 +889,18 @@ namespace TabulaRasa.Api.Services
         private static WorldPosition ToWorldPosition(PositionDto position)
         {
             return new WorldPosition(position.X, position.Y);
+        }
+
+        private static TabulaRasa.Abstractions.Agents.AgentTraits ToAgentTraits(AgentTraitsDto? traits)
+        {
+            return traits is null
+                ? TabulaRasa.Abstractions.Agents.AgentTraits.Default
+                : new TabulaRasa.Abstractions.Agents.AgentTraits(
+                    traits.Perception,
+                    traits.Speed,
+                    traits.Metabolism,
+                    traits.RiskTolerance,
+                    traits.LearningRate);
         }
 
         private static bool ShouldIncludeEcologyDraftEntities(SimulationDraftDto draft)

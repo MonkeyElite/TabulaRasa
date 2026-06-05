@@ -16,6 +16,7 @@ using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.World.Spatial.Grid;
 using TabulaRasa.World.Resources;
 using TabulaRasa.Abstractions.Entities;
+using TabulaRasa.Simulation.Evolution;
 using TabulaRasa.Simulation.Species;
 
 namespace TabulaRasa.Simulation.Composition
@@ -172,7 +173,8 @@ namespace TabulaRasa.Simulation.Composition
                         Id = id,
                         Position = positions[positionIndex],
                         SpeciesId = species.Id,
-                        Health = new EntityHealth(species.MaxHealth)
+                        Health = new EntityHealth(species.MaxHealth),
+                        Traits = AgentTraitService.CreateInitialTraits(random, effectiveConfig.EffectiveTraits)
                     });
 
                     agentStates.Add(new AgentState(id, CreateStartingNeeds(species.Id), new DefaultAgentMind()));

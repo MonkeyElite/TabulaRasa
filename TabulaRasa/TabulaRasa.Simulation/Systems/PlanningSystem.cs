@@ -53,7 +53,8 @@ namespace TabulaRasa.Simulation.Systems
                     SpeciesRegistry.NormalizeId(agentEntity.SpeciesId),
                     agentEntity.AgeTicks,
                     agentEntity.AgeTicks >= SpeciesRegistry.Get(agentEntity.SpeciesId).AdultAgeTicks,
-                    agentEntity.LastReproducedTick);
+                    agentEntity.LastReproducedTick,
+                    agentEntity.Traits);
 
                 state.PendingIntents.Add(agentState.Mind.Decide(
                     enrichedPerception,

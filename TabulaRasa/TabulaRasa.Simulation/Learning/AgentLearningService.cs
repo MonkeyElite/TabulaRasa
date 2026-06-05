@@ -4,6 +4,7 @@ using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Minds;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Memory;
+using TabulaRasa.Simulation.Evolution;
 using TabulaRasa.Simulation.State;
 
 namespace TabulaRasa.Simulation.Learning
@@ -46,7 +47,11 @@ namespace TabulaRasa.Simulation.Learning
 
             agent.Learning
                 .GetOrCreate(result.ContextKey, result.ActionType)
-                .ApplyOutcome(result.OutcomeScore.Value, result.Succeeded, DefaultAgentMind.DefaultLearningRate);
+                .ApplyOutcome(
+                    result.OutcomeScore.Value,
+                    result.Succeeded,
+                    AgentTraitService.LearningRate(
+                        state.World.Agents.FirstOrDefault(entity => entity.Id == result.AgentId)?.Traits.LearningRate ?? 0.5f));
         }
 
         private static float ScoreOutcome(ActionResult result, AgentNeedsSnapshot? needsAfter)

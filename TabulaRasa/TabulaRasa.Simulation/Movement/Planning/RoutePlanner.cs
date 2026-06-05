@@ -4,6 +4,7 @@ using TabulaRasa.Abstractions.Spatial.Grid;
 using TabulaRasa.Abstractions.Spatial.Interaction;
 using TabulaRasa.Abstractions.World;
 using TabulaRasa.Simulation.Movement.Execution;
+using TabulaRasa.Simulation.Evolution;
 using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
@@ -542,7 +543,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
 
         private static float GetMovementSpeed(SimulationState state, AgentEntity agent)
         {
-            return state.Config.MovementSpeedPerTick * SpeciesRegistry.Get(agent.SpeciesId).MovementSpeedMultiplier;
+            return state.Config.MovementSpeedPerTick
+                * SpeciesRegistry.Get(agent.SpeciesId).MovementSpeedMultiplier
+                * AgentTraitService.TraitMultiplier(agent.Traits.Speed);
         }
 
         private sealed record RouteCandidate(MovementRoute Route, float TotalCost, float Distance);

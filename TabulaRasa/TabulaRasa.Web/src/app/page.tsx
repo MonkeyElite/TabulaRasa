@@ -17,7 +17,7 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import { DiscoveryTimelineMarkers, EventLogPanel, KnowledgePanel, RuntimePanel, SocialGraphPanel } from "@/components/DebugPanels";
+import { DiscoveryTimelineMarkers, EventLogPanel, GenealogyPanel, KnowledgePanel, RuntimePanel, SocialGraphPanel } from "@/components/DebugPanels";
 import { Inspector } from "@/components/Inspector";
 import { WorldCanvas } from "@/components/WorldCanvas";
 import { simulationApi } from "@/lib/api";
@@ -85,6 +85,11 @@ const defaultConfig: SimulationConfig = {
     minimumStrength: 0.2,
     recallThreshold: 0.35
   },
+  traits: {
+    initialVariation: 0.12,
+    mutationChancePerTrait: 0.08,
+    mutationDelta: 0.06
+  },
   environment: {
     dayLengthTicks: 100,
     weatherChangeIntervalTicks: 50,
@@ -124,7 +129,7 @@ export default function Home() {
   const [configDraft, setConfigDraft] = useState<SimulationConfig | null>(null);
   const [eventScope, setEventScope] = useState<"recent" | "current">("recent");
   const [eventType, setEventType] = useState("all");
-  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events" | "social" | "knowledge">("inspect");
+  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events" | "social" | "genealogy" | "knowledge">("inspect");
   const [editing, setEditing] = useState(false);
   const [hover, setHover] = useState<HoverInfo>(null);
   const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
@@ -582,6 +587,7 @@ export default function Home() {
             <button className={rightRailTab === "inspect" ? "selected" : ""} onClick={() => setRightRailTab("inspect")}>Inspect</button>
             <button className={rightRailTab === "runtime" ? "selected" : ""} onClick={() => setRightRailTab("runtime")}>Runtime</button>
             <button className={rightRailTab === "social" ? "selected" : ""} onClick={() => setRightRailTab("social")}>Social</button>
+            <button className={rightRailTab === "genealogy" ? "selected" : ""} onClick={() => setRightRailTab("genealogy")}>Family</button>
             <button className={rightRailTab === "knowledge" ? "selected" : ""} onClick={() => setRightRailTab("knowledge")}>Knowledge</button>
             <button className={rightRailTab === "settings" ? "selected" : ""} onClick={() => setRightRailTab("settings")}>Settings</button>
             <button className={rightRailTab === "events" ? "selected" : ""} onClick={() => setRightRailTab("events")}>Events</button>
@@ -618,6 +624,13 @@ export default function Home() {
             )}
             {rightRailTab === "social" && (
               <SocialGraphPanel
+                snapshot={snapshot}
+                selectedAgentId={selection?.type === "agent" ? selection.id : null}
+                onSelectAgent={(id) => setSelection({ type: "agent", id })}
+              />
+            )}
+            {rightRailTab === "genealogy" && (
+              <GenealogyPanel
                 snapshot={snapshot}
                 selectedAgentId={selection?.type === "agent" ? selection.id : null}
                 onSelectAgent={(id) => setSelection({ type: "agent", id })}
@@ -896,6 +909,27 @@ function ConfigFields({
         disabled={disabled}
         step={0.01}
         onChange={(decayPerTick) => onChange({ ...config, memory: { ...config.memory, decayPerTick } })}
+      />
+      <NumberConfigField
+        label="Trait spread"
+        value={config.traits.initialVariation}
+        disabled={disabled || !includeRebuildFields}
+        step={0.01}
+        onChange={(initialVariation) => onChange({ ...config, traits: { ...config.traits, initialVariation } })}
+      />
+      <NumberConfigField
+        label="Mutate rate"
+        value={config.traits.mutationChancePerTrait}
+        disabled={disabled}
+        step={0.01}
+        onChange={(mutationChancePerTrait) => onChange({ ...config, traits: { ...config.traits, mutationChancePerTrait } })}
+      />
+      <NumberConfigField
+        label="Mutate delta"
+        value={config.traits.mutationDelta}
+        disabled={disabled}
+        step={0.01}
+        onChange={(mutationDelta) => onChange({ ...config, traits: { ...config.traits, mutationDelta } })}
       />
       <NumberConfigField
         label="Day ticks"

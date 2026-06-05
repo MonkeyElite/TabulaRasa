@@ -80,6 +80,8 @@ namespace TabulaRasa.Agents.Minds
             IReadOnlyDictionary<string, float> needPressures)
         {
             List<DecisionCandidate> candidates = [];
+            float riskAdjustment = RiskAdjustment(self.Traits?.RiskTolerance ?? 0.5f);
+            bool predatorVisible = perception.Opportunities.Any(opportunity => opportunity.ActionType == AgentActionType.Flee);
 
             foreach (InteractionOpportunity opportunity in perception.Opportunities
                 .Where(opportunity => opportunity.ActionType == AgentActionType.Flee))
@@ -98,7 +100,7 @@ namespace TabulaRasa.Agents.Minds
                     1,
                     relevance,
                     learnedWeight,
-                    2.5f + relevance + learnedWeight));
+                    2.5f + relevance + learnedWeight - riskAdjustment));
             }
 
             foreach (InteractionOpportunity opportunity in perception.Opportunities
@@ -119,7 +121,7 @@ namespace TabulaRasa.Agents.Minds
                     needPressure,
                     relevance,
                     learnedWeight,
-                    (needPressure * 1.8f) + (relevance * 0.5f) + learnedWeight));
+                    (needPressure * 1.8f) + (relevance * 0.5f) + learnedWeight + riskAdjustment));
             }
 
             bool needsAreSafeForReproduction = self.IsAdult
@@ -145,7 +147,7 @@ namespace TabulaRasa.Agents.Minds
                         0.35f,
                         relevance,
                         learnedWeight,
-                        0.55f + (relevance * 0.25f) + learnedWeight));
+                        0.55f + (relevance * 0.25f) + learnedWeight + (predatorVisible ? riskAdjustment : 0)));
                 }
             }
 
@@ -332,7 +334,7 @@ namespace TabulaRasa.Agents.Minds
                 highestPressure,
                 0,
                 wanderWeight,
-                0.10f + ((1 - highestPressure) * 0.20f) + wanderWeight));
+                0.10f + ((1 - highestPressure) * 0.20f) + wanderWeight + (predatorVisible ? riskAdjustment : 0)));
 
             return candidates;
         }
@@ -395,6 +397,16 @@ namespace TabulaRasa.Agents.Minds
         private static float ClampPressure(float value)
         {
             return Math.Clamp(value, 0, 1);
+        }
+
+        private static float RiskAdjustment(float trait)
+        {
+            if (float.IsNaN(trait) || float.IsInfinity(trait))
+            {
+                trait = 0.5f;
+            }
+
+            return (Math.Clamp(trait, 0, 1) - 0.5f) * 0.7f;
         }
 
         private sealed record DecisionCandidate(

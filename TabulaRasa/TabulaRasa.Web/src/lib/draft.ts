@@ -130,7 +130,14 @@ export function addAgentDraft(draft: SimulationDraft): SimulationDraft {
     offspringIds: [],
     lastReproducedTick: null,
     deathTick: null,
-    deathCause: null
+    deathCause: null,
+    traits: {
+      perception: 0.5,
+      speed: 0.5,
+      metabolism: 0.5,
+      riskTolerance: 0.5,
+      learningRate: 0.5
+    }
   };
 
   return {

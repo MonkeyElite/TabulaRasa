@@ -1,4 +1,5 @@
 using System.Reflection;
+using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Simulation.State;
@@ -37,7 +38,12 @@ namespace TabulaRasa.Api.Services
                     Field<AgentNeedState>("needs.hunger", "Hunger", "number", nameof(AgentNeedState.Hunger)),
                     Field<AgentNeedState>("needs.thirst", "Thirst", "number", nameof(AgentNeedState.Thirst)),
                     Field<AgentNeedState>("needs.energy", "Energy", "number", nameof(AgentNeedState.Energy)),
-                    Field<AgentNeedState>("needs.fatigue", "Fatigue", "number", nameof(AgentNeedState.Fatigue))
+                    Field<AgentNeedState>("needs.fatigue", "Fatigue", "number", nameof(AgentNeedState.Fatigue)),
+                    Field<AgentTraits>("traits.perception", "Perception", "number", nameof(AgentTraits.Perception)),
+                    Field<AgentTraits>("traits.speed", "Speed", "number", nameof(AgentTraits.Speed)),
+                    Field<AgentTraits>("traits.metabolism", "Metabolism", "number", nameof(AgentTraits.Metabolism)),
+                    Field<AgentTraits>("traits.riskTolerance", "Risk", "number", nameof(AgentTraits.RiskTolerance)),
+                    Field<AgentTraits>("traits.learningRate", "Learning", "number", nameof(AgentTraits.LearningRate))
                 ],
                 ResourceDefinitionFields:
                 [
