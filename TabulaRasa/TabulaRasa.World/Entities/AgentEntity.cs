@@ -1,4 +1,5 @@
 using TabulaRasa.Abstractions.Entities;
+using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Spatial;
 using TabulaRasa.Abstractions.Spatial.Footprints;
 using TabulaRasa.Abstractions.World;
@@ -18,5 +19,14 @@ namespace TabulaRasa.World.Entities
             MaxWeight = 10
         };
         public bool IsDead { get; set; }
+        public string SpeciesId { get; set; } = "human";
+        public int AgeTicks { get; set; }
+        public long BornTick { get; set; }
+        public List<string> ParentIds { get; init; } = [];
+        public List<string> OffspringIds { get; init; } = [];
+        public long? LastReproducedTick { get; set; }
+        public long? DeathTick { get; set; }
+        public string? DeathCause { get; set; }
+        public AgentTraits Traits { get; set; } = AgentTraits.Default;
     }
 }

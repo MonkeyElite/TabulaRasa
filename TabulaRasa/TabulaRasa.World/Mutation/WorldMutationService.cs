@@ -218,6 +218,93 @@ namespace TabulaRasa.World.Mutation
             return WorldMutationResult.Success();
         }
 
+        public WorldMutationResult TryTransformResources(
+            WorldState world,
+            Inventory inventory,
+            IReadOnlyDictionary<string, int> consumed,
+            IReadOnlyDictionary<string, int> produced)
+        {
+            Dictionary<string, int> normalizedConsumed = NormalizeQuantities(consumed);
+            Dictionary<string, int> normalizedProduced = NormalizeQuantities(produced);
+
+            if (normalizedConsumed.Count == 0 && normalizedProduced.Count == 0)
+            {
+                return WorldMutationResult.Failure(
+                    WorldMutationFailureKind.InvalidAmount,
+                    "Resource transform must consume or produce resources.");
+            }
+
+            foreach ((string resourceId, int quantity) in normalizedConsumed)
+            {
+                if (!TryGetDefinition(world, resourceId, out _, out WorldMutationResult failure))
+                {
+                    return failure;
+                }
+
+                if (inventory.GetQuantity(resourceId) < quantity)
+                {
+                    return WorldMutationResult.Failure(
+                        WorldMutationFailureKind.InvalidAmount,
+                        "Inventory does not contain enough resource quantity.");
+                }
+            }
+
+            Inventory simulated = new()
+            {
+                MaxSlots = inventory.MaxSlots,
+                MaxWeight = inventory.MaxWeight
+            };
+            foreach (ResourceStack stack in inventory.Stacks)
+            {
+                simulated.Stacks.Add(new ResourceStack
+                {
+                    StackId = stack.StackId,
+                    ResourceId = stack.ResourceId,
+                    Quantity = stack.Quantity
+                });
+            }
+
+            foreach ((string resourceId, int quantity) in normalizedConsumed)
+            {
+                RemoveResource(simulated, resourceId, quantity);
+            }
+
+            RemoveEmptyStacks(simulated);
+
+            foreach ((string resourceId, int quantity) in normalizedProduced)
+            {
+                if (!TryGetDefinition(world, resourceId, out ResourceDefinition? definition, out WorldMutationResult failure))
+                {
+                    return failure;
+                }
+
+                if (!CanAddResource(simulated, world.ResourceDefinitionsById, definition, quantity, out string reason))
+                {
+                    return WorldMutationResult.Failure(WorldMutationFailureKind.CapacityExceeded, reason);
+                }
+
+                AddResource(simulated, definition, quantity);
+            }
+
+            foreach ((string resourceId, int quantity) in normalizedConsumed)
+            {
+                RemoveResource(inventory, resourceId, quantity);
+            }
+
+            RemoveEmptyStacks(inventory);
+
+            foreach ((string resourceId, int quantity) in normalizedProduced)
+            {
+                ResourceDefinition definition = world.ResourceDefinitionsById[resourceId];
+                AddResource(inventory, definition, quantity);
+            }
+
+            RemoveEmptyStacks(inventory);
+            RemoveEmptyResourceContainers(world);
+
+            return WorldMutationResult.Success();
+        }
+
         public WorldMutationResult TrySpawnEntity(
             WorldState world,
             ISpatialEntity entity,
@@ -501,6 +588,22 @@ namespace TabulaRasa.World.Mutation
             definition = found;
             failure = WorldMutationResult.Success();
             return true;
+        }
+
+        private static Dictionary<string, int> NormalizeQuantities(IReadOnlyDictionary<string, int> quantities)
+        {
+            Dictionary<string, int> normalized = new(StringComparer.OrdinalIgnoreCase);
+            foreach ((string resourceId, int quantity) in quantities)
+            {
+                if (string.IsNullOrWhiteSpace(resourceId) || quantity <= 0)
+                {
+                    continue;
+                }
+
+                normalized[resourceId] = normalized.GetValueOrDefault(resourceId) + quantity;
+            }
+
+            return normalized;
         }
 
         private static WorldMutationResult ValidateTransfer(

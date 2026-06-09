@@ -10,6 +10,60 @@ namespace TabulaRasa.Api.Contracts
 
     public sealed record UpdateSimulationConfigRequestDto(SimulationConfigDto Config);
 
+    public sealed record SaveSimulationResponseDto(
+        string SimulationId,
+        long Tick,
+        DateTimeOffset SavedAt,
+        long CheckpointBytes);
+
+    public sealed record SimulationRunBrowserDto(
+        string SimulationId,
+        string Name,
+        string Status,
+        long CurrentTick,
+        long MinimumTick,
+        long MaximumTick,
+        int AgentCount,
+        int AliveAgentCount,
+        int DeadAgentCount,
+        long StorageBytes,
+        long CheckpointBytes,
+        long EventBytes,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt,
+        string? SourceSimulationId = null,
+        long? SourceTick = null);
+
+    public sealed record SimulationRunPageDto(
+        IReadOnlyList<SimulationRunBrowserDto> Runs,
+        int Offset,
+        int Limit,
+        int Total);
+
+    public sealed record SimulationCheckpointSummaryDto(
+        string SimulationId,
+        long Tick,
+        long PayloadBytes,
+        bool IsCompressed,
+        DateTimeOffset CreatedAt);
+
+    public sealed record ForkSimulationRunRequestDto(string? Name = null, long? SourceTick = null);
+
+    public sealed record ImportScenarioRequestDto(string? Name, SimulationDraftDto Scenario);
+
+    public sealed record ScenarioExportDto(
+        string Name,
+        int Version,
+        DateTimeOffset ExportedAt,
+        SimulationDraftDto Scenario);
+
+    public sealed record RetentionResultDto(
+        int DeletedRuns,
+        int DeletedCheckpoints,
+        int DeletedEvents,
+        int DeletedTickSummaries,
+        long RemovedBytes);
+
     public sealed record SimulationResourceLimitsDto(
         int MaxConcurrentRunningSimulations,
         int MaxTicksPerSecond,
@@ -35,6 +89,11 @@ namespace TabulaRasa.Api.Contracts
         float MinimumStrength,
         float RecallThreshold);
 
+    public sealed record TraitConfigDto(
+        float InitialVariation,
+        float MutationChancePerTrait,
+        float MutationDelta);
+
     public sealed record EnvironmentConfigDto(
         int DayLengthTicks,
         int WeatherChangeIntervalTicks,
@@ -48,6 +107,11 @@ namespace TabulaRasa.Api.Contracts
         int PlantDecayTicksAfterDepleted,
         float WaterRefillPerRainTick,
         float WaterEvaporationPerHeatTick);
+
+    public sealed record SpeciesPopulationConfigDto(
+        int Human,
+        int Deer,
+        int Wolf);
 
     public sealed record SimulationConfigDto(
         int Seed,
@@ -65,7 +129,9 @@ namespace TabulaRasa.Api.Contracts
         IReadOnlyList<string> EnabledSystems,
         MemoryConfigDto? Memory = null,
         EnvironmentConfigDto? Environment = null,
-        EcologyConfigDto? Ecology = null);
+        EcologyConfigDto? Ecology = null,
+        SpeciesPopulationConfigDto? SpeciesPopulation = null,
+        TraitConfigDto? Traits = null);
 
     public sealed record SimulationSummaryDto(
         string SimulationId,
@@ -120,6 +186,12 @@ namespace TabulaRasa.Api.Contracts
         int PopulationCount,
         int AliveAgentCount,
         int DeadAgentCount,
+        IReadOnlyList<SpeciesPopulationCountDto> SpeciesPopulation,
+        SocialGraphSnapshotDto SocialGraph,
+        EvolutionSummaryDto Evolution,
+        IReadOnlyList<RecipeDefinitionSnapshotDto> RecipeCatalog,
+        IReadOnlyList<GroupKnowledgeSnapshotDto> GroupKnowledge,
+        IReadOnlyList<DiscoveryMarkerSnapshotDto> DiscoveryMarkers,
         SimulationTickDiagnosticsDto? Diagnostics,
         EnvironmentStateDto? Environment = null,
         EcologyStatsDto? EcologyStats = null,
@@ -143,6 +215,13 @@ namespace TabulaRasa.Api.Contracts
         float TotalWaterVolume,
         int ResourceDepositCount,
         int TotalDepositQuantity);
+
+    public sealed record SpeciesPopulationCountDto(
+        string SpeciesId,
+        string DisplayName,
+        int Total,
+        int Alive,
+        int Dead);
 
     public sealed record SimulationEventDto(
         long Tick,
@@ -216,17 +295,56 @@ namespace TabulaRasa.Api.Contracts
         bool OccupiesSpace,
         EntityHealthDto? Health,
         bool IsDead,
+        string SpeciesId,
+        int AgeTicks,
+        long BornTick,
+        IReadOnlyList<string> ParentIds,
+        IReadOnlyList<string> OffspringIds,
+        long? LastReproducedTick,
+        long? DeathTick,
+        string? DeathCause,
         InventoryDto Inventory,
         AgentNeedsDto Needs,
+        AgentTraitsDto Traits,
         MovementSnapshotDto? Movement,
         GoalSnapshotDto? CurrentGoal,
         IReadOnlyList<TaskSnapshotDto> TaskQueue,
         AgentPerceptionSnapshotDto Perception,
         AgentMemorySnapshotDto Memory,
+        AgentSocialSnapshotDto Social,
+        AgentKnowledgeSnapshotDto Knowledge,
         AgentDecisionSnapshotDto? Decision,
         AgentLearningSnapshotDto Learning);
 
     public sealed record AgentNeedsDto(float Hunger, float Thirst, float Energy, float Fatigue = 0);
+
+    public sealed record AgentTraitsDto(
+        float Perception,
+        float Speed,
+        float Metabolism,
+        float RiskTolerance,
+        float LearningRate);
+
+    public sealed record EvolutionSummaryDto(
+        IReadOnlyList<PopulationTraitMetricDto> CurrentTraits,
+        IReadOnlyList<TraitHistoryPointDto> TraitHistory);
+
+    public sealed record PopulationTraitMetricDto(
+        string Trait,
+        float Average,
+        float Minimum,
+        float Maximum,
+        float AliveAverage,
+        float DeadAverage);
+
+    public sealed record TraitHistoryPointDto(
+        long Tick,
+        string Trait,
+        float Average,
+        float Minimum,
+        float Maximum,
+        float AliveAverage,
+        float DeadAverage);
 
     public sealed record AgentPerceptionSnapshotDto(
         IReadOnlyList<PerceivedEntitySnapshotDto> NearbyEntities,
@@ -266,6 +384,103 @@ namespace TabulaRasa.Api.Contracts
         long? ExpiresAtTick,
         string Summary,
         IReadOnlyDictionary<string, string> Metadata);
+
+    public sealed record AgentSocialSnapshotDto(
+        IReadOnlyList<SocialRelationshipSnapshotDto> Relationships,
+        IReadOnlyList<SocialGroupMembershipSnapshotDto> Groups);
+
+    public sealed record AgentKnowledgeSnapshotDto(
+        IReadOnlyList<KnowledgeRecordSnapshotDto> Records);
+
+    public sealed record KnowledgeRecordSnapshotDto(
+        string Id,
+        string Kind,
+        string SubjectId,
+        string DisplayName,
+        long DiscoveredTick,
+        long LastUpdatedTick,
+        string Source,
+        string? SourceAgentId,
+        IReadOnlyDictionary<string, string> Metadata);
+
+    public sealed record SocialRelationshipSnapshotDto(
+        string AgentId,
+        string OtherAgentId,
+        float Familiarity,
+        float Trust,
+        float Fear,
+        float Affinity,
+        int InteractionCount,
+        long CreatedTick,
+        long LastUpdatedTick,
+        long? LastSeenTick,
+        long? LastInteractionTick,
+        IReadOnlyList<string> SharedGroupIds);
+
+    public sealed record SocialGroupMembershipSnapshotDto(
+        string GroupId,
+        string DisplayName,
+        string Kind,
+        long JoinedTick);
+
+    public sealed record SocialGraphSnapshotDto(
+        IReadOnlyList<SocialGraphNodeDto> Nodes,
+        IReadOnlyList<SocialGraphEdgeDto> Edges);
+
+    public sealed record GroupKnowledgeSnapshotDto(
+        string GroupId,
+        string DisplayName,
+        IReadOnlyList<string> MemberAgentIds,
+        IReadOnlyList<string> KnownRecipeIds,
+        IReadOnlyList<string> KnownActionUnlockIds);
+
+    public sealed record DiscoveryMarkerSnapshotDto(
+        long Tick,
+        string AgentId,
+        string RecipeId,
+        string DisplayName,
+        string Source);
+
+    public sealed record RecipeDefinitionSnapshotDto(
+        string Id,
+        string DisplayName,
+        string Description,
+        IReadOnlyList<RecipeIngredientSnapshotDto> Inputs,
+        IReadOnlyList<RecipeIngredientSnapshotDto> Tools,
+        IReadOnlyList<RecipeOutputSnapshotDto> Outputs,
+        IReadOnlyList<ActionUnlockSnapshotDto> Unlocks,
+        float DiscoveryChance);
+
+    public sealed record RecipeIngredientSnapshotDto(
+        string ResourceId,
+        int Quantity);
+
+    public sealed record RecipeOutputSnapshotDto(
+        string ResourceId,
+        int Quantity);
+
+    public sealed record ActionUnlockSnapshotDto(
+        string Id,
+        string DisplayName,
+        string Description);
+
+    public sealed record SocialGraphNodeDto(
+        string AgentId,
+        string SpeciesId,
+        bool IsDead,
+        PositionDto Position,
+        IReadOnlyList<string> GroupIds);
+
+    public sealed record SocialGraphEdgeDto(
+        string FromAgentId,
+        string ToAgentId,
+        float Familiarity,
+        float Trust,
+        float Fear,
+        float Affinity,
+        int InteractionCount,
+        long? LastInteractionTick,
+        IReadOnlyList<string> SharedGroupIds);
 
     public sealed record AgentDecisionSnapshotDto(
         IReadOnlyDictionary<string, float> NeedPressures,
@@ -511,7 +726,16 @@ namespace TabulaRasa.Api.Contracts
         string Id,
         PositionDto Position,
         EditableInventoryDto Inventory,
-        AgentNeedsDto Needs);
+        AgentNeedsDto Needs,
+        string SpeciesId = "human",
+        int AgeTicks = 0,
+        long BornTick = 0,
+        IReadOnlyList<string>? ParentIds = null,
+        IReadOnlyList<string>? OffspringIds = null,
+        long? LastReproducedTick = null,
+        long? DeathTick = null,
+        string? DeathCause = null,
+        AgentTraitsDto? Traits = null);
 
     public sealed record EditableResourceDefinitionDto(
         string Id,

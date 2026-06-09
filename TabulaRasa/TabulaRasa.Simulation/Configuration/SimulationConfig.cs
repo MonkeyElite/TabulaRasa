@@ -14,6 +14,11 @@ namespace TabulaRasa.Simulation.Configuration
         float WaterRefillPerRainTick = 0.5f,
         float WaterEvaporationPerHeatTick = 0.25f);
 
+    public sealed record SpeciesPopulationConfig(
+        int Human = 1,
+        int Deer = 0,
+        int Wolf = 0);
+
     public sealed record NeedDecayConfig(
         float HungerDelta = 1,
         float ThirstDelta = 1,
@@ -33,6 +38,11 @@ namespace TabulaRasa.Simulation.Configuration
         float MinimumStrength = 0.2f,
         float RecallThreshold = 0.35f);
 
+    public sealed record TraitConfig(
+        float InitialVariation = 0.12f,
+        float MutationChancePerTrait = 0.08f,
+        float MutationDelta = 0.06f);
+
     public sealed record SimulationConfig(
         int Seed = 12345,
         int WorldWidth = 10,
@@ -49,14 +59,18 @@ namespace TabulaRasa.Simulation.Configuration
         IReadOnlyList<string>? EnabledSystems = null,
         MemoryConfig? Memory = null,
         EnvironmentConfig? Environment = null,
-        EcologyConfig? Ecology = null)
+        EcologyConfig? Ecology = null,
+        SpeciesPopulationConfig? SpeciesPopulation = null,
+        TraitConfig? Traits = null)
     {
         public static readonly IReadOnlyList<string> DefaultEnabledSystems =
         [
             "environment",
             "ecology",
+            "lifecycle",
             "need-decay",
             "memory",
+            "social",
             "planning",
             "goal-generation",
             "action-request-creation",
@@ -75,6 +89,9 @@ namespace TabulaRasa.Simulation.Configuration
         public MemoryConfig EffectiveMemory => Memory ?? new MemoryConfig();
         public EnvironmentConfig EffectiveEnvironment => Environment ?? new EnvironmentConfig();
         public EcologyConfig EffectiveEcology => Ecology ?? new EcologyConfig();
+        public TraitConfig EffectiveTraits => Traits ?? new TraitConfig();
+        public SpeciesPopulationConfig EffectiveSpeciesPopulation =>
+            SpeciesPopulation ?? new SpeciesPopulationConfig(Human: InitialAgentCount, Deer: 0, Wolf: 0);
         public IReadOnlyList<string> EffectiveEnabledSystems => EnabledSystems ?? DefaultEnabledSystems;
     }
 }

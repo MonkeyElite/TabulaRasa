@@ -154,6 +154,85 @@ describe("Inspector", () => {
     expect(screen.getByText("Location / Food / strength 0.85 / certainty 0.90")).toBeTruthy();
   });
 
+  it("renders selected agent knowledge records", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Knowledge"));
+
+    expect(screen.getByText("Known recipes and unlocks")).toBeTruthy();
+    expect(screen.getByText("Stone Knapping")).toBeTruthy();
+    expect(screen.getByText("Recipe / stone-knapping / Taught")).toBeTruthy();
+    expect(screen.getByText("discovered 2 / updated 3 / from agent-2")).toBeTruthy();
+  });
+
+  it("renders empty knowledge states for selected agents", () => {
+    const emptySnapshot: SimulationSnapshot = {
+      ...snapshot,
+      agents: [
+        {
+          ...snapshot.agents[0],
+          knowledge: {
+            records: []
+          }
+        }
+      ]
+    };
+
+    render(
+      <Inspector
+        snapshot={emptySnapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Knowledge"));
+
+    expect(screen.getByText("No known recipes.")).toBeTruthy();
+  });
+
+  it("renders selected agent relationships", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Relationships"));
+
+    expect(screen.getByText("Groups")).toBeTruthy();
+    expect(screen.getByText("Human species")).toBeTruthy();
+    expect(screen.getByText("agent-2")).toBeTruthy();
+    expect(screen.getByText("interactions 2 / seen 3 / talked 3")).toBeTruthy();
+    expect(screen.getByText("species:human")).toBeTruthy();
+  });
+
   it("renders selected agent decision scores and learned outcomes", () => {
     render(
       <Inspector
@@ -176,6 +255,29 @@ describe("Inspector", () => {
     expect(screen.getByText("score 0.93 / weight 0.25 / need 0.70")).toBeTruthy();
     expect(screen.getByText("Learned outcomes")).toBeTruthy();
     expect(screen.getByText("Eat / weight 0.25 / avg 1 / last 1")).toBeTruthy();
+  });
+
+  it("renders selected agent traits and genealogy context", () => {
+    render(
+      <Inspector
+        snapshot={snapshot}
+        draft={null}
+        schema={null}
+        selection={{ type: "agent", id: "agent-1" }}
+        editing={false}
+        canEdit={false}
+        onSelect={vi.fn()}
+        onDraftChange={vi.fn()}
+        onTerrainChange={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Traits"));
+
+    expect(screen.getByText("Inherited traits")).toBeTruthy();
+    expect(screen.getAllByText("Perception").length).toBeGreaterThan(1);
+    expect(screen.getByText("sight x1")).toBeTruthy();
+    expect(screen.getByText("riskTolerance")).toBeTruthy();
   });
 });
 
@@ -211,6 +313,21 @@ const snapshot: SimulationSnapshot = {
       occupiesSpace: true,
       health: null,
       isDead: false,
+      speciesId: "human",
+      ageTicks: 12,
+      bornTick: 0,
+      parentIds: [],
+      offspringIds: [],
+      lastReproducedTick: null,
+      deathTick: null,
+      deathCause: null,
+      traits: {
+        perception: 0.5,
+        speed: 0.5,
+        metabolism: 0.5,
+        riskTolerance: 0.5,
+        learningRate: 0.5
+      },
       inventory: {
         maxSlots: 8,
         maxWeight: 10,
@@ -334,6 +451,49 @@ const snapshot: SimulationSnapshot = {
           }
         ]
       },
+      social: {
+        relationships: [
+          {
+            agentId: "agent-1",
+            otherAgentId: "agent-2",
+            familiarity: 0.7,
+            trust: 0.45,
+            fear: 0.1,
+            affinity: 0.35,
+            interactionCount: 2,
+            createdTick: 1,
+            lastUpdatedTick: 3,
+            lastSeenTick: 3,
+            lastInteractionTick: 3,
+            sharedGroupIds: ["species:human"]
+          }
+        ],
+        groups: [
+          {
+            groupId: "species:human",
+            displayName: "Human species",
+            kind: "Species",
+            joinedTick: 1
+          }
+        ]
+      },
+      knowledge: {
+        records: [
+          {
+            id: "knowledge:Recipe:stone-knapping",
+            kind: "Recipe",
+            subjectId: "stone-knapping",
+            displayName: "Stone Knapping",
+            discoveredTick: 2,
+            lastUpdatedTick: 3,
+            source: "Taught",
+            sourceAgentId: "agent-2",
+            metadata: {
+              description: "Shape stone into a basic tool."
+            }
+          }
+        ]
+      },
       decision: {
         needPressures: {
           Hunger: 0.7,
@@ -422,10 +582,96 @@ const snapshot: SimulationSnapshot = {
   pendingIntentCount: 0,
   pendingActionRequestCount: 0,
   events: [],
-  recentEvents: [],
+  recentEvents: [
+    {
+      tick: 0,
+      sequence: 1,
+      type: "agent.born",
+      sourceSystem: "Action Resolver",
+      message: "agent-1 was born.",
+      entityId: "agent-1",
+      metadata: {
+        "traits.mutated": "riskTolerance"
+      }
+    }
+  ],
   populationCount: 1,
   aliveAgentCount: 1,
   deadAgentCount: 0,
+  speciesPopulation: [
+    { speciesId: "human", displayName: "Human", total: 1, alive: 1, dead: 0 },
+    { speciesId: "deer", displayName: "Deer", total: 0, alive: 0, dead: 0 },
+    { speciesId: "wolf", displayName: "Wolf", total: 0, alive: 0, dead: 0 }
+  ],
+  evolution: {
+    currentTraits: [
+      { trait: "perception", average: 0.5, minimum: 0.5, maximum: 0.5, aliveAverage: 0.5, deadAverage: 0 }
+    ],
+    traitHistory: [
+      { tick: 3, trait: "perception", average: 0.5, minimum: 0.5, maximum: 0.5, aliveAverage: 0.5, deadAverage: 0 }
+    ]
+  },
+  socialGraph: {
+    nodes: [
+      {
+        agentId: "agent-1",
+        speciesId: "human",
+        isDead: false,
+        position: { x: 0.5, y: 0.5 },
+        groupIds: ["species:human"]
+      },
+      {
+        agentId: "agent-2",
+        speciesId: "human",
+        isDead: false,
+        position: { x: 1.5, y: 0.5 },
+        groupIds: ["species:human"]
+      }
+    ],
+    edges: [
+      {
+        fromAgentId: "agent-1",
+        toAgentId: "agent-2",
+        familiarity: 0.7,
+        trust: 0.45,
+        fear: 0.1,
+        affinity: 0.35,
+        interactionCount: 2,
+        lastInteractionTick: 3,
+        sharedGroupIds: ["species:human"]
+      }
+    ]
+  },
+  recipeCatalog: [
+    {
+      id: "stone-knapping",
+      displayName: "Stone Knapping",
+      description: "Shape stone into a basic tool.",
+      inputs: [{ resourceId: "stone", quantity: 2 }],
+      tools: [],
+      outputs: [{ resourceId: "stone-tool", quantity: 1 }],
+      unlocks: [{ id: "use-stone-tool", displayName: "Use Stone Tool", description: "Use a stone tool." }],
+      discoveryChance: 0.65
+    }
+  ],
+  groupKnowledge: [
+    {
+      groupId: "species:human",
+      displayName: "Human species",
+      memberAgentIds: ["agent-1", "agent-2"],
+      knownRecipeIds: ["stone-knapping"],
+      knownActionUnlockIds: ["use-stone-tool"]
+    }
+  ],
+  discoveryMarkers: [
+    {
+      tick: 2,
+      agentId: "agent-2",
+      recipeId: "stone-knapping",
+      displayName: "Stone Knapping",
+      source: "Experiment"
+    }
+  ],
   environment: {
     dayLengthTicks: 100,
     tickOfDay: 3,
@@ -465,7 +711,16 @@ const draft: SimulationDraft = {
       maxWeight: agent.inventory.maxWeight,
       stacks: agent.inventory.stacks
     },
-    needs: agent.needs
+    needs: agent.needs,
+    speciesId: agent.speciesId,
+    ageTicks: agent.ageTicks,
+    bornTick: agent.bornTick,
+    parentIds: agent.parentIds,
+    offspringIds: agent.offspringIds,
+    lastReproducedTick: agent.lastReproducedTick,
+    deathTick: agent.deathTick,
+    deathCause: agent.deathCause,
+    traits: agent.traits
   })),
   resourceDefinitions: snapshot.resourceDefinitions,
   resourceContainers: [],

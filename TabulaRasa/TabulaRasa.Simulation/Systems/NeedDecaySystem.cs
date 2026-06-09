@@ -2,6 +2,9 @@ using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Agents.Needs;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Lifecycle;
+using TabulaRasa.Simulation.Evolution;
+using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.World.Entities;
 using TabulaRasa.World.Environment;
@@ -37,13 +40,16 @@ namespace TabulaRasa.Simulation.Systems
 
                 GridTerrainProfile terrain = world.Grid.GetTerrainProfile(agentEntity.Position.ToGridCell());
                 float temperatureThirstMultiplier = GetTemperatureThirstMultiplier(world.Environment);
+                SpeciesDefinition species = SpeciesRegistry.Get(agentEntity.SpeciesId);
+                agentEntity.SpeciesId = species.Id;
+                float metabolismMultiplier = AgentTraitService.MetabolismMultiplier(agentEntity.Traits.Metabolism);
 
                 NeedSystem.ApplyNeedDecay(
                     agentState.NeedState,
-                    decay.HungerDelta * terrain.HungerDeltaMultiplier,
-                    decay.ThirstDelta * terrain.ThirstDeltaMultiplier * temperatureThirstMultiplier,
+                    decay.HungerDelta * terrain.HungerDeltaMultiplier * species.HungerDecayMultiplier * metabolismMultiplier,
+                    decay.ThirstDelta * terrain.ThirstDeltaMultiplier * temperatureThirstMultiplier * species.ThirstDecayMultiplier * metabolismMultiplier,
                     decay.EnergyDelta,
-                    decay.FatigueDelta * terrain.FatigueDeltaMultiplier);
+                    decay.FatigueDelta * terrain.FatigueDeltaMultiplier * species.FatigueDecayMultiplier * metabolismMultiplier);
 
                 EmitCriticalNeedEvents(state, agentEntity, agentState.NeedState);
                 ApplySurvivalDamage(state, agentEntity, agentState.NeedState);
@@ -128,19 +134,7 @@ namespace TabulaRasa.Simulation.Systems
 
             if (agentEntity.Health.IsDepleted)
             {
-                agentEntity.IsDead = true;
-                state.ActiveMovements.RemoveAll(movement => movement.AgentId == agentEntity.Id);
-                state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
-                state.PendingActionRequests.RemoveAll(request => request.AgentId == agentEntity.Id);
-                state.EmitEvent(
-                    "agent.died",
-                    Name,
-                    $"{agentEntity.Id} died.",
-                    agentEntity.Id,
-                    new Dictionary<string, string>
-                    {
-                        ["isDead"] = "True"
-                    });
+                AgentLifecycleService.MarkDead(state, agentEntity, Name, "survival");
             }
         }
 

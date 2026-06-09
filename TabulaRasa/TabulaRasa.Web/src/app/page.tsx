@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Copy,
+  Database,
+  Download,
   Eye,
+  GitFork,
   Map,
   Pause,
   Play,
@@ -15,9 +18,10 @@ import {
   Square,
   StepForward,
   Trash2,
+  Upload,
   X
 } from "lucide-react";
-import { EventLogPanel, RuntimePanel } from "@/components/DebugPanels";
+import { DiscoveryTimelineMarkers, EventLogPanel, GenealogyPanel, KnowledgePanel, RuntimePanel, SocialGraphPanel } from "@/components/DebugPanels";
 import { Inspector } from "@/components/Inspector";
 import { WorldCanvas } from "@/components/WorldCanvas";
 import { simulationApi } from "@/lib/api";
@@ -30,6 +34,7 @@ import type {
   SimulationDraft,
   SimulationDraftSchema,
   SimulationResourceLimits,
+  SimulationRunPage,
   SimulationSnapshot,
   SimulationStatus,
   SimulationSummary
@@ -38,8 +43,10 @@ import type {
 const systemOptions = [
   ["environment", "Environment"],
   ["ecology", "Ecology"],
+  ["lifecycle", "Lifecycle"],
   ["need-decay", "Need decay"],
   ["memory", "Memory"],
+  ["social", "Social"],
   ["planning", "Planning"],
   ["goal-generation", "Goals"],
   ["action-request-creation", "Actions"],
@@ -83,6 +90,11 @@ const defaultConfig: SimulationConfig = {
     minimumStrength: 0.2,
     recallThreshold: 0.35
   },
+  traits: {
+    initialVariation: 0.12,
+    mutationChancePerTrait: 0.08,
+    mutationDelta: 0.06
+  },
   environment: {
     dayLengthTicks: 100,
     weatherChangeIntervalTicks: 50,
@@ -97,6 +109,11 @@ const defaultConfig: SimulationConfig = {
     waterRefillPerRainTick: 0.5,
     waterEvaporationPerHeatTick: 0.25
   },
+  speciesPopulation: {
+    human: 1,
+    deer: 0,
+    wolf: 0
+  },
   enabledSystems: systemOptions.map(([id]) => id)
 };
 
@@ -104,6 +121,7 @@ const terrainBrushes = ["Plain", "Road", "Forest", "Mud", "Water"] as const;
 
 export default function Home() {
   const [simulations, setSimulations] = useState<SimulationSummary[]>([]);
+  const [runPage, setRunPage] = useState<SimulationRunPage | null>(null);
   const [activeSimulationId, setActiveSimulationId] = useState<string | null>(null);
   const [limits, setLimits] = useState<SimulationResourceLimits | null>(null);
   const [status, setStatus] = useState<SimulationStatus | null>(null);
@@ -117,16 +135,22 @@ export default function Home() {
   const [configDraft, setConfigDraft] = useState<SimulationConfig | null>(null);
   const [eventScope, setEventScope] = useState<"recent" | "current">("recent");
   const [eventType, setEventType] = useState("all");
-  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events">("inspect");
+  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events" | "social" | "genealogy" | "knowledge">("inspect");
   const [editing, setEditing] = useState(false);
   const [hover, setHover] = useState<HoverInfo>(null);
   const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
   const [showPerceptionOverlay, setShowPerceptionOverlay] = useState(false);
+  const [speciesFilters, setSpeciesFilters] = useState<Record<string, boolean>>({
+    human: true,
+    deer: true,
+    wolf: true
+  });
   const [terrainBrush, setTerrainBrush] = useState<(typeof terrainBrushes)[number] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState("Simulation");
   const [createConfig, setCreateConfig] = useState<SimulationConfig>(defaultConfig);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const tickRequestIdRef = useRef(0);
 
   const activeSummary = simulations.find((simulation) => simulation.simulationId === activeSimulationId) ?? null;
@@ -136,12 +160,14 @@ export default function Home() {
   const canTune = status?.status === "Paused";
 
   const loadSimulations = useCallback(async () => {
-    const [nextSimulations, nextLimits] = await Promise.all([
+    const [nextSimulations, nextLimits, nextRuns] = await Promise.all([
       simulationApi.list(),
-      simulationApi.resourceLimits()
+      simulationApi.resourceLimits(),
+      simulationApi.runs()
     ]);
     setSimulations(nextSimulations);
     setLimits(nextLimits);
+    setRunPage(nextRuns);
     setActiveSimulationId((current) => {
       if (current && nextSimulations.some((simulation) => simulation.simulationId === current)) {
         return current;
@@ -264,6 +290,70 @@ export default function Home() {
     const clone = await simulationApi.clone(activeSimulationId, { name: `${activeSummary.name} copy` });
     await loadSimulations();
     setActiveSimulationId(clone.simulationId);
+  }
+
+  async function handleLoadRun(runId: string) {
+    setError(null);
+    const loaded = await simulationApi.loadRun(runId);
+    await loadSimulations();
+    setActiveSimulationId(loaded.simulationId);
+  }
+
+  async function handleForkViewedTick() {
+    if (!activeSimulationId || !activeSummary) {
+      return;
+    }
+
+    setError(null);
+    const fork = await simulationApi.forkRun(activeSimulationId, {
+      name: `${activeSummary.name} @ ${viewedTick}`,
+      sourceTick: viewedTick
+    });
+    await loadSimulations();
+    setActiveSimulationId(fork.simulationId);
+  }
+
+  async function handleSave() {
+    if (!activeSimulationId) {
+      return;
+    }
+
+    setError(null);
+    await simulationApi.save(activeSimulationId);
+    await loadSimulations();
+  }
+
+  async function handleExportScenario() {
+    if (!activeSimulationId) {
+      return;
+    }
+
+    setError(null);
+    const exported = await simulationApi.exportScenario(activeSimulationId);
+    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${exported.name.replace(/[^a-z0-9-_]+/gi, "-").toLowerCase()}-scenario.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImportScenarioFile(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    setError(null);
+    const parsed = JSON.parse(await file.text()) as { name?: string; scenario?: SimulationDraft } | SimulationDraft;
+    const scenario = "scenario" in parsed && parsed.scenario ? parsed.scenario : parsed as SimulationDraft;
+    const name = "name" in parsed && parsed.name ? parsed.name : file.name.replace(/\.[^.]+$/, "");
+    const imported = await simulationApi.importScenario({ name, scenario });
+    await loadSimulations();
+    setActiveSimulationId(imported.simulationId);
+    if (importInputRef.current) {
+      importInputRef.current.value = "";
+    }
   }
 
   async function handleDelete() {
@@ -428,6 +518,22 @@ export default function Home() {
         <button className="icon" onClick={handleReset} title="Reset" disabled={!activeSimulationId}>
           <RotateCcw size={18} />
         </button>
+        <button className="icon" onClick={handleSave} title="Save checkpoint" disabled={!activeSimulationId}>
+          <Save size={17} />
+        </button>
+        <button className="icon" onClick={handleExportScenario} title="Export scenario" disabled={!activeSimulationId}>
+          <Download size={17} />
+        </button>
+        <button className="icon" onClick={() => importInputRef.current?.click()} title="Import scenario">
+          <Upload size={17} />
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(event) => handleImportScenarioFile(event.target.files?.[0] ?? null).catch((reason: unknown) => setError(toMessage(reason)))}
+        />
         <button
           className={`icon ${showNavigationOverlay ? "selected" : ""}`}
           onClick={() => setShowNavigationOverlay((value) => !value)}
@@ -490,24 +596,69 @@ export default function Home() {
             </button>
           </div>
           <div className="simulation-list">
-            {simulations.map((simulation) => (
+            {(runPage?.runs ?? simulations.map((simulation) => ({
+              simulationId: simulation.simulationId,
+              name: simulation.name,
+              status: simulation.status,
+              currentTick: simulation.currentTick,
+              minimumTick: 0,
+              maximumTick: simulation.currentTick,
+              agentCount: simulation.agentCount,
+              aliveAgentCount: simulation.aliveAgentCount,
+              deadAgentCount: simulation.deadAgentCount,
+              storageBytes: 0,
+              checkpointBytes: 0,
+              eventBytes: 0,
+              createdAt: simulation.createdAt,
+              updatedAt: simulation.updatedAt,
+              sourceSimulationId: null,
+              sourceTick: null
+            }))).map((simulation) => {
+              const isLoaded = simulations.some((active) => active.simulationId === simulation.simulationId);
+              return (
               <button
                 key={simulation.simulationId}
                 className={`simulation-row ${simulation.simulationId === activeSimulationId ? "selected" : ""}`}
-                onClick={() => setActiveSimulationId(simulation.simulationId)}
+                onClick={() => {
+                  if (isLoaded) {
+                    setActiveSimulationId(simulation.simulationId);
+                  } else {
+                    handleLoadRun(simulation.simulationId).catch((reason: unknown) => setError(toMessage(reason)));
+                  }
+                }}
               >
                 <span>
                   <strong>{simulation.name}</strong>
-                  <small>{simulation.status} / tick {simulation.currentTick}</small>
+                  <small>{simulation.status} / ticks {simulation.minimumTick}-{simulation.maximumTick}</small>
+                  <small>{formatBytes(simulation.storageBytes)} stored / {isLoaded ? "loaded" : "click to load"}</small>
                 </span>
                 <span className="pill">{simulation.aliveAgentCount}/{simulation.agentCount}a</span>
               </button>
+            );})}
+          </div>
+          <div className="species-filter-list">
+            {(["human", "deer", "wolf"] as const).map((speciesId) => (
+              <label key={speciesId}>
+                <input
+                  type="checkbox"
+                  checked={speciesFilters[speciesId] ?? true}
+                  onChange={(event) => setSpeciesFilters((current) => ({
+                    ...current,
+                    [speciesId]: event.target.checked
+                  }))}
+                />
+                <span>{speciesId}</span>
+              </label>
             ))}
           </div>
           <div className="sidebar-actions">
             <button onClick={handleClone} disabled={!activeSimulationId}>
               <Copy size={16} />
               Clone
+            </button>
+            <button onClick={handleForkViewedTick} disabled={!activeSimulationId || !status || viewedTick < status.minimumTick || viewedTick > status.maximumTick}>
+              <GitFork size={16} />
+              Fork
             </button>
             <button className="danger" onClick={handleDelete} disabled={!activeSimulationId}>
               <Trash2 size={16} />
@@ -520,6 +671,8 @@ export default function Home() {
               <span>TPS {limits.maxTicksPerSecond}</span>
               <span>Agents {limits.maxAgents}</span>
               <span>Snapshots {limits.maxRetainedSnapshots}</span>
+              <span>Runs {runPage?.total ?? simulations.length}</span>
+              <span><Database size={12} /> {formatBytes((runPage?.runs ?? []).reduce((sum, run) => sum + run.storageBytes, 0))}</span>
             </div>
           )}
         </aside>
@@ -534,6 +687,7 @@ export default function Home() {
             showNavigationOverlay={showNavigationOverlay}
             showPerceptionOverlay={showPerceptionOverlay}
             perceptionRadius={status?.config.perceptionRadius ?? 0}
+            speciesFilters={speciesFilters}
             onSelect={setSelection}
             onMoveAgent={moveAgent}
             onMoveResourceContainer={moveResourceContainer}
@@ -553,6 +707,9 @@ export default function Home() {
           <div className="rail-tabs">
             <button className={rightRailTab === "inspect" ? "selected" : ""} onClick={() => setRightRailTab("inspect")}>Inspect</button>
             <button className={rightRailTab === "runtime" ? "selected" : ""} onClick={() => setRightRailTab("runtime")}>Runtime</button>
+            <button className={rightRailTab === "social" ? "selected" : ""} onClick={() => setRightRailTab("social")}>Social</button>
+            <button className={rightRailTab === "genealogy" ? "selected" : ""} onClick={() => setRightRailTab("genealogy")}>Family</button>
+            <button className={rightRailTab === "knowledge" ? "selected" : ""} onClick={() => setRightRailTab("knowledge")}>Knowledge</button>
             <button className={rightRailTab === "settings" ? "selected" : ""} onClick={() => setRightRailTab("settings")}>Settings</button>
             <button className={rightRailTab === "events" ? "selected" : ""} onClick={() => setRightRailTab("events")}>Events</button>
           </div>
@@ -586,6 +743,27 @@ export default function Home() {
                 onApply={handleApplyConfig}
               />
             )}
+            {rightRailTab === "social" && (
+              <SocialGraphPanel
+                snapshot={snapshot}
+                selectedAgentId={selection?.type === "agent" ? selection.id : null}
+                onSelectAgent={(id) => setSelection({ type: "agent", id })}
+              />
+            )}
+            {rightRailTab === "genealogy" && (
+              <GenealogyPanel
+                snapshot={snapshot}
+                selectedAgentId={selection?.type === "agent" ? selection.id : null}
+                onSelectAgent={(id) => setSelection({ type: "agent", id })}
+              />
+            )}
+            {rightRailTab === "knowledge" && (
+              <KnowledgePanel
+                snapshot={snapshot}
+                selectedAgentId={selection?.type === "agent" ? selection.id : null}
+                onSelectAgent={(id) => setSelection({ type: "agent", id })}
+              />
+            )}
             {rightRailTab === "events" && (
               <EventLogPanel
                 events={visibleEvents}
@@ -612,6 +790,12 @@ export default function Home() {
           onChange={(event) => previewTick(Number(event.target.value))}
           onPointerUp={commitSliderTick}
           onKeyUp={commitSliderTick}
+        />
+        <DiscoveryTimelineMarkers
+          markers={snapshot?.discoveryMarkers ?? []}
+          minimumTick={status?.minimumTick ?? 0}
+          maximumTick={status?.maximumTick ?? 0}
+          onSelectTick={(tick) => loadTick(tick)}
         />
         <label className="tick-jump">
           <span>Go to</span>
@@ -727,7 +911,33 @@ function ConfigFields({
         label="Agents"
         value={config.initialAgentCount}
         disabled={disabled || !includeRebuildFields}
-        onChange={(initialAgentCount) => onChange({ ...config, initialAgentCount })}
+        onChange={(initialAgentCount) => onChange({
+          ...config,
+          initialAgentCount,
+          speciesPopulation: { ...config.speciesPopulation, human: initialAgentCount }
+        })}
+      />
+      <NumberConfigField
+        label="Humans"
+        value={config.speciesPopulation.human}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(human) => onChange({
+          ...config,
+          initialAgentCount: human,
+          speciesPopulation: { ...config.speciesPopulation, human }
+        })}
+      />
+      <NumberConfigField
+        label="Deer"
+        value={config.speciesPopulation.deer}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(deer) => onChange({ ...config, speciesPopulation: { ...config.speciesPopulation, deer } })}
+      />
+      <NumberConfigField
+        label="Wolves"
+        value={config.speciesPopulation.wolf}
+        disabled={disabled || !includeRebuildFields}
+        onChange={(wolf) => onChange({ ...config, speciesPopulation: { ...config.speciesPopulation, wolf } })}
       />
       <NumberConfigField
         label="Food"
@@ -820,6 +1030,27 @@ function ConfigFields({
         disabled={disabled}
         step={0.01}
         onChange={(decayPerTick) => onChange({ ...config, memory: { ...config.memory, decayPerTick } })}
+      />
+      <NumberConfigField
+        label="Trait spread"
+        value={config.traits.initialVariation}
+        disabled={disabled || !includeRebuildFields}
+        step={0.01}
+        onChange={(initialVariation) => onChange({ ...config, traits: { ...config.traits, initialVariation } })}
+      />
+      <NumberConfigField
+        label="Mutate rate"
+        value={config.traits.mutationChancePerTrait}
+        disabled={disabled}
+        step={0.01}
+        onChange={(mutationChancePerTrait) => onChange({ ...config, traits: { ...config.traits, mutationChancePerTrait } })}
+      />
+      <NumberConfigField
+        label="Mutate delta"
+        value={config.traits.mutationDelta}
+        disabled={disabled}
+        step={0.01}
+        onChange={(mutationDelta) => onChange({ ...config, traits: { ...config.traits, mutationDelta } })}
       />
       <NumberConfigField
         label="Day ticks"
@@ -943,4 +1174,16 @@ function NumberConfigField({
 
 function toMessage(reason: unknown) {
   return reason instanceof Error ? reason.message : "Request failed";
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }

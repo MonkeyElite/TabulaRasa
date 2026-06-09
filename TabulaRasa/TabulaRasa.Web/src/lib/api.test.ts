@@ -49,6 +49,57 @@ describe("api client", () => {
     );
   });
 
+  it("loads persisted runs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ simulationId: "sim-1" }));
+
+    await simulationApi.loadRun("sim-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/simulations/runs/sim-1/load",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("forks persisted runs from a tick", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ simulationId: "sim-2" }));
+
+    await simulationApi.forkRun("sim-1", { name: "Fork", sourceTick: 12 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/simulations/runs/sim-1/fork",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Fork", sourceTick: 12 })
+      })
+    );
+  });
+
+  it("saves checkpoints", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ simulationId: "sim-1" }));
+
+    await simulationApi.save("sim-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/simulations/sim-1/save",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("imports scenarios", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ simulationId: "sim-import" }));
+    const scenario = draft();
+
+    await simulationApi.importScenario({ name: "Imported", scenario });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/simulations/import-scenario",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Imported", scenario })
+      })
+    );
+  });
+
   it("sends config when resetting", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ tick: 0 }));
 
@@ -94,6 +145,11 @@ const config = {
     minimumStrength: 0.2,
     recallThreshold: 0.35
   },
+  traits: {
+    initialVariation: 0.12,
+    mutationChancePerTrait: 0.08,
+    mutationDelta: 0.06
+  },
   environment: {
     dayLengthTicks: 100,
     weatherChangeIntervalTicks: 50,
@@ -108,8 +164,32 @@ const config = {
     waterRefillPerRainTick: 0.5,
     waterEvaporationPerHeatTick: 0.25
   },
+  speciesPopulation: {
+    human: 1,
+    deer: 0,
+    wolf: 0
+  },
   enabledSystems: ["need-decay", "planning"]
 };
+
+function draft() {
+  return {
+    tick: 0,
+    grid: {
+      width: 2,
+      height: 2,
+      blockedCells: [],
+      terrainCells: []
+    },
+    agents: [],
+    resourceDefinitions: [],
+    resourceContainers: [],
+    config,
+    plants: [],
+    waterSources: [],
+    resourceDeposits: []
+  };
+}
 
 function jsonResponse(body: unknown) {
   return {

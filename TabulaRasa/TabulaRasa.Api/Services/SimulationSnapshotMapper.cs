@@ -7,9 +7,12 @@ using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.Goals;
+using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
+using TabulaRasa.Simulation.Social;
+using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Definitions;
 using TabulaRasa.Simulation.Tasks.Jobs;
@@ -25,7 +28,9 @@ namespace TabulaRasa.Api.Services
 {
     public static class SimulationSnapshotMapper
     {
-        public static SimulationSnapshotDto ToSnapshot(SimulationState state)
+        public static SimulationSnapshotDto ToSnapshot(
+            SimulationState state,
+            IReadOnlyList<SimulationSnapshotDto>? retainedSnapshots = null)
         {
             Dictionary<string, ActiveMovement> movementsByAgent = state.ActiveMovements
                 .GroupBy(movement => movement.AgentId)
@@ -52,6 +57,12 @@ namespace TabulaRasa.Api.Services
                 populationCount,
                 aliveAgentCount,
                 deadAgentCount,
+                ToSpeciesPopulation(state),
+                ToSocialGraph(state),
+                ToEvolutionSummary(state, retainedSnapshots ?? []),
+                RecipeRegistry.All.Select(ToRecipeDefinition).ToList(),
+                ToGroupKnowledge(state),
+                ToDiscoveryMarkers(state),
                 ToDiagnostics(state.GetDiagnosticsForTick(state.Time.Tick)),
                 ToEnvironment(state.World.Environment),
                 ToEcologyStats(state),
@@ -73,7 +84,16 @@ namespace TabulaRasa.Api.Services
                     agent.Id,
                     ToPosition(agent.Position),
                     ToEditableInventory(agent.Inventory),
-                    ToNeeds(state.GetAgentById(agent.Id)?.NeedState))).ToList(),
+                    ToNeeds(state.GetAgentById(agent.Id)?.NeedState),
+                    SpeciesRegistry.NormalizeId(agent.SpeciesId),
+                    agent.AgeTicks,
+                    agent.BornTick,
+                    agent.ParentIds.ToList(),
+                    agent.OffspringIds.ToList(),
+                    agent.LastReproducedTick,
+                    agent.DeathTick,
+                    agent.DeathCause,
+                    ToTraits(agent.Traits))).ToList(),
                 state.World.ResourceDefinitions.Select(ToEditableResourceDefinition).ToList(),
                 state.World.ResourceContainers.Select(container => new EditableResourceContainerDto(
                     container.Id,
@@ -126,7 +146,15 @@ namespace TabulaRasa.Api.Services
                     config.EffectiveEcology.PlantRegrowthTicks,
                     config.EffectiveEcology.PlantDecayTicksAfterDepleted,
                     config.EffectiveEcology.WaterRefillPerRainTick,
-                    config.EffectiveEcology.WaterEvaporationPerHeatTick));
+                    config.EffectiveEcology.WaterEvaporationPerHeatTick),
+                new SpeciesPopulationConfigDto(
+                    config.EffectiveSpeciesPopulation.Human,
+                    config.EffectiveSpeciesPopulation.Deer,
+                    config.EffectiveSpeciesPopulation.Wolf),
+                new TraitConfigDto(
+                    config.EffectiveTraits.InitialVariation,
+                    config.EffectiveTraits.MutationChancePerTrait,
+                    config.EffectiveTraits.MutationDelta));
         }
 
         public static SimulationConfig ToConfig(SimulationConfigDto? dto, SimulationConfig fallback)
@@ -164,6 +192,18 @@ namespace TabulaRasa.Api.Services
                     dto.Ecology.PlantDecayTicksAfterDepleted,
                     dto.Ecology.WaterRefillPerRainTick,
                     dto.Ecology.WaterEvaporationPerHeatTick);
+            SpeciesPopulationConfig speciesPopulation = dto.SpeciesPopulation is null
+                ? new SpeciesPopulationConfig(dto.InitialAgentCount, 0, 0)
+                : new SpeciesPopulationConfig(
+                    dto.SpeciesPopulation.Human,
+                    dto.SpeciesPopulation.Deer,
+                    dto.SpeciesPopulation.Wolf);
+            TraitConfig traits = dto.Traits is null
+                ? fallback.EffectiveTraits
+                : new TraitConfig(
+                    dto.Traits.InitialVariation,
+                    dto.Traits.MutationChancePerTrait,
+                    dto.Traits.MutationDelta);
 
             return new SimulationConfig(
                     dto.Seed,
@@ -188,7 +228,9 @@ namespace TabulaRasa.Api.Services
                     dto.EnabledSystems,
                     memory,
                     environment,
-                    ecology);
+                    ecology,
+                    speciesPopulation,
+                    traits);
         }
 
         public static SimulationDraftDto ToDraft(SimulationSnapshotDto snapshot, SimulationConfigDto config)
@@ -206,7 +248,16 @@ namespace TabulaRasa.Api.Services
                     agent.Id,
                     agent.Position,
                     ToEditableInventory(agent.Inventory),
-                    agent.Needs)).ToList(),
+                    agent.Needs,
+                    agent.SpeciesId,
+                    agent.AgeTicks,
+                    agent.BornTick,
+                    agent.ParentIds,
+                    agent.OffspringIds,
+                    agent.LastReproducedTick,
+                    agent.DeathTick,
+                    agent.DeathCause,
+                    agent.Traits)).ToList(),
                 snapshot.ResourceDefinitions.Select(ToEditableResourceDefinition).ToList(),
                 snapshot.ResourceContainers.Select(container => new EditableResourceContainerDto(
                     container.Id,
@@ -246,13 +297,24 @@ namespace TabulaRasa.Api.Services
                 SpatialQueries.OccupiesSpace(agent),
                 ToHealth(agent),
                 agent.IsDead,
+                SpeciesRegistry.NormalizeId(agent.SpeciesId),
+                agent.AgeTicks,
+                agent.BornTick,
+                agent.ParentIds.ToList(),
+                agent.OffspringIds.ToList(),
+                agent.LastReproducedTick,
+                agent.DeathTick,
+                agent.DeathCause,
                 ToInventory(agent.Inventory, state.World.ResourceDefinitionsById),
                 ToNeeds(agentState?.NeedState),
+                ToTraits(agent.Traits),
                 movement is null ? null : ToMovement(movement),
                 ToCurrentGoal(agent.Id, state),
                 ToTaskQueue(agent.Id, state),
                 ToPerception(state.LatestPerceptionsByAgentId.GetValueOrDefault(agent.Id)),
                 ToMemory(state.MemoryStoresByAgentId.GetValueOrDefault(agent.Id)),
+                ToSocial(state, agent.Id),
+                ToKnowledge(state.KnowledgeStoresByAgentId.GetValueOrDefault(agent.Id)),
                 ToDecision(agentState?.Learning.LatestDecision),
                 ToLearning(agentState?.Learning));
         }
@@ -315,6 +377,295 @@ namespace TabulaRasa.Api.Services
                 memory.ExpiresAtTick,
                 memory.Summary,
                 memory.Metadata);
+        }
+
+        private static AgentSocialSnapshotDto ToSocial(SimulationState state, string agentId)
+        {
+            AgentSocialStore? store = state.SocialStoresByAgentId.GetValueOrDefault(agentId);
+
+            return new AgentSocialSnapshotDto(
+                (store?.Relationships ?? [])
+                    .Select(relationship => ToRelationship(state, relationship))
+                    .ToList(),
+                (store?.Groups ?? [])
+                    .Select(ToGroupMembership)
+                    .ToList());
+        }
+
+        private static AgentKnowledgeSnapshotDto ToKnowledge(AgentKnowledgeStore? store)
+        {
+            return new AgentKnowledgeSnapshotDto(
+                (store?.Records ?? [])
+                    .OrderBy(record => record.Kind)
+                    .ThenBy(record => record.SubjectId, StringComparer.OrdinalIgnoreCase)
+                    .Select(ToKnowledgeRecord)
+                    .ToList());
+        }
+
+        private static KnowledgeRecordSnapshotDto ToKnowledgeRecord(KnowledgeRecord record)
+        {
+            return new KnowledgeRecordSnapshotDto(
+                record.Id,
+                record.Kind.ToString(),
+                record.SubjectId,
+                record.DisplayName,
+                record.DiscoveredTick,
+                record.LastUpdatedTick,
+                record.Source,
+                record.SourceAgentId,
+                record.Metadata);
+        }
+
+        private static SocialRelationshipSnapshotDto ToRelationship(
+            SimulationState state,
+            SocialRelationship relationship)
+        {
+            return new SocialRelationshipSnapshotDto(
+                relationship.AgentId,
+                relationship.OtherAgentId,
+                relationship.Familiarity,
+                relationship.Trust,
+                relationship.Fear,
+                relationship.Affinity,
+                relationship.InteractionCount,
+                relationship.CreatedTick,
+                relationship.LastUpdatedTick,
+                relationship.LastSeenTick,
+                relationship.LastInteractionTick,
+                SharedGroups(state, relationship.AgentId, relationship.OtherAgentId));
+        }
+
+        private static SocialGroupMembershipSnapshotDto ToGroupMembership(SocialGroupMembership membership)
+        {
+            return new SocialGroupMembershipSnapshotDto(
+                membership.GroupId,
+                membership.DisplayName,
+                membership.Kind,
+                membership.JoinedTick);
+        }
+
+        private static SocialGraphSnapshotDto ToSocialGraph(SimulationState state)
+        {
+            IReadOnlyList<SocialGraphNodeDto> nodes = state.World.Agents
+                .Select(agent =>
+                {
+                    AgentSocialStore? store = state.SocialStoresByAgentId.GetValueOrDefault(agent.Id);
+
+                    return new SocialGraphNodeDto(
+                        agent.Id,
+                        SpeciesRegistry.NormalizeId(agent.SpeciesId),
+                        agent.IsDead,
+                        ToPosition(agent.Position),
+                        (store?.Groups ?? [])
+                            .Select(group => group.GroupId)
+                            .ToList());
+                })
+                .ToList();
+
+            IReadOnlyList<SocialGraphEdgeDto> edges = state.SocialStoresByAgentId.Values
+                .SelectMany(store => store.Relationships)
+                .Select(relationship => new SocialGraphEdgeDto(
+                    relationship.AgentId,
+                    relationship.OtherAgentId,
+                    relationship.Familiarity,
+                    relationship.Trust,
+                    relationship.Fear,
+                    relationship.Affinity,
+                    relationship.InteractionCount,
+                    relationship.LastInteractionTick,
+                    SharedGroups(state, relationship.AgentId, relationship.OtherAgentId)))
+                .ToList();
+
+            return new SocialGraphSnapshotDto(nodes, edges);
+        }
+
+        private static EvolutionSummaryDto ToEvolutionSummary(
+            SimulationState state,
+            IReadOnlyList<SimulationSnapshotDto> retainedSnapshots)
+        {
+            IReadOnlyList<PopulationTraitMetricDto> currentTraits = ToPopulationTraitMetrics(
+                state.World.Agents.Select(agent => new TraitMetricAgent(agent.Traits, agent.IsDead)).ToList());
+
+            List<TraitHistoryPointDto> history = retainedSnapshots
+                .SelectMany(snapshot => ToTraitHistoryPoints(snapshot.Tick, snapshot.Agents))
+                .Concat(ToTraitHistoryPoints(
+                    state.Time.Tick,
+                    state.World.Agents.Select(agent => new TraitMetricAgent(agent.Traits, agent.IsDead)).ToList()))
+                .GroupBy(point => $"{point.Tick}:{point.Trait}", StringComparer.Ordinal)
+                .Select(group => group.Last())
+                .OrderBy(point => point.Tick)
+                .ThenBy(point => point.Trait, StringComparer.Ordinal)
+                .ToList();
+
+            return new EvolutionSummaryDto(currentTraits, history);
+        }
+
+        private static IReadOnlyList<TraitHistoryPointDto> ToTraitHistoryPoints(
+            long tick,
+            IReadOnlyList<AgentSnapshotDto> agents)
+        {
+            return ToPopulationTraitMetrics(
+                    agents.Select(agent => new TraitMetricAgent(ToAgentTraits(agent.Traits), agent.IsDead)).ToList())
+                .Select(metric => new TraitHistoryPointDto(
+                    tick,
+                    metric.Trait,
+                    metric.Average,
+                    metric.Minimum,
+                    metric.Maximum,
+                    metric.AliveAverage,
+                    metric.DeadAverage))
+                .ToList();
+        }
+
+        private static IReadOnlyList<TraitHistoryPointDto> ToTraitHistoryPoints(
+            long tick,
+            IReadOnlyList<TraitMetricAgent> agents)
+        {
+            return ToPopulationTraitMetrics(agents)
+                .Select(metric => new TraitHistoryPointDto(
+                    tick,
+                    metric.Trait,
+                    metric.Average,
+                    metric.Minimum,
+                    metric.Maximum,
+                    metric.AliveAverage,
+                    metric.DeadAverage))
+                .ToList();
+        }
+
+        private static IReadOnlyList<PopulationTraitMetricDto> ToPopulationTraitMetrics(
+            IReadOnlyList<TraitMetricAgent> agents)
+        {
+            return new[]
+                {
+                    "perception",
+                    "speed",
+                    "metabolism",
+                    "riskTolerance",
+                    "learningRate"
+                }
+                .Select(trait =>
+                {
+                    List<float> values = agents.Select(agent => GetTraitValue(agent.Traits, trait)).ToList();
+                    List<float> aliveValues = agents.Where(agent => !agent.IsDead).Select(agent => GetTraitValue(agent.Traits, trait)).ToList();
+                    List<float> deadValues = agents.Where(agent => agent.IsDead).Select(agent => GetTraitValue(agent.Traits, trait)).ToList();
+
+                    return new PopulationTraitMetricDto(
+                        trait,
+                        AverageOrZero(values),
+                        values.Count == 0 ? 0 : values.Min(),
+                        values.Count == 0 ? 0 : values.Max(),
+                        AverageOrZero(aliveValues),
+                        AverageOrZero(deadValues));
+                })
+                .ToList();
+        }
+
+        private static float GetTraitValue(AgentTraits traits, string trait)
+        {
+            return trait switch
+            {
+                "perception" => traits.Perception,
+                "speed" => traits.Speed,
+                "metabolism" => traits.Metabolism,
+                "riskTolerance" => traits.RiskTolerance,
+                "learningRate" => traits.LearningRate,
+                _ => 0
+            };
+        }
+
+        private static float AverageOrZero(IReadOnlyList<float> values)
+        {
+            return values.Count == 0 ? 0 : values.Average();
+        }
+
+        private sealed record TraitMetricAgent(AgentTraits Traits, bool IsDead);
+
+        private static IReadOnlyList<GroupKnowledgeSnapshotDto> ToGroupKnowledge(SimulationState state)
+        {
+            return state.SocialStoresByAgentId
+                .SelectMany(pair => pair.Value.Groups.Select(group => new { AgentId = pair.Key, Group = group }))
+                .GroupBy(item => item.Group.GroupId, StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    IReadOnlyList<string> memberAgentIds = group
+                        .Select(item => item.AgentId)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(agentId => agentId, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    IReadOnlyList<KnowledgeRecord> records = memberAgentIds
+                        .Select(agentId => state.KnowledgeStoresByAgentId.GetValueOrDefault(agentId))
+                        .OfType<AgentKnowledgeStore>()
+                        .SelectMany(store => store.Records)
+                        .ToList();
+
+                    return new GroupKnowledgeSnapshotDto(
+                        group.Key,
+                        group.First().Group.DisplayName,
+                        memberAgentIds,
+                        records
+                            .Where(record => record.Kind == KnowledgeKind.Recipe)
+                            .Select(record => record.SubjectId)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                            .ToList(),
+                        records
+                            .Where(record => record.Kind == KnowledgeKind.ActionUnlock)
+                            .Select(record => record.SubjectId)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                            .ToList());
+                })
+                .OrderBy(group => group.GroupId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static IReadOnlyList<DiscoveryMarkerSnapshotDto> ToDiscoveryMarkers(SimulationState state)
+        {
+            return state.GetRecentEvents()
+                .Where(simulationEvent => simulationEvent.Type == "knowledge.discovered")
+                .Select(simulationEvent => new DiscoveryMarkerSnapshotDto(
+                    simulationEvent.Tick,
+                    simulationEvent.Metadata.GetValueOrDefault("agentId", simulationEvent.EntityId ?? ""),
+                    simulationEvent.Metadata.GetValueOrDefault("recipeId", ""),
+                    simulationEvent.Metadata.GetValueOrDefault("displayName", "Discovery"),
+                    simulationEvent.Metadata.GetValueOrDefault("source", "")))
+                .ToList();
+        }
+
+        private static RecipeDefinitionSnapshotDto ToRecipeDefinition(RecipeDefinition recipe)
+        {
+            return new RecipeDefinitionSnapshotDto(
+                recipe.Id,
+                recipe.DisplayName,
+                recipe.Description,
+                recipe.Inputs.Select(input => new RecipeIngredientSnapshotDto(input.ResourceId, input.Quantity)).ToList(),
+                recipe.Tools.Select(tool => new RecipeIngredientSnapshotDto(tool.ResourceId, tool.Quantity)).ToList(),
+                recipe.Outputs.Select(output => new RecipeOutputSnapshotDto(output.ResourceId, output.Quantity)).ToList(),
+                recipe.Unlocks.Select(unlock => new ActionUnlockSnapshotDto(unlock.Id, unlock.DisplayName, unlock.Description)).ToList(),
+                recipe.DiscoveryChance);
+        }
+
+        private static IReadOnlyList<string> SharedGroups(
+            SimulationState state,
+            string firstAgentId,
+            string secondAgentId)
+        {
+            if (!state.SocialStoresByAgentId.TryGetValue(firstAgentId, out AgentSocialStore? firstStore)
+                || !state.SocialStoresByAgentId.TryGetValue(secondAgentId, out AgentSocialStore? secondStore))
+            {
+                return [];
+            }
+
+            HashSet<string> firstGroups = firstStore.Groups
+                .Select(group => group.GroupId)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return secondStore.Groups
+                .Where(group => firstGroups.Contains(group.GroupId))
+                .Select(group => group.GroupId)
+                .OrderBy(groupId => groupId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static AgentDecisionSnapshotDto? ToDecision(AgentDecisionExplanation? decision)
@@ -623,6 +974,25 @@ namespace TabulaRasa.Api.Services
                 state.World.ResourceDeposits.Sum(deposit => deposit.Quantity));
         }
 
+        private static IReadOnlyList<SpeciesPopulationCountDto> ToSpeciesPopulation(SimulationState state)
+        {
+            return SpeciesRegistry.All
+                .Select(species =>
+                {
+                    List<AgentEntity> agents = state.World.Agents
+                        .Where(agent => string.Equals(SpeciesRegistry.NormalizeId(agent.SpeciesId), species.Id, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    return new SpeciesPopulationCountDto(
+                        species.Id,
+                        species.DisplayName,
+                        agents.Count,
+                        agents.Count(agent => !agent.IsDead),
+                        agents.Count(agent => agent.IsDead));
+                })
+                .ToList();
+        }
+
         private static MovementSnapshotDto ToMovement(ActiveMovement movement)
         {
             return new MovementSnapshotDto(
@@ -794,6 +1164,28 @@ namespace TabulaRasa.Api.Services
                 needs?.Thirst ?? 0,
                 needs?.Energy ?? 0,
                 needs?.Fatigue ?? 0);
+        }
+
+        private static AgentTraitsDto ToTraits(AgentTraits traits)
+        {
+            return new AgentTraitsDto(
+                traits.Perception,
+                traits.Speed,
+                traits.Metabolism,
+                traits.RiskTolerance,
+                traits.LearningRate);
+        }
+
+        private static AgentTraits ToAgentTraits(AgentTraitsDto? traits)
+        {
+            return traits is null
+                ? AgentTraits.Default
+                : new AgentTraits(
+                    traits.Perception,
+                    traits.Speed,
+                    traits.Metabolism,
+                    traits.RiskTolerance,
+                    traits.LearningRate);
         }
 
         private static PositionDto ToPosition(WorldPosition position)

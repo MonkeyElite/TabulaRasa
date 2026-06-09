@@ -1,5 +1,5 @@
 import React from "react";
-import type { SimulationEvent, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
+import type { AgentSnapshot, DiscoveryMarkerSnapshot, PopulationTraitMetric, RecipeDefinitionSnapshot, SimulationEvent, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
 
 export function RuntimePanel({
   status,
@@ -75,6 +75,32 @@ export function RuntimePanel({
           Seed <strong>{status?.config.seed ?? "-"}</strong>
         </span>
       </div>
+      {snapshot && snapshot.speciesPopulation.length > 0 && (
+        <div className="species-population-chart">
+          {snapshot.speciesPopulation.map((species) => {
+            const maxTotal = Math.max(1, ...snapshot.speciesPopulation.map((item) => item.total));
+            const width = (species.total / maxTotal) * 100;
+
+            return (
+              <div className="species-population-row" key={species.speciesId}>
+                <span>{species.displayName}</span>
+                <div>
+                  <i style={{ width: `${width}%` }} />
+                </div>
+                <strong>{species.alive}/{species.total}</strong>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {snapshot && snapshot.evolution.currentTraits.length > 0 && (
+        <div className="trait-population-chart">
+          <div className="subsection-title">Selection pressure</div>
+          {snapshot.evolution.currentTraits.map((metric) => (
+            <TraitMetricRow key={metric.trait} metric={metric} />
+          ))}
+        </div>
+      )}
       {configDraft && (
         <div className="field-grid compact-fields">
           <NumberConfigField
@@ -181,6 +207,445 @@ export function EventLogPanel({
   );
 }
 
+export function GenealogyPanel({
+  snapshot,
+  selectedAgentId,
+  onSelectAgent
+}: {
+  snapshot: SimulationSnapshot | null;
+  selectedAgentId: string | null;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const agents = snapshot?.agents ?? [];
+  const selectedAgent = selectedAgentId
+    ? agents.find((agent) => agent.id === selectedAgentId) ?? null
+    : agents[0] ?? null;
+  const parents = selectedAgent ? selectedAgent.parentIds
+    .map((id) => agents.find((agent) => agent.id === id))
+    .filter((agent): agent is AgentSnapshot => Boolean(agent)) : [];
+  const offspring = selectedAgent ? selectedAgent.offspringIds
+    .map((id) => agents.find((agent) => agent.id === id))
+    .filter((agent): agent is AgentSnapshot => Boolean(agent)) : [];
+  const width = 360;
+  const height = 300;
+  const selectedPosition = { x: width / 2, y: height / 2 };
+  const parentPositions = rowPositions(parents.length, width, 64);
+  const offspringPositions = rowPositions(offspring.length, width, 236);
+
+  return (
+    <section className="debug-panel genealogy-panel">
+      <div className="debug-header">
+        <h2>Family</h2>
+        <span className="pill">{selectedAgent?.id ?? "no agent"}</span>
+      </div>
+      {!selectedAgent ? (
+        <span className="metric">No genealogy.</span>
+      ) : (
+        <>
+          <svg className="social-graph genealogy-graph" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Family tree">
+            {parents.map((parent, index) => (
+              <line
+                key={`parent-line:${parent.id}`}
+                x1={parentPositions[index].x}
+                y1={parentPositions[index].y + 18}
+                x2={selectedPosition.x}
+                y2={selectedPosition.y - 18}
+                stroke="#6aa8ff"
+                strokeOpacity="0.55"
+              />
+            ))}
+            {offspring.map((child, index) => (
+              <line
+                key={`child-line:${child.id}`}
+                x1={selectedPosition.x}
+                y1={selectedPosition.y + 18}
+                x2={offspringPositions[index].x}
+                y2={offspringPositions[index].y - 18}
+                stroke="#54c475"
+                strokeOpacity="0.55"
+              />
+            ))}
+            {parents.map((parent, index) => (
+              <GenealogyNode key={parent.id} agent={parent} position={parentPositions[index]} selected={false} onSelectAgent={onSelectAgent} />
+            ))}
+            <GenealogyNode agent={selectedAgent} position={selectedPosition} selected onSelectAgent={onSelectAgent} />
+            {offspring.map((child, index) => (
+              <GenealogyNode key={child.id} agent={child} position={offspringPositions[index]} selected={false} onSelectAgent={onSelectAgent} />
+            ))}
+          </svg>
+          <div className="system-list">
+            <div className="system-row">
+              <span>
+                <strong>Parents</strong>
+                <small>{selectedAgent.parentIds.length > 0 ? selectedAgent.parentIds.join(", ") : "none"}</small>
+              </span>
+              <span>{parents.length}</span>
+              <span>{selectedAgent.parentIds.length}</span>
+            </div>
+            <div className="system-row">
+              <span>
+                <strong>Offspring</strong>
+                <small>{selectedAgent.offspringIds.length > 0 ? selectedAgent.offspringIds.join(", ") : "none"}</small>
+              </span>
+              <span>{offspring.length}</span>
+              <span>{selectedAgent.offspringIds.length}</span>
+            </div>
+            <TraitSummary agent={selectedAgent} />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function SocialGraphPanel({
+  snapshot,
+  selectedAgentId,
+  onSelectAgent
+}: {
+  snapshot: SimulationSnapshot | null;
+  selectedAgentId: string | null;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const graph = snapshot?.socialGraph;
+  const width = 360;
+  const height = 300;
+  const nodes = graph?.nodes ?? [];
+  const edges = graph?.edges ?? [];
+  const nodePositions = new Map(nodes.map((node, index) => {
+    const angle = nodes.length <= 1 ? 0 : (Math.PI * 2 * index) / nodes.length - Math.PI / 2;
+    const radius = nodes.length <= 2 ? 82 : 112;
+    return [
+      node.agentId,
+      {
+        x: width / 2 + Math.cos(angle) * radius,
+        y: height / 2 + Math.sin(angle) * radius
+      }
+    ];
+  }));
+
+  return (
+    <section className="debug-panel social-panel">
+      <div className="debug-header">
+        <h2>Social</h2>
+        <span className="pill">{edges.length} ties</span>
+      </div>
+      {!graph || nodes.length === 0 ? (
+        <span className="metric">No social graph.</span>
+      ) : (
+        <>
+          <svg className="social-graph" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Social graph">
+            {edges.map((edge) => {
+              const from = nodePositions.get(edge.fromAgentId);
+              const to = nodePositions.get(edge.toAgentId);
+              if (!from || !to) {
+                return null;
+              }
+
+              const midX = (from.x + to.x) / 2;
+              const midY = (from.y + to.y) / 2;
+              return (
+                <g key={`${edge.fromAgentId}:${edge.toAgentId}`}>
+                  <line
+                    x1={from.x}
+                    y1={from.y}
+                    x2={to.x}
+                    y2={to.y}
+                    stroke={edge.fear > edge.trust ? "#e06767" : "#6aa8ff"}
+                    strokeWidth={1 + edge.familiarity * 5}
+                    strokeOpacity={0.35 + edge.familiarity * 0.45}
+                  />
+                  <text x={midX} y={midY} className="social-edge-label">
+                    {compactMetric(edge.trust)} / {compactMetric(edge.fear)} / {compactMetric(edge.affinity)}
+                  </text>
+                </g>
+              );
+            })}
+            {nodes.map((node) => {
+              const position = nodePositions.get(node.agentId);
+              if (!position) {
+                return null;
+              }
+
+              const selected = selectedAgentId === node.agentId;
+              return (
+                <g
+                  key={node.agentId}
+                  className="social-node"
+                  transform={`translate(${position.x} ${position.y})`}
+                  onClick={() => onSelectAgent(node.agentId)}
+                >
+                  <circle
+                    r={selected ? 20 : 16}
+                    fill={node.isDead ? "#5a5f68" : speciesColor(node.speciesId)}
+                    stroke={selected ? "#ffffff" : "#20262b"}
+                    strokeWidth={selected ? 4 : 2}
+                  />
+                  <text y={34}>{node.agentId}</text>
+                </g>
+              );
+            })}
+          </svg>
+          <div className="system-list">
+            {edges.slice(0, 8).map((edge) => (
+              <div className="system-row" key={`${edge.fromAgentId}:${edge.toAgentId}`}>
+                <span>
+                  <strong>{`${edge.fromAgentId} -> ${edge.toAgentId}`}</strong>
+                  <small>seen {compactMetric(edge.familiarity)} / trust {compactMetric(edge.trust)} / fear {compactMetric(edge.fear)}</small>
+                </span>
+                <span>{edge.interactionCount}</span>
+                <span>{edge.lastInteractionTick ?? "-"}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function KnowledgePanel({
+  snapshot,
+  selectedAgentId,
+  onSelectAgent
+}: {
+  snapshot: SimulationSnapshot | null;
+  selectedAgentId: string | null;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const selectedAgent = selectedAgentId
+    ? snapshot?.agents.find((agent) => agent.id === selectedAgentId) ?? null
+    : null;
+  const recipes = snapshot?.recipeCatalog ?? [];
+  const knownRecipeIds = new Set(selectedAgent?.knowledge.records
+    .filter((record) => record.kind === "Recipe")
+    .map((record) => record.subjectId) ?? []);
+
+  return (
+    <section className="debug-panel knowledge-panel">
+      <div className="debug-header">
+        <h2>Knowledge</h2>
+        <span className="pill">{selectedAgent ? selectedAgent.id : "no agent"}</span>
+      </div>
+      <div className="knowledge-summary">
+        <span className="metric">
+          Recipes <strong>{selectedAgent?.knowledge.records.filter((record) => record.kind === "Recipe").length ?? 0}/{recipes.length}</strong>
+        </span>
+        <span className="metric">
+          Groups <strong>{snapshot?.groupKnowledge.length ?? 0}</strong>
+        </span>
+        <span className="metric">
+          Discoveries <strong>{snapshot?.discoveryMarkers.length ?? 0}</strong>
+        </span>
+      </div>
+      <div className="system-list">
+        <div className="subsection-title">Recipe catalog</div>
+        {recipes.map((recipe) => (
+          <RecipeCatalogRow key={recipe.id} recipe={recipe} known={knownRecipeIds.has(recipe.id)} />
+        ))}
+        {recipes.length === 0 && <span className="metric">No recipes registered.</span>}
+
+        <div className="subsection-title">Group knowledge</div>
+        {(snapshot?.groupKnowledge ?? []).map((group) => (
+          <div className="system-row" key={group.groupId}>
+            <span>
+              <strong>{group.displayName}</strong>
+              <small>{group.knownRecipeIds.length} recipes / {group.knownActionUnlockIds.length} unlocks</small>
+            </span>
+            <span>{group.memberAgentIds.length}</span>
+            <span>{group.knownRecipeIds.length}</span>
+          </div>
+        ))}
+        {(snapshot?.groupKnowledge.length ?? 0) === 0 && <span className="metric">No group knowledge.</span>}
+
+        <div className="subsection-title">Agents</div>
+        {(snapshot?.agents ?? []).map((agent) => (
+          <button
+            key={agent.id}
+            className={`entity-row ${selectedAgentId === agent.id ? "selected" : ""}`}
+            onClick={() => onSelectAgent(agent.id)}
+          >
+            <span className="entity-dot agent" />
+            <span>
+              <strong>{agent.id}</strong>
+              <small>{agent.knowledge.records.filter((record) => record.kind === "Recipe").length} recipes known</small>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function DiscoveryTimelineMarkers({
+  markers,
+  minimumTick,
+  maximumTick,
+  onSelectTick
+}: {
+  markers: DiscoveryMarkerSnapshot[];
+  minimumTick: number;
+  maximumTick: number;
+  onSelectTick: (tick: number) => void;
+}) {
+  if (markers.length === 0 || maximumTick <= minimumTick) {
+    return <div className="timeline-markers" />;
+  }
+
+  return (
+    <div className="timeline-markers">
+      {markers.map((marker) => {
+        const left = ((marker.tick - minimumTick) / (maximumTick - minimumTick)) * 100;
+
+        return (
+          <button
+            key={`${marker.tick}:${marker.agentId}:${marker.recipeId}`}
+            className="timeline-marker"
+            style={{ left: `${left}%` }}
+            title={`${marker.displayName} discovered by ${marker.agentId} at tick ${marker.tick}`}
+            onClick={() => onSelectTick(marker.tick)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function RecipeCatalogRow({ recipe, known }: { recipe: RecipeDefinitionSnapshot; known: boolean }) {
+  return (
+    <div className={`perception-row ${known ? "known" : ""}`}>
+      <strong>{recipe.displayName}</strong>
+      <small>{known ? "known" : "unknown"} / chance {formatNumber(recipe.discoveryChance)}</small>
+      <small>in {formatRecipeParts(recipe.inputs)} / tools {formatRecipeParts(recipe.tools)} / out {formatRecipeParts(recipe.outputs)}</small>
+      <small>{recipe.unlocks.map((unlock) => unlock.displayName).join(", ") || "no unlocks"}</small>
+    </div>
+  );
+}
+
+function TraitMetricRow({ metric }: { metric: PopulationTraitMetric }) {
+  const average = clamp01(metric.average);
+  const minimum = clamp01(metric.minimum);
+  const maximum = clamp01(metric.maximum);
+  const left = minimum * 100;
+  const width = Math.max(2, (maximum - minimum) * 100);
+
+  return (
+    <div className="trait-population-row">
+      <span>{traitDisplayName(metric.trait)}</span>
+      <div>
+        <i style={{ left: `${left}%`, width: `${width}%` }} />
+        <b style={{ left: `${average * 100}%` }} />
+      </div>
+      <strong>{formatNumber(metric.average)}</strong>
+      <small>alive {formatNumber(metric.aliveAverage)} / dead {formatNumber(metric.deadAverage)}</small>
+    </div>
+  );
+}
+
+function GenealogyNode({
+  agent,
+  position,
+  selected,
+  onSelectAgent
+}: {
+  agent: AgentSnapshot;
+  position: { x: number; y: number };
+  selected: boolean;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  return (
+    <g className="social-node" transform={`translate(${position.x} ${position.y})`} onClick={() => onSelectAgent(agent.id)}>
+      <circle
+        r={selected ? 21 : 17}
+        fill={agent.isDead ? "#5a5f68" : speciesColor(agent.speciesId)}
+        stroke={selected ? "#ffffff" : "#20262b"}
+        strokeWidth={selected ? 4 : 2}
+      />
+      <text y={34}>{agent.id}</text>
+      <text y={47} className="genealogy-trait-label">{formatNumber(agent.traits.speed)} spd / {formatNumber(agent.traits.perception)} per</text>
+    </g>
+  );
+}
+
+function TraitSummary({ agent }: { agent: AgentSnapshot }) {
+  return (
+    <>
+      {traitEntries(agent).map(([key, value]) => (
+        <div className="system-row" key={key}>
+          <span>
+            <strong>{traitDisplayName(key)}</strong>
+            <small>{traitEffectText(key, value)}</small>
+          </span>
+          <span>{formatNumber(value)}</span>
+          <span>{Math.round(value * 100)}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function rowPositions(count: number, width: number, y: number) {
+  if (count <= 0) {
+    return [];
+  }
+
+  if (count === 1) {
+    return [{ x: width / 2, y }];
+  }
+
+  const spacing = Math.min(108, (width - 80) / Math.max(1, count - 1));
+  const start = width / 2 - (spacing * (count - 1)) / 2;
+
+  return Array.from({ length: count }, (_, index) => ({ x: start + spacing * index, y }));
+}
+
+function traitEntries(agent: AgentSnapshot): Array<[string, number]> {
+  return [
+    ["perception", agent.traits.perception],
+    ["speed", agent.traits.speed],
+    ["metabolism", agent.traits.metabolism],
+    ["riskTolerance", agent.traits.riskTolerance],
+    ["learningRate", agent.traits.learningRate]
+  ];
+}
+
+function traitDisplayName(trait: string) {
+  switch (trait) {
+    case "riskTolerance":
+      return "Risk";
+    case "learningRate":
+      return "Learning";
+    default:
+      return trait.charAt(0).toUpperCase() + trait.slice(1);
+  }
+}
+
+function traitEffectText(trait: string, value: number) {
+  if (trait === "metabolism") {
+    return `need decay x${formatNumber(1.2 - clamp01(value) * 0.4)}`;
+  }
+
+  if (trait === "learningRate") {
+    return `learning ${formatNumber(0.1 + clamp01(value) * 0.3)}`;
+  }
+
+  if (trait === "riskTolerance") {
+    return `risk score ${formatNumber((clamp01(value) - 0.5) * 0.7)}`;
+  }
+
+  return `effect x${formatNumber(0.75 + clamp01(value) * 0.5)}`;
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function formatRecipeParts(parts: Array<{ resourceId: string; quantity: number }>) {
+  return parts.length === 0
+    ? "none"
+    : parts.map((part) => `${part.resourceId} x${part.quantity}`).join(", ");
+}
+
 function NumberConfigField({
   label,
   value,
@@ -212,4 +677,20 @@ function formatMilliseconds(value: number | undefined) {
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
+function compactMetric(value: number) {
+  return value.toFixed(2);
+}
+
+function speciesColor(speciesId: string) {
+  if (speciesId === "deer") {
+    return "#d2a45f";
+  }
+
+  if (speciesId === "wolf") {
+    return "#d76b6b";
+  }
+
+  return "#54c475";
 }

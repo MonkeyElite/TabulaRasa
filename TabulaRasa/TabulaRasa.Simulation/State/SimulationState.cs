@@ -5,9 +5,11 @@ using TabulaRasa.Abstractions.Time;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.Goals;
+using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Memory;
 using TabulaRasa.Simulation.Movement.Execution;
 using TabulaRasa.Simulation.Observability;
+using TabulaRasa.Simulation.Social;
 using TabulaRasa.Simulation.Tasks.Jobs;
 using TabulaRasa.Simulation.Tasks.Reservations;
 using TabulaRasa.World.State;
@@ -29,6 +31,8 @@ namespace TabulaRasa.Simulation.State
         public ReservationRegistry Reservations { get; } = new();
         public Dictionary<string, AgentPerception> LatestPerceptionsByAgentId { get; } = [];
         public Dictionary<string, AgentMemoryStore> MemoryStoresByAgentId { get; } = [];
+        public Dictionary<string, AgentKnowledgeStore> KnowledgeStoresByAgentId { get; } = [];
+        public Dictionary<string, AgentSocialStore> SocialStoresByAgentId { get; } = [];
         public SimulationConfig Config { get; private set; }
         public Random Random { get; private set; }
         public long ActiveTick => _activeEventTick;
@@ -72,6 +76,28 @@ namespace TabulaRasa.Simulation.State
             {
                 store = new AgentMemoryStore();
                 MemoryStoresByAgentId[agentId] = store;
+            }
+
+            return store;
+        }
+
+        public AgentSocialStore GetSocialStore(string agentId)
+        {
+            if (!SocialStoresByAgentId.TryGetValue(agentId, out AgentSocialStore? store))
+            {
+                store = new AgentSocialStore();
+                SocialStoresByAgentId[agentId] = store;
+            }
+
+            return store;
+        }
+
+        public AgentKnowledgeStore GetKnowledgeStore(string agentId)
+        {
+            if (!KnowledgeStoresByAgentId.TryGetValue(agentId, out AgentKnowledgeStore? store))
+            {
+                store = new AgentKnowledgeStore();
+                KnowledgeStoresByAgentId[agentId] = store;
             }
 
             return store;
@@ -175,6 +201,8 @@ namespace TabulaRasa.Simulation.State
             MemoryConfig memory = config.EffectiveMemory;
             EnvironmentConfig environment = config.EffectiveEnvironment;
             EcologyConfig ecology = config.EffectiveEcology;
+            TraitConfig traits = config.EffectiveTraits;
+            SpeciesPopulationConfig speciesPopulation = config.EffectiveSpeciesPopulation;
             IReadOnlyList<string> enabledSystems = config.EffectiveEnabledSystems
                 .Where(systemId => !string.IsNullOrWhiteSpace(systemId))
                 .Select(systemId => systemId.Trim())
@@ -220,6 +248,14 @@ namespace TabulaRasa.Simulation.State
                     Math.Clamp(ecology.PlantDecayTicksAfterDepleted, 1, 1_000_000),
                     ClampFinite(ecology.WaterRefillPerRainTick, 0, 1_000),
                     ClampFinite(ecology.WaterEvaporationPerHeatTick, 0, 1_000)),
+                Traits = new TraitConfig(
+                    ClampFinite(traits.InitialVariation, 0, 1),
+                    ClampFinite(traits.MutationChancePerTrait, 0, 1),
+                    ClampFinite(traits.MutationDelta, 0, 1)),
+                SpeciesPopulation = new SpeciesPopulationConfig(
+                    Math.Clamp(speciesPopulation.Human, 0, 10_000),
+                    Math.Clamp(speciesPopulation.Deer, 0, 10_000),
+                    Math.Clamp(speciesPopulation.Wolf, 0, 10_000)),
                 EnabledSystems = enabledSystems.Count == 0
                     ? SimulationConfig.DefaultEnabledSystems
                     : enabledSystems

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { AgentMemoryRecordSnapshot, AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, SimulationDraftSchema, TerrainType } from "@/types/simulation";
+import type { AgentMemoryRecordSnapshot, AgentNeeds, AgentSnapshot, EditableField, EntityHealth, GridCell, KnowledgeRecordSnapshot, SimulationDraftSchema, SocialRelationshipSnapshot, TerrainType } from "@/types/simulation";
 import type { Selection, SimulationDraft, SimulationSnapshot } from "@/types/simulation";
 import {
   addAgentDraft,
@@ -38,7 +38,7 @@ type Props = {
 
 export function Inspector({ snapshot, draft, schema, selection, onSelect, editing, canEdit, onDraftChange, onTerrainChange }: Props) {
   const [inspectorTab, setInspectorTab] = React.useState<"state" | "entities" | "selection">("selection");
-  const [agentTab, setAgentTab] = React.useState<"overview" | "work" | "perception" | "memory" | "learning">("overview");
+  const [agentTab, setAgentTab] = React.useState<"overview" | "traits" | "work" | "perception" | "memory" | "knowledge" | "relationships" | "learning">("overview");
   const editable = editing && canEdit && draft;
   const listedAgents = editable ? draft.agents : snapshot?.agents ?? [];
   const listedResourceContainers = editable ? draft.resourceContainers : snapshot?.resourceContainers ?? [];
@@ -79,6 +79,25 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
   const cellIsBlocked = selectedCell ? blockedCells.some((cell) => sameCell(cell, selectedCell)) : false;
   const cellOccupants = selectedCell ? getCellOccupants(snapshot, draft, Boolean(editable), selectedCell) : [];
   const selectedCellTerrain = selectedCell ? getCellTerrain(snapshot, draft, Boolean(editable), selectedCell) : terrainProfile("Plain");
+  const addSpeciesAgent = (speciesId: "human" | "deer" | "wolf") => {
+    if (!draft) {
+      return;
+    }
+
+    const nextDraft = addAgentDraft(draft);
+    const nextAgent = nextDraft.agents.at(-1);
+    if (!nextAgent) {
+      onDraftChange(nextDraft);
+      return;
+    }
+
+    const speciesDraft = updateAgentDraft(nextDraft, nextAgent.id, {
+      speciesId,
+      id: `${speciesId}-${nextDraft.agents.filter((agent) => agent.speciesId === speciesId).length + 1}`
+    });
+    onDraftChange(speciesDraft);
+    onSelect({ type: "agent", id: speciesDraft.agents.at(-1)?.id ?? nextAgent.id });
+  };
 
   return (
     <aside className="inspector">
@@ -142,18 +161,9 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
         <h3>Entities</h3>
         {editable && (
           <div className="row entity-actions">
-            <button
-              onClick={() => {
-                const nextDraft = addAgentDraft(draft);
-                const nextAgent = nextDraft.agents.at(-1);
-                onDraftChange(nextDraft);
-                if (nextAgent) {
-                  onSelect({ type: "agent", id: nextAgent.id });
-                }
-              }}
-            >
-              Add agent
-            </button>
+            <button onClick={() => addSpeciesAgent("human")}>Add human</button>
+            <button onClick={() => addSpeciesAgent("deer")}>Add deer</button>
+            <button onClick={() => addSpeciesAgent("wolf")}>Add wolf</button>
             <button
               onClick={() => {
                 const nextDraft = addResourceContainerDraft(draft);
@@ -228,6 +238,7 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
                 <strong>{item.id}</strong>
                 <small>
                   {isDeadAgent(item) ? "Corpse" : "AgentEntity"} - cell {Math.floor(item.position.x)}, {Math.floor(item.position.y)}
+                  {"speciesId" in item ? ` - ${item.speciesId}` : ""}
                 </small>
               </span>
             </button>
@@ -309,9 +320,12 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
           {!editing && selectedSnapshotAgent && (
             <div className="tabs">
               <button className={agentTab === "overview" ? "selected" : ""} onClick={() => setAgentTab("overview")}>Overview</button>
+              <button className={agentTab === "traits" ? "selected" : ""} onClick={() => setAgentTab("traits")}>Traits</button>
               <button className={agentTab === "work" ? "selected" : ""} onClick={() => setAgentTab("work")}>Work</button>
               <button className={agentTab === "perception" ? "selected" : ""} onClick={() => setAgentTab("perception")}>Perception</button>
               <button className={agentTab === "memory" ? "selected" : ""} onClick={() => setAgentTab("memory")}>Memory</button>
+              <button className={agentTab === "knowledge" ? "selected" : ""} onClick={() => setAgentTab("knowledge")}>Knowledge</button>
+              <button className={agentTab === "relationships" ? "selected" : ""} onClick={() => setAgentTab("relationships")}>Relationships</button>
               <button className={agentTab === "learning" ? "selected" : ""} onClick={() => setAgentTab("learning")}>Decision</button>
             </div>
           )}
@@ -326,6 +340,13 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
               ["Cell", `${Math.floor(agent.position.x)}, ${Math.floor(agent.position.y)}`],
               ["Position", `${formatNumber(agent.position.x)}, ${formatNumber(agent.position.y)}`],
               ["Type", entityType(agent, "AgentEntity")],
+              ["Species", "speciesId" in agent ? agent.speciesId : "human"],
+              ["Age", "ageTicks" in agent ? agent.ageTicks.toString() : "0"],
+              ["Born", "bornTick" in agent ? agent.bornTick.toString() : "0"],
+              ["Parents", "parentIds" in agent && agent.parentIds.length > 0 ? agent.parentIds.join(", ") : "none"],
+              ["Offspring", "offspringIds" in agent && agent.offspringIds.length > 0 ? agent.offspringIds.join(", ") : "none"],
+              ["Last reproduced", "lastReproducedTick" in agent && agent.lastReproducedTick !== null ? agent.lastReproducedTick.toString() : "never"],
+              ["Death", selectedSnapshotAgent?.deathTick !== null && selectedSnapshotAgent?.deathTick !== undefined ? `${selectedSnapshotAgent.deathCause ?? "unknown"} @ ${selectedSnapshotAgent.deathTick}` : "n/a"],
               ["Footprint", footprint(agent, "0.8 x 0.8")],
               ["Occupies", occupiesSpace(agent, true)],
               ["Occupied cells", occupiedCells(agent)],
@@ -362,8 +383,11 @@ export function Inspector({ snapshot, draft, schema, selection, onSelect, editin
             </>
           )}
           {!editing && selectedSnapshotAgent && agentTab === "work" && <WorkDetails agent={selectedSnapshotAgent} />}
+          {!editing && selectedSnapshotAgent && agentTab === "traits" && <TraitDetails agent={selectedSnapshotAgent} snapshot={snapshot} />}
           {!editing && selectedSnapshotAgent && agentTab === "perception" && <PerceptionDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "memory" && <MemoryDetails agent={selectedSnapshotAgent} />}
+          {!editing && selectedSnapshotAgent && agentTab === "knowledge" && <KnowledgeDetails agent={selectedSnapshotAgent} />}
+          {!editing && selectedSnapshotAgent && agentTab === "relationships" && <RelationshipDetails agent={selectedSnapshotAgent} />}
           {!editing && selectedSnapshotAgent && agentTab === "learning" && <LearningDetails agent={selectedSnapshotAgent} />}
           {editable && (
             <button
@@ -775,6 +799,141 @@ function MemoryRow({ memory }: { memory: AgentMemoryRecordSnapshot }) {
   );
 }
 
+function KnowledgeDetails({ agent }: { agent: AgentSnapshot }) {
+  const records = agent.knowledge.records;
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Known recipes and unlocks</div>
+      {records.length === 0 ? (
+        <span className="empty-state">No known recipes.</span>
+      ) : (
+        <div className="perception-list">
+          {records.map((record) => (
+            <KnowledgeRow key={record.id} record={record} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TraitDetails({ agent, snapshot }: { agent: AgentSnapshot; snapshot: SimulationSnapshot | null }) {
+  const mutationNote = birthMutationNote(agent, snapshot);
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Inherited traits</div>
+      <div className="vitals trait-vitals">
+        <TraitBar label="Perception" value={agent.traits.perception} detail={`sight x${formatNumber(traitMultiplier(agent.traits.perception))}`} />
+        <TraitBar label="Speed" value={agent.traits.speed} detail={`move x${formatNumber(traitMultiplier(agent.traits.speed))}`} />
+        <TraitBar label="Metabolism" value={agent.traits.metabolism} detail={`decay x${formatNumber(metabolismMultiplier(agent.traits.metabolism))}`} />
+        <TraitBar label="Risk" value={agent.traits.riskTolerance} detail={`score ${formatNumber(riskAdjustment(agent.traits.riskTolerance))}`} />
+        <TraitBar label="Learning" value={agent.traits.learningRate} detail={`rate ${formatNumber(learningRate(agent.traits.learningRate))}`} />
+      </div>
+      <EntitySummary
+        rows={[
+          ["Parents", agent.parentIds.length > 0 ? agent.parentIds.join(", ") : "none"],
+          ["Offspring", agent.offspringIds.length > 0 ? agent.offspringIds.join(", ") : "none"],
+          ["Mutation", mutationNote]
+        ]}
+      />
+    </div>
+  );
+}
+
+function TraitBar({ label, value, detail }: { label: string; value: number; detail: string }) {
+  const clamped = Math.max(0, Math.min(1, value));
+
+  return (
+    <div className="vital trait-vital">
+      <span>{label}</span>
+      <div className="vital-track">
+        <div style={{ width: `${clamped * 100}%` }} />
+      </div>
+      <strong>{formatNumber(value)}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function KnowledgeRow({ record }: { record: KnowledgeRecordSnapshot }) {
+  return (
+    <div className="perception-row">
+      <strong>{record.displayName}</strong>
+      <small>
+        {record.kind} / {record.subjectId} / {record.source}
+      </small>
+      <small>
+        discovered {record.discoveredTick} / updated {record.lastUpdatedTick} / from {record.sourceAgentId ?? "self"}
+      </small>
+      {record.metadata.description && <small>{record.metadata.description}</small>}
+    </div>
+  );
+}
+
+function RelationshipDetails({ agent }: { agent: AgentSnapshot }) {
+  const relationships = agent.social.relationships;
+  const groups = agent.social.groups;
+
+  return (
+    <div className="perception-details">
+      <div className="subsection-title">Groups</div>
+      {groups.length === 0 ? (
+        <span className="empty-state">No groups.</span>
+      ) : (
+        <div className="perception-list">
+          {groups.map((group) => (
+            <div className="perception-row" key={group.groupId}>
+              <strong>{group.displayName}</strong>
+              <small>{group.groupId} / {group.kind} / joined {group.joinedTick}</small>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="subsection-title">Relationships</div>
+      {relationships.length === 0 ? (
+        <span className="empty-state">No relationships.</span>
+      ) : (
+        <div className="perception-list">
+          {relationships.map((relationship) => (
+            <RelationshipRow key={relationship.otherAgentId} relationship={relationship} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RelationshipRow({ relationship }: { relationship: SocialRelationshipSnapshot }) {
+  return (
+    <div className="perception-row">
+      <strong>{relationship.otherAgentId}</strong>
+      <small>
+        interactions {relationship.interactionCount} / seen {relationship.lastSeenTick ?? "never"} / talked {relationship.lastInteractionTick ?? "never"}
+      </small>
+      <RelationshipMeter label="Familiarity" value={relationship.familiarity} />
+      <RelationshipMeter label="Trust" value={relationship.trust} />
+      <RelationshipMeter label="Fear" value={relationship.fear} />
+      <RelationshipMeter label="Affinity" value={relationship.affinity} />
+      <small>{relationship.sharedGroupIds.length > 0 ? relationship.sharedGroupIds.join(", ") : "no shared groups"}</small>
+    </div>
+  );
+}
+
+function RelationshipMeter({ label, value }: { label: string; value: number }) {
+  const clamped = Math.max(0, Math.min(1, value));
+
+  return (
+    <span className="relationship-meter">
+      <span>{label}</span>
+      <i><b style={{ width: `${clamped * 100}%` }} /></i>
+      <strong>{formatNumber(value)}</strong>
+    </span>
+  );
+}
+
 function PerceptionDetails({ agent }: { agent: AgentSnapshot }) {
   return (
     <div className="perception-details">
@@ -886,7 +1045,16 @@ function DraftField({
     );
   }
 
-  return <ReadonlyField label={field.label} value={String(value ?? "")} wide={wide} />;
+  return (
+    <label className={`field${wide ? " wide" : ""}`}>
+      <span>{field.label}</span>
+      <input
+        value={String(value ?? "")}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
 }
 
 function EntitySummary({ rows }: { rows: Array<[string, string]> }) {
@@ -943,6 +1111,33 @@ function NeedBar({
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(2);
+}
+
+function traitMultiplier(value: number) {
+  return 0.75 + clamp01(value) * 0.5;
+}
+
+function metabolismMultiplier(value: number) {
+  return 1.2 - clamp01(value) * 0.4;
+}
+
+function learningRate(value: number) {
+  return 0.1 + clamp01(value) * 0.3;
+}
+
+function riskAdjustment(value: number) {
+  return (clamp01(value) - 0.5) * 0.7;
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function birthMutationNote(agent: AgentSnapshot, snapshot: SimulationSnapshot | null) {
+  const birthEvent = snapshot?.recentEvents.find((event) => event.type === "agent.born" && event.entityId === agent.id);
+  const mutated = birthEvent?.metadata["traits.mutated"];
+
+  return mutated && mutated.length > 0 ? mutated : "none recorded";
 }
 
 function entityType(entity: unknown, fallback: string) {

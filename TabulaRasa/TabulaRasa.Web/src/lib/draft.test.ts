@@ -21,7 +21,27 @@ import type { SimulationDraft } from "@/types/simulation";
 const draft: SimulationDraft = {
   tick: 0,
   grid: { width: 10, height: 10, blockedCells: [], terrainCells: [] },
-  agents: [{ id: "agent-1", position: { x: 0.5, y: 1 }, inventory: { maxSlots: 8, maxWeight: 10, stacks: [] }, needs: { hunger: 1, thirst: 2, energy: 3, fatigue: 4 } }],
+  agents: [{
+    id: "agent-1",
+    position: { x: 0.5, y: 1 },
+    inventory: { maxSlots: 8, maxWeight: 10, stacks: [] },
+    needs: { hunger: 1, thirst: 2, energy: 3, fatigue: 4 },
+    speciesId: "human",
+    ageTicks: 0,
+    bornTick: 0,
+    parentIds: [],
+    offspringIds: [],
+    lastReproducedTick: null,
+    deathTick: null,
+    deathCause: null,
+    traits: {
+      perception: 0.5,
+      speed: 0.5,
+      metabolism: 0.5,
+      riskTolerance: 0.5,
+      learningRate: 0.5
+    }
+  }],
   resourceDefinitions: [{
     id: "food",
     displayName: "Food",

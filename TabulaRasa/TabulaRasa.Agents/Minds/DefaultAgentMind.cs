@@ -80,6 +80,136 @@ namespace TabulaRasa.Agents.Minds
             IReadOnlyDictionary<string, float> needPressures)
         {
             List<DecisionCandidate> candidates = [];
+            float riskAdjustment = RiskAdjustment(self.Traits?.RiskTolerance ?? 0.5f);
+            bool predatorVisible = perception.Opportunities.Any(opportunity => opportunity.ActionType == AgentActionType.Flee);
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Flee))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Safety", "Predator", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Flee);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Flee,
+                    opportunity.TargetId,
+                    "Safety",
+                    contextKey,
+                    "Predator",
+                    channel,
+                    1,
+                    relevance,
+                    learnedWeight,
+                    2.5f + relevance + learnedWeight - riskAdjustment));
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Attack))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Hunger", "Prey", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Attack);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                float needPressure = needPressures["Hunger"];
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Attack,
+                    opportunity.TargetId,
+                    "Hunger",
+                    contextKey,
+                    "Prey",
+                    channel,
+                    needPressure,
+                    relevance,
+                    learnedWeight,
+                    (needPressure * 1.8f) + (relevance * 0.5f) + learnedWeight + riskAdjustment));
+            }
+
+            bool needsAreSafeForReproduction = self.IsAdult
+                && self.Needs.Hunger <= 4
+                && self.Needs.Thirst <= 4
+                && self.Needs.Fatigue <= 4;
+            if (needsAreSafeForReproduction)
+            {
+                foreach (InteractionOpportunity opportunity in perception.Opportunities
+                    .Where(opportunity => opportunity.ActionType == AgentActionType.Reproduce))
+                {
+                    string channel = opportunity.Channel.ToString();
+                    string contextKey = BuildContextKey("Reproduction", "Mate", channel);
+                    float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Reproduce);
+                    float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                    candidates.Add(new DecisionCandidate(
+                        AgentActionType.Reproduce,
+                        opportunity.TargetId,
+                        "Reproduction",
+                        contextKey,
+                        "Mate",
+                        channel,
+                        0.35f,
+                        relevance,
+                        learnedWeight,
+                        0.55f + (relevance * 0.25f) + learnedWeight + (predatorVisible ? riskAdjustment : 0)));
+                }
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Communicate))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Social", "Agent", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Communicate);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Communicate,
+                    opportunity.TargetId,
+                    "Social",
+                    contextKey,
+                    "Agent",
+                    channel,
+                    0.1f,
+                    relevance,
+                    learnedWeight,
+                    0.08f + (relevance * 0.08f) + learnedWeight));
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Craft))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Invention", "Recipe", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Craft);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Craft,
+                    opportunity.TargetId,
+                    "Invention",
+                    contextKey,
+                    "Recipe",
+                    channel,
+                    0.25f,
+                    relevance,
+                    learnedWeight,
+                    0.22f + (relevance * 0.25f) + learnedWeight));
+            }
+
+            foreach (InteractionOpportunity opportunity in perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Experiment))
+            {
+                string channel = opportunity.Channel.ToString();
+                string contextKey = BuildContextKey("Invention", "Recipe", channel);
+                float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Experiment);
+                float relevance = Math.Clamp(opportunity.Relevance, 0, 1);
+                candidates.Add(new DecisionCandidate(
+                    AgentActionType.Experiment,
+                    opportunity.TargetId,
+                    "Invention",
+                    contextKey,
+                    "Recipe",
+                    channel,
+                    0.18f,
+                    relevance,
+                    learnedWeight,
+                    0.12f + (relevance * 0.18f) + learnedWeight));
+            }
 
             foreach (InteractionOpportunity opportunity in perception.Opportunities
                 .Where(opportunity => opportunity.ActionType == AgentActionType.Eat))
@@ -146,7 +276,7 @@ namespace TabulaRasa.Agents.Minds
                     0.05f + (relevance * 0.25f) + learnedWeight));
             }
 
-            if ((self.Inventory?.GetValueOrDefault("food") ?? 0) > 0)
+            if (self.SpeciesId != "wolf" && (self.Inventory?.GetValueOrDefault("food") ?? 0) > 0)
             {
                 string contextKey = BuildContextKey("Hunger", "Food", "Inventory");
                 float learnedWeight = learning.GetWeight(contextKey, AgentActionType.Eat);
@@ -204,7 +334,7 @@ namespace TabulaRasa.Agents.Minds
                 highestPressure,
                 0,
                 wanderWeight,
-                0.10f + ((1 - highestPressure) * 0.20f) + wanderWeight));
+                0.10f + ((1 - highestPressure) * 0.20f) + wanderWeight + (predatorVisible ? riskAdjustment : 0)));
 
             return candidates;
         }
@@ -267,6 +397,16 @@ namespace TabulaRasa.Agents.Minds
         private static float ClampPressure(float value)
         {
             return Math.Clamp(value, 0, 1);
+        }
+
+        private static float RiskAdjustment(float trait)
+        {
+            if (float.IsNaN(trait) || float.IsInfinity(trait))
+            {
+                trait = 0.5f;
+            }
+
+            return (Math.Clamp(trait, 0, 1) - 0.5f) * 0.7f;
         }
 
         private sealed record DecisionCandidate(

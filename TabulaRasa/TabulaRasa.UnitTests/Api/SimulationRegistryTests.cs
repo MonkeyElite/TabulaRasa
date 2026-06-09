@@ -134,6 +134,24 @@ namespace TabulaRasa.UnitTests.Api
             Assert.Contains(agent.TaskQueue, task => task.StepId == "find-food");
         }
 
+        [Fact]
+        public void SnapshotHistory_PreservesSocialGraphPerTick()
+        {
+            using SimulationRegistry registry = new();
+            SimulationSession session = registry.Create("Social", Config(seed: 4, agents: 2, food: 0));
+
+            session.Step();
+            SimulationSnapshotDto tickOne = session.GetCurrentSnapshot();
+            session.Step();
+
+            SimulationSnapshotDto? historical = session.GetSnapshot(tickOne.Tick);
+
+            Assert.NotNull(historical);
+            Assert.Contains(tickOne.SocialGraph.Edges, edge => edge.FromAgentId == "human-1" && edge.ToAgentId == "human-2");
+            Assert.Contains(historical.SocialGraph.Edges, edge => edge.FromAgentId == "human-1" && edge.ToAgentId == "human-2");
+            Assert.Contains(session.GetCurrentSnapshot().SocialGraph.Edges, edge => edge.FromAgentId == "human-1" && edge.ToAgentId == "human-2");
+        }
+
 
         [Fact]
         public void ConcurrentSteps_DoNotCorruptTickProgression()

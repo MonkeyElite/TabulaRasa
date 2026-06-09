@@ -1,4 +1,5 @@
 using System.Reflection;
+using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Simulation.State;
@@ -27,6 +28,9 @@ namespace TabulaRasa.Api.Services
                 AgentFields:
                 [
                     Field<AgentEntity>("id", "Id", "string", nameof(AgentEntity.Id), isEditable: false),
+                    Field<AgentEntity>("speciesId", "Species", "string", nameof(AgentEntity.SpeciesId)),
+                    Field<AgentEntity>("ageTicks", "Age", "number", nameof(AgentEntity.AgeTicks)),
+                    Field<AgentEntity>("bornTick", "Born", "number", nameof(AgentEntity.BornTick)),
                     Field<AgentEntity>("position.x", "X", "number", nameof(AgentEntity.Position)),
                     Field<AgentEntity>("position.y", "Y", "number", nameof(AgentEntity.Position)),
                     Field<Inventory>("inventory.maxSlots", "Slots", "number", nameof(Inventory.MaxSlots)),
@@ -34,7 +38,12 @@ namespace TabulaRasa.Api.Services
                     Field<AgentNeedState>("needs.hunger", "Hunger", "number", nameof(AgentNeedState.Hunger)),
                     Field<AgentNeedState>("needs.thirst", "Thirst", "number", nameof(AgentNeedState.Thirst)),
                     Field<AgentNeedState>("needs.energy", "Energy", "number", nameof(AgentNeedState.Energy)),
-                    Field<AgentNeedState>("needs.fatigue", "Fatigue", "number", nameof(AgentNeedState.Fatigue))
+                    Field<AgentNeedState>("needs.fatigue", "Fatigue", "number", nameof(AgentNeedState.Fatigue)),
+                    Field<AgentTraits>("traits.perception", "Perception", "number", nameof(AgentTraits.Perception)),
+                    Field<AgentTraits>("traits.speed", "Speed", "number", nameof(AgentTraits.Speed)),
+                    Field<AgentTraits>("traits.metabolism", "Metabolism", "number", nameof(AgentTraits.Metabolism)),
+                    Field<AgentTraits>("traits.riskTolerance", "Risk", "number", nameof(AgentTraits.RiskTolerance)),
+                    Field<AgentTraits>("traits.learningRate", "Learning", "number", nameof(AgentTraits.LearningRate))
                 ],
                 ResourceDefinitionFields:
                 [

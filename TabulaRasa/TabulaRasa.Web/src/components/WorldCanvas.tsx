@@ -13,6 +13,7 @@ type Props = {
   showNavigationOverlay: boolean;
   showPerceptionOverlay: boolean;
   perceptionRadius: number;
+  speciesFilters: Record<string, boolean>;
   onSelect: (selection: Selection) => void;
   onMoveAgent: (id: string, cell: GridCell) => void;
   onMoveResourceContainer: (id: string, cell: GridCell) => void;
@@ -40,6 +41,7 @@ export function WorldCanvas({
   showNavigationOverlay,
   showPerceptionOverlay,
   perceptionRadius,
+  speciesFilters,
   onSelect,
   onMoveAgent,
   onMoveResourceContainer,
@@ -158,7 +160,7 @@ export function WorldCanvas({
   useEffect(() => {
     renderWorld();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot, draft, editing, canEdit, selection, showNavigationOverlay, showPerceptionOverlay, perceptionRadius, terrainBrush]);
+  }, [snapshot, draft, editing, canEdit, selection, showNavigationOverlay, showPerceptionOverlay, perceptionRadius, speciesFilters, terrainBrush]);
 
   function renderWorld() {
     const world = worldRef.current;
@@ -174,7 +176,11 @@ export function WorldCanvas({
     const blocked = new Set(snapshot.grid.blockedCells.map((cell) => `${cell.x}:${cell.y}`));
     const draftBlocked = new Set(draft?.grid.blockedCells.map((cell) => `${cell.x}:${cell.y}`));
     const terrainByCell = buildTerrainMap(snapshot, draft, editing);
-    const occupiedCells = editing && draft ? draftOccupiedCells(draft) : snapshot.grid.occupiedCells;
+    const visibleAgentIds = new Set((editing && draft ? draft.agents : snapshot.agents)
+      .filter((agent) => speciesFilters[agent.speciesId ?? "human"] ?? true)
+      .map((agent) => agent.id));
+    const occupiedCells = (editing && draft ? draftOccupiedCells(draft) : snapshot.grid.occupiedCells)
+      .filter((occupied) => occupied.entityType !== "AgentEntity" || visibleAgentIds.has(occupied.entityId));
     const occupiedByCell = new Map<string, OccupiedCell[]>();
     const agentsById = new Map(snapshot.agents.map((agent) => [agent.id, agent]));
     const selectedSnapshotAgent = !editing && selection?.type === "agent"
@@ -466,7 +472,8 @@ export function WorldCanvas({
       world.addChild(graphic);
     }
 
-    const agents = editing && draft ? draft.agents : snapshot.agents;
+    const agents = (editing && draft ? draft.agents : snapshot.agents)
+      .filter((agent) => speciesFilters[agent.speciesId ?? "human"] ?? true);
     for (const agent of agents) {
       const graphic = new PIXI.Graphics();
       const x = agent.position.x * cellSize;
@@ -474,16 +481,15 @@ export function WorldCanvas({
       const selected = selection?.type === "agent" && selection.id === agent.id;
       const perceived = perceptionEntityIds.has(agent.id);
       const dead = "isDead" in agent && agent.isDead === true;
-      graphic.roundRect(x - 17, y - 17, 34, 34, 6);
-      graphic.fill(dead ? 0x5a5f68 : 0x54c475);
-      graphic.stroke({ color: selected ? 0xffffff : perceived ? 0x6aa8ff : dead ? 0xe06767 : 0x153b24, width: selected ? 4 : perceived ? 3 : 2 });
+      drawAgentMarker(graphic, x, y, agent.speciesId ?? "human", dead, selected);
+      graphic.stroke({ color: selected ? 0xffffff : perceived ? 0x6aa8ff : dead ? 0xe06767 : speciesStroke(agent.speciesId ?? "human"), width: selected ? 4 : perceived ? 3 : 2 });
       graphic.eventMode = "static";
       graphic.cursor = editing && canEdit ? "grab" : "pointer";
       graphic.on("pointertap", () => onSelect({ type: "agent", id: agent.id }));
       graphic.on("pointerover", (event) =>
         onHover({
           label: agent.id,
-          detail: `${dead ? "Corpse" : "Agent"} - hunger ${formatNumber(agent.needs.hunger)} thirst ${formatNumber(agent.needs.thirst)}`,
+          detail: `${dead ? "Corpse" : agent.speciesId} - age ${agent.ageTicks} - hunger ${formatNumber(agent.needs.hunger)} thirst ${formatNumber(agent.needs.thirst)}`,
           x: event.global.x,
           y: event.global.y
         })
@@ -491,7 +497,7 @@ export function WorldCanvas({
       graphic.on("pointermove", (event) =>
         onHover({
           label: agent.id,
-          detail: `${dead ? "Corpse" : "Agent"} - hunger ${formatNumber(agent.needs.hunger)} thirst ${formatNumber(agent.needs.thirst)}`,
+          detail: `${dead ? "Corpse" : agent.speciesId} - age ${agent.ageTicks} - hunger ${formatNumber(agent.needs.hunger)} thirst ${formatNumber(agent.needs.thirst)}`,
           x: event.global.x,
           y: event.global.y
         })
@@ -623,6 +629,54 @@ function routeColor(status: string) {
   }
 
   return 0x6aa8ff;
+}
+
+function drawAgentMarker(graphic: PIXI.Graphics, x: number, y: number, speciesId: string, dead: boolean, selected: boolean) {
+  const radius = selected ? 18 : 15;
+  const fill = dead ? 0x5a5f68 : speciesColor(speciesId);
+
+  if (speciesId === "deer") {
+    graphic.circle(x, y, radius);
+    graphic.fill(fill);
+    return;
+  }
+
+  if (speciesId === "wolf") {
+    graphic.moveTo(x, y - radius);
+    graphic.lineTo(x + radius, y);
+    graphic.lineTo(x, y + radius);
+    graphic.lineTo(x - radius, y);
+    graphic.closePath();
+    graphic.fill(fill);
+    return;
+  }
+
+  graphic.roundRect(x - radius, y - radius, radius * 2, radius * 2, 6);
+  graphic.fill(fill);
+}
+
+function speciesColor(speciesId: string) {
+  if (speciesId === "deer") {
+    return 0xd2a45f;
+  }
+
+  if (speciesId === "wolf") {
+    return 0xd76b6b;
+  }
+
+  return 0x54c475;
+}
+
+function speciesStroke(speciesId: string) {
+  if (speciesId === "deer") {
+    return 0x5b3d1d;
+  }
+
+  if (speciesId === "wolf") {
+    return 0x5d2222;
+  }
+
+  return 0x153b24;
 }
 
 function buildTerrainMap(snapshot: SimulationSnapshot, draft: SimulationDraft | null, editing: boolean) {

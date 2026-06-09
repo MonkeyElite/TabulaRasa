@@ -7,17 +7,26 @@ using TabulaRasa.World.Queries;
 using TabulaRasa.World.Resources;
 using TabulaRasa.World.Spatial.Grid;
 using TabulaRasa.World.State;
+using TabulaRasa.Simulation.Species;
+using TabulaRasa.Simulation.State;
+using TabulaRasa.Simulation.Evolution;
 
 namespace TabulaRasa.Simulation.Systems
 {
     internal static class AgentPerceptionBuilder
     {
-        public static AgentPerception Build(WorldState world, AgentEntity agent, float perceptionRadius)
+        public static AgentPerception Build(SimulationState state, AgentEntity agent, float perceptionRadius)
         {
+            WorldState world = state.World;
             List<PerceivedEntity> nearbyEntities = [];
             List<InteractionOpportunity> opportunities = [];
             GridTerrainProfile agentTerrain = world.Grid.GetTerrainProfile(agent.Position.ToGridCell());
-            float effectiveRadius = perceptionRadius * agentTerrain.PerceptionMultiplier;
+            SpeciesDefinition viewerSpecies = SpeciesRegistry.Get(agent.SpeciesId);
+            agent.SpeciesId = viewerSpecies.Id;
+            float effectiveRadius = perceptionRadius
+                * agentTerrain.PerceptionMultiplier
+                * viewerSpecies.PerceptionMultiplier
+                * AgentTraitService.TraitMultiplier(agent.Traits.Perception);
 
             foreach (ISpatialEntity entity in world.SpatialEntities)
             {
@@ -45,7 +54,7 @@ namespace TabulaRasa.Simulation.Systems
 
                 nearbyEntities.Add(new PerceivedEntity(
                     entity.Id,
-                    ToPerceivedEntityType(entity),
+                    ToPerceivedEntityType(agent, entity),
                     entity.Position,
                     IsInteractable: interactionPoint is not null,
                     Channel: PerceptionChannel.Sight,
@@ -53,8 +62,58 @@ namespace TabulaRasa.Simulation.Systems
                     Certainty: certainty,
                     Relevance: relevance));
 
+                if (entity is AgentEntity otherAgent
+                    && !otherAgent.IsDead)
+                {
+                    SpeciesDefinition otherSpecies = SpeciesRegistry.Get(otherAgent.SpeciesId);
+                    if (viewerSpecies.CanAttackSpecies(otherSpecies.Id))
+                    {
+                        opportunities.Add(new InteractionOpportunity(
+                            AgentActionType.Attack,
+                            otherAgent.Id,
+                            otherAgent.Position,
+                            SourceEntityId: otherAgent.Id,
+                            Channel: PerceptionChannel.Sight,
+                            Relevance: relevance));
+                    }
+
+                    if (otherSpecies.CanAttackSpecies(viewerSpecies.Id))
+                    {
+                        opportunities.Add(new InteractionOpportunity(
+                            AgentActionType.Flee,
+                            otherAgent.Id,
+                            agent.Position,
+                            SourceEntityId: otherAgent.Id,
+                            Channel: PerceptionChannel.Sight,
+                            Relevance: relevance));
+                    }
+
+                    if (LifecycleSystem.CanReproduce(state, agent, otherAgent))
+                    {
+                        opportunities.Add(new InteractionOpportunity(
+                            AgentActionType.Reproduce,
+                            otherAgent.Id,
+                            otherAgent.Position,
+                            SourceEntityId: otherAgent.Id,
+                            Channel: PerceptionChannel.Sight,
+                            Relevance: relevance));
+                    }
+
+                    if (string.Equals(viewerSpecies.Id, otherSpecies.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        opportunities.Add(new InteractionOpportunity(
+                            AgentActionType.Communicate,
+                            otherAgent.Id,
+                            otherAgent.Position,
+                            SourceEntityId: otherAgent.Id,
+                            Channel: PerceptionChannel.Sight,
+                            Relevance: relevance));
+                    }
+                }
+
                 if (entity is ResourceContainerEntity container
                     && SpatialQueries.ContainerHasFood(container)
+                    && viewerSpecies.Id == SpeciesRegistry.HumanId
                     && interactionPoint is not null)
                 {
                     opportunities.Add(new InteractionOpportunity(
@@ -68,6 +127,7 @@ namespace TabulaRasa.Simulation.Systems
 
                 if (entity is PlantEntity plant
                     && plant.IsHarvestable
+                    && viewerSpecies.CanEatResource(plant.ResourceId)
                     && interactionPoint is not null)
                 {
                     AgentActionType actionType = string.Equals(plant.ResourceId, ResourceDefinition.FoodId, StringComparison.OrdinalIgnoreCase)
@@ -124,10 +184,12 @@ namespace TabulaRasa.Simulation.Systems
             };
         }
 
-        private static PerceivedEntityType ToPerceivedEntityType(ISpatialEntity entity)
+        private static PerceivedEntityType ToPerceivedEntityType(AgentEntity viewer, ISpatialEntity entity)
         {
             return entity switch
             {
+                AgentEntity agent when SpeciesRegistry.Get(viewer.SpeciesId).CanAttackSpecies(SpeciesRegistry.Get(agent.SpeciesId).Id) => PerceivedEntityType.Prey,
+                AgentEntity agent when SpeciesRegistry.Get(agent.SpeciesId).CanAttackSpecies(SpeciesRegistry.Get(viewer.SpeciesId).Id) => PerceivedEntityType.Predator,
                 AgentEntity => PerceivedEntityType.Agent,
                 ResourceContainerEntity container when container.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0 => PerceivedEntityType.Food,
                 ResourceContainerEntity => PerceivedEntityType.ResourceContainer,

@@ -13,6 +13,62 @@ export type SimulationSummary = {
   updatedAt: string;
 };
 
+export type SimulationRun = {
+  simulationId: string;
+  name: string;
+  status: "Idle" | "Running" | "Paused" | "Stopped" | string;
+  currentTick: number;
+  minimumTick: number;
+  maximumTick: number;
+  agentCount: number;
+  aliveAgentCount: number;
+  deadAgentCount: number;
+  storageBytes: number;
+  checkpointBytes: number;
+  eventBytes: number;
+  createdAt: string;
+  updatedAt: string;
+  sourceSimulationId: string | null;
+  sourceTick: number | null;
+};
+
+export type SimulationRunPage = {
+  runs: SimulationRun[];
+  offset: number;
+  limit: number;
+  total: number;
+};
+
+export type SimulationCheckpointSummary = {
+  simulationId: string;
+  tick: number;
+  payloadBytes: number;
+  isCompressed: boolean;
+  createdAt: string;
+};
+
+export type SaveSimulationResponse = {
+  simulationId: string;
+  tick: number;
+  savedAt: string;
+  checkpointBytes: number;
+};
+
+export type ScenarioExport = {
+  name: string;
+  version: number;
+  exportedAt: string;
+  scenario: SimulationDraft;
+};
+
+export type RetentionResult = {
+  deletedRuns: number;
+  deletedCheckpoints: number;
+  deletedEvents: number;
+  deletedTickSummaries: number;
+  removedBytes: number;
+};
+
 export type SimulationResourceLimits = {
   maxConcurrentRunningSimulations: number;
   maxTicksPerSecond: number;
@@ -67,6 +123,7 @@ export type SimulationConfig = {
     minimumStrength: number;
     recallThreshold: number;
   };
+  traits: TraitConfig;
   environment: {
     dayLengthTicks: number;
     weatherChangeIntervalTicks: number;
@@ -81,7 +138,20 @@ export type SimulationConfig = {
     waterRefillPerRainTick: number;
     waterEvaporationPerHeatTick: number;
   };
+  speciesPopulation: SpeciesPopulationConfig;
   enabledSystems: string[];
+};
+
+export type SpeciesPopulationConfig = {
+  human: number;
+  deer: number;
+  wolf: number;
+};
+
+export type TraitConfig = {
+  initialVariation: number;
+  mutationChancePerTrait: number;
+  mutationDelta: number;
 };
 
 export type SimulationTickSummary = {
@@ -212,6 +282,12 @@ export type SimulationSnapshot = {
   populationCount: number;
   aliveAgentCount: number;
   deadAgentCount: number;
+  speciesPopulation: SpeciesPopulationCount[];
+  socialGraph: SocialGraphSnapshot;
+  evolution: EvolutionSummary;
+  recipeCatalog: RecipeDefinitionSnapshot[];
+  groupKnowledge: GroupKnowledgeSnapshot[];
+  discoveryMarkers: DiscoveryMarkerSnapshot[];
   diagnostics: SimulationTickDiagnostics | null;
   environment: EnvironmentState | null;
   ecologyStats: EcologyStats | null;
@@ -237,6 +313,40 @@ export type EcologyStats = {
   totalWaterVolume: number;
   resourceDepositCount: number;
   totalDepositQuantity: number;
+};
+
+export type SpeciesPopulationCount = {
+  speciesId: string;
+  displayName: string;
+  total: number;
+  alive: number;
+  dead: number;
+};
+
+export type AgentTraits = {
+  perception: number;
+  speed: number;
+  metabolism: number;
+  riskTolerance: number;
+  learningRate: number;
+};
+
+export type EvolutionSummary = {
+  currentTraits: PopulationTraitMetric[];
+  traitHistory: TraitHistoryPoint[];
+};
+
+export type PopulationTraitMetric = {
+  trait: string;
+  average: number;
+  minimum: number;
+  maximum: number;
+  aliveAverage: number;
+  deadAverage: number;
+};
+
+export type TraitHistoryPoint = PopulationTraitMetric & {
+  tick: number;
 };
 
 export type SimulationEvent = {
@@ -276,13 +386,24 @@ export type AgentSnapshot = {
   occupiesSpace: boolean;
   health: EntityHealth | null;
   isDead: boolean;
+  speciesId: string;
+  ageTicks: number;
+  bornTick: number;
+  parentIds: string[];
+  offspringIds: string[];
+  lastReproducedTick: number | null;
+  deathTick: number | null;
+  deathCause: string | null;
   inventory: Inventory;
   needs: AgentNeeds;
+  traits: AgentTraits;
   movement: MovementSnapshot | null;
   currentGoal: GoalSnapshot | null;
   taskQueue: TaskSnapshot[];
   perception: AgentPerceptionSnapshot;
   memory: AgentMemorySnapshot;
+  social: AgentSocialSnapshot;
+  knowledge: AgentKnowledgeSnapshot;
   decision: AgentDecisionSnapshot | null;
   learning: AgentLearningSnapshot;
 };
@@ -329,6 +450,117 @@ export type AgentMemoryRecordSnapshot = {
   expiresAtTick: number | null;
   summary: string;
   metadata: Record<string, string>;
+};
+
+export type AgentSocialSnapshot = {
+  relationships: SocialRelationshipSnapshot[];
+  groups: SocialGroupMembershipSnapshot[];
+};
+
+export type AgentKnowledgeSnapshot = {
+  records: KnowledgeRecordSnapshot[];
+};
+
+export type KnowledgeRecordSnapshot = {
+  id: string;
+  kind: "Recipe" | "ActionUnlock" | string;
+  subjectId: string;
+  displayName: string;
+  discoveredTick: number;
+  lastUpdatedTick: number;
+  source: string;
+  sourceAgentId: string | null;
+  metadata: Record<string, string>;
+};
+
+export type SocialRelationshipSnapshot = {
+  agentId: string;
+  otherAgentId: string;
+  familiarity: number;
+  trust: number;
+  fear: number;
+  affinity: number;
+  interactionCount: number;
+  createdTick: number;
+  lastUpdatedTick: number;
+  lastSeenTick: number | null;
+  lastInteractionTick: number | null;
+  sharedGroupIds: string[];
+};
+
+export type SocialGroupMembershipSnapshot = {
+  groupId: string;
+  displayName: string;
+  kind: string;
+  joinedTick: number;
+};
+
+export type SocialGraphSnapshot = {
+  nodes: SocialGraphNode[];
+  edges: SocialGraphEdge[];
+};
+
+export type GroupKnowledgeSnapshot = {
+  groupId: string;
+  displayName: string;
+  memberAgentIds: string[];
+  knownRecipeIds: string[];
+  knownActionUnlockIds: string[];
+};
+
+export type DiscoveryMarkerSnapshot = {
+  tick: number;
+  agentId: string;
+  recipeId: string;
+  displayName: string;
+  source: string;
+};
+
+export type RecipeDefinitionSnapshot = {
+  id: string;
+  displayName: string;
+  description: string;
+  inputs: RecipeIngredientSnapshot[];
+  tools: RecipeIngredientSnapshot[];
+  outputs: RecipeOutputSnapshot[];
+  unlocks: ActionUnlockSnapshot[];
+  discoveryChance: number;
+};
+
+export type RecipeIngredientSnapshot = {
+  resourceId: string;
+  quantity: number;
+};
+
+export type RecipeOutputSnapshot = {
+  resourceId: string;
+  quantity: number;
+};
+
+export type ActionUnlockSnapshot = {
+  id: string;
+  displayName: string;
+  description: string;
+};
+
+export type SocialGraphNode = {
+  agentId: string;
+  speciesId: string;
+  isDead: boolean;
+  position: Position;
+  groupIds: string[];
+};
+
+export type SocialGraphEdge = {
+  fromAgentId: string;
+  toAgentId: string;
+  familiarity: number;
+  trust: number;
+  fear: number;
+  affinity: number;
+  interactionCount: number;
+  lastInteractionTick: number | null;
+  sharedGroupIds: string[];
 };
 
 export type AgentDecisionSnapshot = {
@@ -563,6 +795,15 @@ export type EditableAgent = {
   position: Position;
   inventory: EditableInventory;
   needs: AgentNeeds;
+  speciesId: string;
+  ageTicks: number;
+  bornTick: number;
+  parentIds: string[];
+  offspringIds: string[];
+  lastReproducedTick: number | null;
+  deathTick: number | null;
+  deathCause: string | null;
+  traits: AgentTraits;
 };
 
 export type EditableResourceDefinition = ResourceDefinition;

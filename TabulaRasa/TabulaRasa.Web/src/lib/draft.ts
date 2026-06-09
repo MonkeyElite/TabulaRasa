@@ -122,6 +122,21 @@ export function addAgentDraft(draft: SimulationDraft): SimulationDraft {
       thirst: 0,
       energy: 10,
       fatigue: 0
+    },
+    speciesId: "human",
+    ageTicks: 0,
+    bornTick: draft.tick,
+    parentIds: [],
+    offspringIds: [],
+    lastReproducedTick: null,
+    deathTick: null,
+    deathCause: null,
+    traits: {
+      perception: 0.5,
+      speed: 0.5,
+      metabolism: 0.5,
+      riskTolerance: 0.5,
+      learningRate: 0.5
     }
   };
 

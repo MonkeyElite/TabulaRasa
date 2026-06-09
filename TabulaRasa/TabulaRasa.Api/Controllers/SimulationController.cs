@@ -21,6 +21,71 @@ namespace TabulaRasa.Api.Controllers
             return _registry.List().ToList();
         }
 
+        [HttpGet("runs")]
+        public ActionResult<SimulationRunPageDto> ListRuns([FromQuery] int offset = 0, [FromQuery] int limit = 50)
+        {
+            return _registry.ListRuns(offset, limit);
+        }
+
+        [HttpGet("runs/{runId}/checkpoints")]
+        public ActionResult<IReadOnlyList<SimulationCheckpointSummaryDto>> ListCheckpoints(string runId)
+        {
+            return _registry.ListCheckpoints(runId).ToList();
+        }
+
+        [HttpPost("runs/{runId}/load")]
+        public ActionResult<SimulationSummaryDto> LoadRun(string runId)
+        {
+            try
+            {
+                return _registry.Load(runId).GetSummary();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(exception.Message);
+            }
+        }
+
+        [HttpPost("runs/{runId}/fork")]
+        public ActionResult<SimulationSummaryDto> ForkRun(string runId, [FromBody] ForkSimulationRunRequestDto? request)
+        {
+            try
+            {
+                SimulationSession fork = _registry.ForkRun(runId, request);
+                return CreatedAtAction(nameof(GetStatus), new { simulationId = fork.SimulationId }, fork.GetSummary());
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(exception.Message);
+            }
+        }
+
+        [HttpPost("import-scenario")]
+        public ActionResult<SimulationSummaryDto> ImportScenario([FromBody] ImportScenarioRequestDto request)
+        {
+            RestartFromDraftResult result = _registry.ImportScenario(request, out SimulationSession? session);
+            if (!result.Succeeded)
+            {
+                return ValidationProblem(new ValidationProblemDetails(result.Errors));
+            }
+
+            return CreatedAtAction(nameof(GetStatus), new { simulationId = session!.SimulationId }, session.GetSummary());
+        }
+
+        [HttpPost("storage/retention/apply")]
+        public ActionResult<RetentionResultDto> ApplyRetention()
+        {
+            return _registry.ApplyRetention();
+        }
+
         [HttpGet("resource-limits")]
         public ActionResult<SimulationResourceLimitsDto> GetResourceLimits()
         {
@@ -79,6 +144,32 @@ namespace TabulaRasa.Api.Controllers
         {
             SimulationSession? session = _registry.Get(simulationId);
             return session is null ? NotFound() : session.GetCurrentSnapshot();
+        }
+
+        [HttpPost("{simulationId}/save")]
+        public ActionResult<SaveSimulationResponseDto> Save(string simulationId)
+        {
+            try
+            {
+                return _registry.Save(simulationId);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+        }
+
+        [HttpGet("{simulationId}/export-scenario")]
+        public ActionResult<ScenarioExportDto> ExportScenario(string simulationId)
+        {
+            try
+            {
+                return _registry.ExportScenario(simulationId);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
         }
 
         [HttpGet("{simulationId}/ticks/{tick:long}")]

@@ -8,6 +8,8 @@ namespace TabulaRasa.Abstractions.Agents
         ResourceContainer = 3,
         Plant = 4,
         WaterSource = 5,
-        ResourceDeposit = 6
+        ResourceDeposit = 6,
+        Predator = 7,
+        Prey = 8
     }
 }

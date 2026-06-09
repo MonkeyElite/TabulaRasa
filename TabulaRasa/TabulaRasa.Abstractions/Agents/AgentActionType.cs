@@ -10,6 +10,12 @@
         PickUpResource = 5,
         DropResource = 6,
         TransferResource = 7,
-        ConsumeResource = 8
+        ConsumeResource = 8,
+        Attack = 9,
+        Flee = 10,
+        Reproduce = 11,
+        Communicate = 12,
+        Experiment = 13,
+        Craft = 14
     }
 }

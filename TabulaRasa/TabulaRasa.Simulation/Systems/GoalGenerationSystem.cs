@@ -3,6 +3,7 @@ using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Goals;
 using TabulaRasa.Simulation.Interfaces;
+using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Definitions;
 using TabulaRasa.Simulation.Tasks.Jobs;
@@ -36,37 +37,48 @@ namespace TabulaRasa.Simulation.Systems
                 }
 
                 AgentState? agentState = state.GetAgentById(agentEntity.Id);
-                if (agentState is null || agentState.NeedState.Hunger < HungerThreshold)
+                if (agentState is null)
                 {
                     continue;
                 }
 
-                int priority = BuildHungerPriority(agentState.NeedState.Hunger);
                 AgentGoal? activeGoal = state.Goals.LastOrDefault(goal => goal.AgentId == agentEntity.Id && goal.IsActive);
-                if (activeGoal is not null)
+                if (agentState.NeedState.Hunger >= HungerThreshold)
                 {
-                    state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
-                    if (priority <= activeGoal.Priority + InterruptionPriorityDelta)
+                    int priority = BuildHungerPriority(agentState.NeedState.Hunger);
+                    if (activeGoal is not null)
                     {
-                        continue;
+                        state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
+                        if (priority <= activeGoal.Priority + InterruptionPriorityDelta)
+                        {
+                            continue;
+                        }
+
+                        InterruptGoal(state, activeGoal, "Higher priority hunger goal.");
                     }
 
-                    InterruptGoal(state, activeGoal, "Higher priority hunger goal.");
-                }
-
-                if (IsAgentBusy(state, agentEntity.Id))
-                {
-                    state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
-                    if (agentState.NeedState.Hunger < UrgentHungerThreshold)
+                    if (IsAgentBusy(state, agentEntity.Id))
                     {
-                        continue;
+                        state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
+                        if (agentState.NeedState.Hunger < UrgentHungerThreshold)
+                        {
+                            continue;
+                        }
+
+                        InterruptAgentWork(state, agentEntity.Id, "Higher priority hunger goal.");
                     }
 
-                    InterruptAgentWork(state, agentEntity.Id, "Higher priority hunger goal.");
+                    CreateHungerGoal(state, agentEntity, agentState, priority);
+                    state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
+                    continue;
                 }
 
-                CreateHungerGoal(state, agentEntity, agentState, priority);
-                state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
+                if (activeGoal is not null || IsAgentBusy(state, agentEntity.Id))
+                {
+                    continue;
+                }
+
+                TryCreateInventionGoal(state, agentEntity, agentState);
             }
         }
 
@@ -136,6 +148,67 @@ namespace TabulaRasa.Simulation.Systems
             {
                 EmitGoalEvent(state, "goal.replanned", goal, $"{goal.Id} replanned hunger work.");
             }
+        }
+
+        private static void TryCreateInventionGoal(
+            SimulationState state,
+            AgentEntity agentEntity,
+            AgentState agentState)
+        {
+            if (agentState.NeedState.Hunger > 4
+                || agentState.NeedState.Thirst > 4
+                || agentState.NeedState.Fatigue > 5)
+            {
+                return;
+            }
+
+            Dictionary<string, int> inventory = agentEntity.Inventory.Stacks
+                .GroupBy(stack => stack.ResourceId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Sum(stack => stack.Quantity), StringComparer.OrdinalIgnoreCase);
+            AgentKnowledgeStore knowledge = state.GetKnowledgeStore(agentEntity.Id);
+            RecipeDefinition? craftable = RecipeRegistry.FindCraftableRecipes(inventory, knowledge).FirstOrDefault();
+            RecipeDefinition? experiment = craftable is null
+                ? RecipeRegistry.FindExperimentCandidates(inventory, knowledge).FirstOrDefault()
+                : null;
+            RecipeDefinition? recipe = craftable ?? experiment;
+            if (recipe is null)
+            {
+                return;
+            }
+
+            AgentActionType actionType = craftable is not null ? AgentActionType.Craft : AgentActionType.Experiment;
+            int priority = craftable is not null ? 18 : 12;
+            string goalId = $"goal:{agentEntity.Id}:invention:{state.ActiveTick}:{state.Goals.Count + 1}";
+            AgentGoal goal = new(
+                goalId,
+                agentEntity.Id,
+                "Invention",
+                craftable is not null ? "Craft known recipe." : "Experiment with resources.",
+                priority,
+                state.ActiveTick,
+                recipe.Id,
+                "Recipe");
+            TaskDefinition task = new(
+                actionType == AgentActionType.Craft ? "craft-recipe" : "experiment-recipe",
+                actionType == AgentActionType.Craft ? "Craft Recipe" : "Experiment",
+                requiredProgressTicks: 1,
+                atomicAction: actionType,
+                executionKind: TaskExecutionKind.Action,
+                targetId: recipe.Id,
+                targetType: "Recipe",
+                selectedGoal: "Invention",
+                contextKey: $"Invention|Recipe|{actionType}");
+            JobInstance job = new(
+                $"job:{goal.Id}:{task.Id}",
+                new JobDefinition($"invention-{task.Id}", task.Name, [new JobStepDefinition(task.Id, task)], priority),
+                agentEntity.Id,
+                goal.Id);
+
+            goal.LinkJob(job.Id, state.ActiveTick);
+            state.Goals.Add(goal);
+            state.PendingJobs.Add(job);
+            EmitGoalEvent(state, "goal.created", goal, $"{goal.Id} created for {agentEntity.Id}.");
+            state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
         }
 
         private static FoodTarget? SelectFoodTarget(SimulationState state, AgentEntity agentEntity)
