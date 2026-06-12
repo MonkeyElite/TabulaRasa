@@ -1,4 +1,5 @@
 using TabulaRasa.Api.Contracts;
+using TabulaRasa.Api.Controllers;
 using TabulaRasa.Api.Services;
 
 namespace TabulaRasa.UnitTests.Api
@@ -15,6 +16,19 @@ namespace TabulaRasa.UnitTests.Api
             Assert.False(string.IsNullOrWhiteSpace(summary.SimulationId));
             Assert.Equal("Default", summary.Name);
             Assert.Equal("Idle", summary.Status);
+        }
+
+        [Fact]
+        public void Controller_ReturnsBuiltInScenarioConfigs()
+        {
+            using SimulationRegistry registry = new();
+            SimulationController controller = new(registry);
+
+            IReadOnlyList<BuiltInSimulationScenarioDto> scenarios = Assert.IsAssignableFrom<IReadOnlyList<BuiltInSimulationScenarioDto>>(
+                controller.ListBuiltInScenarios().Value);
+
+            Assert.Contains(scenarios, scenario => scenario.Name == "stable-mixed" && scenario.Config.SpeciesPopulation?.Deer > 0);
+            Assert.Contains(scenarios, scenario => scenario.Name == "resource-collapse" && scenario.Config.Ecology?.InitialPlantCount > 0);
         }
 
         [Fact]
@@ -352,18 +366,22 @@ namespace TabulaRasa.UnitTests.Api
             float hungerDelta = 1)
         {
             return new SimulationConfigDto(
-                seed,
-                width,
-                height,
-                interval,
-                agents,
-                food,
-                eventHistoryLimit,
-                snapshotHistoryLimit,
-                new NeedDecayConfigDto(hungerDelta, 1, -1),
-                20,
-                0.25f,
-                new PathfindingConfigDto(false, 1_000, 3),
+                Seed: seed,
+                WorldWidth: width,
+                WorldHeight: height,
+                TickIntervalMilliseconds: interval,
+                InitialAgentCount: agents,
+                InitialFoodCount: food,
+                EventHistoryLimit: eventHistoryLimit,
+                SnapshotHistoryLimit: snapshotHistoryLimit,
+                NeedDecay: new NeedDecayConfigDto(hungerDelta, 1, -1),
+                NeedRules: null,
+                Goals: null,
+                PerceptionRadius: 20,
+                MovementSpeedPerTick: 0.25f,
+                Pathfinding: new PathfindingConfigDto(false, 1_000, 3),
+                SpawnResources: null,
+                EnabledSystems:
                 [
                     "need-decay",
                     "planning",

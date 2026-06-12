@@ -121,6 +121,109 @@ select {
   color: var(--text);
 }
 
+.sparkline-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 66px minmax(0, 1fr) 48px;
+}
+
+.sparkline-row span,
+.sparkline-row strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sparkline-row strong {
+  color: var(--text);
+  text-align: right;
+}
+
+.sparkline-row svg {
+  background: #12151a;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  height: 34px;
+  width: 100%;
+}
+
+.sparkline-row path {
+  fill: none;
+  stroke: var(--green);
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.sparkline-row path.compare {
+  stroke: var(--blue);
+  stroke-dasharray: 3 3;
+  opacity: 0.8;
+}
+
+.timeline-chart-panel,
+.watch-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.event-row.important,
+.system-row.important {
+  border-color: rgba(244, 201, 93, 0.55);
+  color: #ffe6a3;
+}
+
+.event-row.critical,
+.system-row.critical {
+  border-color: rgba(224, 103, 103, 0.75);
+  color: #ffb8b8;
+}
+
+.watch-vitals {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.need-mini {
+  background: #12151a;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: grid;
+  font-size: 12px;
+  gap: 4px;
+  padding: 6px;
+}
+
+.need-mini i {
+  background: #252a32;
+  border-radius: 999px;
+  display: block;
+  height: 5px;
+  overflow: hidden;
+}
+
+.need-mini i span {
+  display: block;
+  height: 100%;
+}
+
+.need-mini.good i span {
+  background: var(--green);
+}
+
+.need-mini.warn i span {
+  background: var(--amber);
+}
+
+.need-mini.bad i span {
+  background: var(--red);
+}
+
+.compact-watch-list {
+  max-height: 220px;
+  overflow: auto;
+}
+
 .main {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr) 430px;
@@ -227,6 +330,7 @@ select {
   flex-direction: column;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .right-rail {
@@ -259,12 +363,14 @@ select {
 
 .rail-panel {
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .rail-panel > .debug-panel,
 .rail-panel > .inspector {
   height: 100%;
+  min-height: 0;
 }
 
 .inspector-tabs {
@@ -375,17 +481,43 @@ select {
 }
 
 .settings-panel,
-.settings-panel .config-grid {
+.settings-panel .config-sections {
   min-height: 0;
 }
 
 .settings-panel {
+  display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.config-sections {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.config-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.config-section h3 {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0;
+  margin: 0;
+  text-transform: uppercase;
 }
 
 .config-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  overflow: auto;
+  overflow: visible;
 }
 
 .checkbox-field {
@@ -899,20 +1031,33 @@ select {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.46);
   display: grid;
   gap: 12px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   max-height: min(760px, 92vh);
   max-width: 720px;
-  overflow: auto;
+  overflow: hidden;
   padding: 14px;
   width: min(720px, 96vw);
 }
 
+.modal-fields {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+}
+
 .modal-actions {
+  background: var(--panel);
   justify-content: flex-end;
+  padding-top: 4px;
 }
 
 .entity-list {
   display: grid;
   gap: 6px;
+  min-height: 0;
+  overflow: auto;
 }
 
 .entity-actions {

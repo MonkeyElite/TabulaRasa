@@ -73,7 +73,7 @@ namespace TabulaRasa.Simulation.Actions.Validation
                     request.TargetId) is not null)
             {
                 PlantEntity? plant = state.World.Plants.FirstOrDefault(candidate => candidate.Id == request.TargetId);
-                return plant is not null && SpeciesRegistry.Get(agentEntity.SpeciesId).CanEatResource(plant.ResourceId)
+                return plant is not null && SpeciesRegistry.Get(agentEntity.SpeciesId, state.Config.EffectiveSpeciesRules).CanEatResource(plant.ResourceId)
                     ? ActionValidationResult.Valid
                     : ActionValidationResult.Invalid("Species cannot eat target plant.");
             }
@@ -121,7 +121,7 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 if (SpatialQueries.FindNearestAvailableInteractionPoint(
                         container,
                         agentEntity.Position,
-                        SpatialQueries.DefaultInteractionTolerance) is null)
+                        state.Config.EffectivePathfinding.InteractionTolerance) is null)
                 {
                     return ActionValidationResult.Invalid("Target resource container is out of reach.");
                 }
@@ -136,7 +136,7 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 return SpatialQueries.FindNearestAvailableInteractionPoint(
                         plant,
                         agentEntity.Position,
-                        SpatialQueries.DefaultInteractionTolerance) is null
+                        state.Config.EffectivePathfinding.InteractionTolerance) is null
                     ? ActionValidationResult.Invalid("Target plant is out of reach.")
                     : ActionValidationResult.Valid;
             }
@@ -148,7 +148,7 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 return SpatialQueries.FindNearestAvailableInteractionPoint(
                         deposit,
                         agentEntity.Position,
-                        SpatialQueries.DefaultInteractionTolerance) is null
+                        state.Config.EffectivePathfinding.InteractionTolerance) is null
                     ? ActionValidationResult.Invalid("Target resource deposit is out of reach.")
                     : ActionValidationResult.Valid;
             }
@@ -179,7 +179,8 @@ namespace TabulaRasa.Simulation.Actions.Validation
             WaterSourceEntity? waterSource = SpatialQueries.FindAvailableWaterSourceAtInteractionPoint(
                 state.World,
                 agentEntity.Position,
-                request.TargetId);
+                request.TargetId,
+                state.Config.EffectivePathfinding.InteractionTolerance);
 
             return waterSource is null
                 ? ActionValidationResult.Invalid("Target water source is unavailable or out of reach.")
@@ -215,14 +216,14 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 return ActionValidationResult.Invalid("Attack target is unavailable.");
             }
 
-            SpeciesDefinition attackerSpecies = SpeciesRegistry.Get(agentEntity.SpeciesId);
-            SpeciesDefinition targetSpecies = SpeciesRegistry.Get(target.SpeciesId);
+            SpeciesDefinition attackerSpecies = SpeciesRegistry.Get(agentEntity.SpeciesId, state.Config.EffectiveSpeciesRules);
+            SpeciesDefinition targetSpecies = SpeciesRegistry.Get(target.SpeciesId, state.Config.EffectiveSpeciesRules);
             if (!attackerSpecies.CanAttackSpecies(targetSpecies.Id))
             {
                 return ActionValidationResult.Invalid("Species cannot attack target species.");
             }
 
-            return agentEntity.Position.DistanceTo(target.Position) <= SpatialQueries.DefaultInteractionTolerance + 0.5f
+            return agentEntity.Position.DistanceTo(target.Position) <= state.Config.EffectivePathfinding.InteractionTolerance + state.Config.EffectivePathfinding.AgentInteractionRangeBonus
                 ? ActionValidationResult.Valid
                 : ActionValidationResult.Invalid("Attack target is out of reach.");
         }
@@ -243,7 +244,8 @@ namespace TabulaRasa.Simulation.Actions.Validation
                 return ActionValidationResult.Invalid("Flee target is unavailable.");
             }
 
-            return SpeciesRegistry.Get(target.SpeciesId).CanAttackSpecies(SpeciesRegistry.Get(agentEntity.SpeciesId).Id)
+            return SpeciesRegistry.Get(target.SpeciesId, state.Config.EffectiveSpeciesRules).CanAttackSpecies(
+                SpeciesRegistry.Get(agentEntity.SpeciesId, state.Config.EffectiveSpeciesRules).Id)
                 ? ActionValidationResult.Valid
                 : ActionValidationResult.Invalid("Flee target is not a predator.");
         }

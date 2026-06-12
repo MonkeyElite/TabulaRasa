@@ -16,8 +16,6 @@ namespace TabulaRasa.Simulation.Movement.Planning
 {
     public sealed class RoutePlanner
     {
-        public const float DefaultArrivalTolerance = 0.05f;
-
         private readonly GridPathfinder _pathfinder;
 
         public RoutePlanner()
@@ -129,7 +127,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
             InteractionPoint? currentAnchor = SpatialQueries.FindNearestAvailableInteractionPoint(
                 target,
                 agent.Position,
-                SpatialQueries.DefaultInteractionTolerance);
+                state.Config.EffectivePathfinding.InteractionTolerance);
 
             if (currentAnchor is not null)
             {
@@ -144,8 +142,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                     request,
                     candidate.Route,
                     GetMovementSpeed(state, agent),
-                    DefaultArrivalTolerance,
-                    state.Config.EffectivePathfinding.MaxRepathAttempts));
+                    state.Config.EffectivePathfinding.ArrivalTolerance,
+                    state.Config.EffectivePathfinding.MaxRepathAttempts,
+                    state.Config.EffectiveBelievability.EffectiveRecovery.MovementStuckTicks));
         }
 
         private RoutePlanningResult PlanResourceTargetRoute(SimulationState state, ActionRequest request)
@@ -171,7 +170,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
             InteractionPoint? currentAnchor = SpatialQueries.FindNearestAvailableInteractionPoint(
                 target,
                 agent.Position,
-                SpatialQueries.DefaultInteractionTolerance);
+                state.Config.EffectivePathfinding.InteractionTolerance);
 
             if (currentAnchor is not null)
             {
@@ -186,8 +185,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                     request,
                     candidate.Route,
                     GetMovementSpeed(state, agent),
-                    DefaultArrivalTolerance,
-                    state.Config.EffectivePathfinding.MaxRepathAttempts));
+                    state.Config.EffectivePathfinding.ArrivalTolerance,
+                    state.Config.EffectivePathfinding.MaxRepathAttempts,
+                    state.Config.EffectiveBelievability.EffectiveRecovery.MovementStuckTicks));
         }
 
         private RoutePlanningResult PlanWaterSourceRoute(SimulationState state, ActionRequest request)
@@ -214,7 +214,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
             InteractionPoint? currentAnchor = SpatialQueries.FindNearestAvailableInteractionPoint(
                 waterSource,
                 agent.Position,
-                SpatialQueries.DefaultInteractionTolerance);
+                state.Config.EffectivePathfinding.InteractionTolerance);
 
             if (currentAnchor is not null)
             {
@@ -229,8 +229,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                     request,
                     candidate.Route,
                     GetMovementSpeed(state, agent),
-                    DefaultArrivalTolerance,
-                    state.Config.EffectivePathfinding.MaxRepathAttempts));
+                    state.Config.EffectivePathfinding.ArrivalTolerance,
+                    state.Config.EffectivePathfinding.MaxRepathAttempts,
+                    state.Config.EffectiveBelievability.EffectiveRecovery.MovementStuckTicks));
         }
 
         private RoutePlanningResult PlanAgentInteractionRoute(
@@ -256,7 +257,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 return RoutePlanningResult.Failure(unavailableReason);
             }
 
-            if (agent.Position.DistanceTo(target.Position) <= SpatialQueries.DefaultInteractionTolerance + 0.5f)
+            if (agent.Position.DistanceTo(target.Position) <= state.Config.EffectivePathfinding.InteractionTolerance + state.Config.EffectivePathfinding.AgentInteractionRangeBonus)
             {
                 return RoutePlanningResult.NotNeeded();
             }
@@ -269,8 +270,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                     request,
                     candidate.Route,
                     GetMovementSpeed(state, agent),
-                    DefaultArrivalTolerance,
-                    state.Config.EffectivePathfinding.MaxRepathAttempts));
+                    state.Config.EffectivePathfinding.ArrivalTolerance,
+                    state.Config.EffectivePathfinding.MaxRepathAttempts,
+                    state.Config.EffectiveBelievability.EffectiveRecovery.MovementStuckTicks));
         }
 
         private RoutePlanningResult PlanFleeRoute(SimulationState state, ActionRequest request)
@@ -314,8 +316,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 request,
                 route,
                 GetMovementSpeed(state, agent),
-                DefaultArrivalTolerance,
-                state.Config.EffectivePathfinding.MaxRepathAttempts));
+                state.Config.EffectivePathfinding.ArrivalTolerance,
+                state.Config.EffectivePathfinding.MaxRepathAttempts,
+                state.Config.EffectiveBelievability.EffectiveRecovery.MovementStuckTicks));
         }
 
         private RoutePlanningResult PlanWanderRoute(SimulationState state, ActionRequest request)
@@ -348,8 +351,9 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 request,
                 route,
                 GetMovementSpeed(state, agent),
-                DefaultArrivalTolerance,
-                state.Config.EffectivePathfinding.MaxRepathAttempts));
+                state.Config.EffectivePathfinding.ArrivalTolerance,
+                state.Config.EffectivePathfinding.MaxRepathAttempts,
+                state.Config.EffectiveBelievability.EffectiveRecovery.MovementStuckTicks));
         }
 
         private RouteCandidate? FindBestRouteToInteractionPoint(
@@ -460,7 +464,8 @@ namespace TabulaRasa.Simulation.Movement.Planning
             MovementRoute route,
             float speedPerTick,
             float arrivalTolerance,
-            int maxRepathAttempts)
+            int maxRepathAttempts,
+            int maxStuckTicks)
         {
             return new ActiveMovement(
                 request.AgentId,
@@ -470,6 +475,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
                 speedPerTick,
                 arrivalTolerance,
                 maxRepathAttempts,
+                maxStuckTicks,
                 request.ContextKey,
                 request.SelectedGoal,
                 request.NeedsBefore,
@@ -544,7 +550,7 @@ namespace TabulaRasa.Simulation.Movement.Planning
         private static float GetMovementSpeed(SimulationState state, AgentEntity agent)
         {
             return state.Config.MovementSpeedPerTick
-                * SpeciesRegistry.Get(agent.SpeciesId).MovementSpeedMultiplier
+                * SpeciesRegistry.Get(agent.SpeciesId, state.Config.EffectiveSpeciesRules).MovementSpeedMultiplier
                 * AgentTraitService.TraitMultiplier(agent.Traits.Speed);
         }
 

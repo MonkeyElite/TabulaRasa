@@ -5,6 +5,7 @@ using TabulaRasa.Agents.Minds;
 using TabulaRasa.Agents.Needs;
 using TabulaRasa.Abstractions.Entities;
 using TabulaRasa.Abstractions.World;
+using TabulaRasa.Simulation.Configuration;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Evolution;
@@ -65,7 +66,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 return new ActionResult(request.AgentId, request.ActionType, false, "Eat action could not be resolved.");
             }
 
-            SpeciesDefinition species = SpeciesRegistry.Get(agentEntity.SpeciesId);
+            SpeciesDefinition species = SpeciesRegistry.Get(agentEntity.SpeciesId, state.Config.EffectiveSpeciesRules);
             if (agentEntity.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0
                 && species.Id != SpeciesRegistry.HumanId)
             {
@@ -82,7 +83,8 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 PlantEntity? plant = SpatialQueries.FindAvailablePlantAtInteractionPoint(
                     state.World,
                     agentEntity.Position,
-                    request.TargetId);
+                    request.TargetId,
+                    state.Config.EffectivePathfinding.InteractionTolerance);
                 if (plant is not null)
                 {
                     if (!species.CanEatResource(plant.ResourceId))
@@ -114,7 +116,8 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 ResourceContainerEntity? container = SpatialQueries.FindAvailableFoodContainerAtInteractionPoint(
                     state.World,
                     agentEntity.Position,
-                    request.TargetId);
+                    request.TargetId,
+                    state.Config.EffectivePathfinding.InteractionTolerance);
 
                 if (container is null)
                 {
@@ -181,15 +184,17 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 return new ActionResult(request.AgentId, request.ActionType, false, "Attack action could not be resolved.");
             }
 
-            SpeciesDefinition attackerSpecies = SpeciesRegistry.Get(attacker.SpeciesId);
-            SpeciesDefinition targetSpecies = SpeciesRegistry.Get(target.SpeciesId);
+            SpeciesDefinition attackerSpecies = SpeciesRegistry.Get(attacker.SpeciesId, state.Config.EffectiveSpeciesRules);
+            SpeciesDefinition targetSpecies = SpeciesRegistry.Get(target.SpeciesId, state.Config.EffectiveSpeciesRules);
             if (!attackerSpecies.CanAttackSpecies(targetSpecies.Id))
             {
                 return new ActionResult(request.AgentId, request.ActionType, false, "Species cannot attack target species.");
             }
 
             target.Health.Current = Math.Max(0, target.Health.Current - attackerSpecies.AttackDamage);
-            attackerState.NeedState.Hunger = NeedSystem.ClampNeed(attackerState.NeedState.Hunger - 5);
+            attackerState.NeedState.Hunger = NeedSystem.ClampNeed(
+                attackerState.NeedState.Hunger - state.Config.EffectiveNeedRules.EatRecoveryAmount,
+                state.Config.EffectiveNeedRules.MaximumNeedValue);
             state.EmitEvent(
                 "agent.attacked",
                 "Action Resolver",
@@ -232,7 +237,7 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 return new ActionResult(request.AgentId, request.ActionType, false, "No free adjacent cell for offspring.");
             }
 
-            SpeciesDefinition species = SpeciesRegistry.Get(first.SpeciesId);
+            SpeciesDefinition species = SpeciesRegistry.Get(first.SpeciesId, state.Config.EffectiveSpeciesRules);
             string childId = NextAgentId(state, species.Id);
             AgentTraits childTraits = AgentTraitService.Inherit(
                 first.Traits,
@@ -255,11 +260,13 @@ namespace TabulaRasa.Simulation.Actions.Resolution
             second.OffspringIds.Add(child.Id);
             first.LastReproducedTick = state.ActiveTick;
             second.LastReproducedTick = state.ActiveTick;
+            ApplyReproductionNeedCost(state, first.Id);
+            ApplyReproductionNeedCost(state, second.Id);
             SocialService.RecordReproduction(state, first.Id, second.Id);
             state.World.Agents.Add(child);
             state.Agents.Add(new AgentState(
                 child.Id,
-                new AgentNeedState { Hunger = 1, Thirst = 1, Energy = 10, Fatigue = 0 },
+                CreateStartingNeeds(state, species.Id),
                 new DefaultAgentMind()));
             Dictionary<string, string> metadata = new(StringComparer.OrdinalIgnoreCase)
             {
@@ -276,9 +283,27 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 "Action Resolver",
                 $"{child.Id} was born.",
                 child.Id,
-                metadata);
+                metadata,
+                severity: "info",
+                importance: 0.82f,
+                tags: ["life", "birth", species.Id]);
 
             return new ActionResult(request.AgentId, request.ActionType, true);
+        }
+
+        private static void ApplyReproductionNeedCost(SimulationState state, string agentId)
+        {
+            AgentState? agentState = state.GetAgentById(agentId);
+            if (agentState is null)
+            {
+                return;
+            }
+
+            var cost = state.Config.EffectiveBelievability.EffectiveReproduction;
+            var rules = state.Config.EffectiveNeedRules;
+            agentState.NeedState.Hunger = NeedSystem.ClampNeed(agentState.NeedState.Hunger + cost.ParentHungerCost, rules.MaximumNeedValue);
+            agentState.NeedState.Thirst = NeedSystem.ClampNeed(agentState.NeedState.Thirst + cost.ParentThirstCost, rules.MaximumNeedValue);
+            agentState.NeedState.Fatigue = NeedSystem.ClampNeed(agentState.NeedState.Fatigue + cost.ParentFatigueCost, rules.MaximumNeedValue);
         }
 
         private static ActionResult ResolveCommunicate(SimulationState state, ActionRequest request)
@@ -490,14 +515,16 @@ namespace TabulaRasa.Simulation.Actions.Resolution
 
             if (request.TargetId is null)
             {
-                NeedSystem.ApplyDrink(agentState.NeedState);
+                var rules = state.Config.EffectiveNeedRules;
+                NeedSystem.ApplyDrink(agentState.NeedState, rules.DrinkRecoveryAmount, rules.MaximumNeedValue);
                 return new ActionResult(request.AgentId, request.ActionType, true);
             }
 
             WaterSourceEntity? waterSource = SpatialQueries.FindAvailableWaterSourceAtInteractionPoint(
                 state.World,
                 agentEntity.Position,
-                request.TargetId);
+                request.TargetId,
+                state.Config.EffectivePathfinding.InteractionTolerance);
             if (waterSource is null)
             {
                 return new ActionResult(request.AgentId, request.ActionType, false, "Water source is unavailable.");
@@ -530,7 +557,13 @@ namespace TabulaRasa.Simulation.Actions.Resolution
                 return new ActionResult(request.AgentId, request.ActionType, false, "Rest action could not be resolved.");
             }
 
-            NeedSystem.ApplyRest(agentState.NeedState);
+            var rules = state.Config.EffectiveNeedRules;
+            NeedSystem.ApplyRest(
+                agentState.NeedState,
+                rules.RestEnergyRecoveryAmount,
+                rules.RestFatigueRecoveryAmount,
+                rules.MaximumNeedValue,
+                rules.MaximumEnergyValue);
 
             return new ActionResult(request.AgentId, request.ActionType, true);
         }
@@ -550,6 +583,24 @@ namespace TabulaRasa.Simulation.Actions.Resolution
             needState.Thirst = NeedSystem.ClampNeed(needState.Thirst + effects.ThirstDelta);
             needState.Energy = NeedSystem.ClampEnergy(needState.Energy + effects.EnergyDelta);
             needState.Fatigue = NeedSystem.ClampNeed(needState.Fatigue + effects.FatigueDelta);
+        }
+
+        private static AgentNeedState CreateStartingNeeds(SimulationState state, string speciesId)
+        {
+            StartingNeedsConfig needs = SpeciesRegistry.NormalizeId(speciesId) switch
+            {
+                SpeciesRegistry.WolfId => state.Config.EffectiveSpeciesRules.EffectiveWolf.StartingNeeds ?? new StartingNeedsConfig(),
+                SpeciesRegistry.DeerId => state.Config.EffectiveSpeciesRules.EffectiveDeer.StartingNeeds ?? new StartingNeedsConfig(),
+                _ => state.Config.EffectiveSpeciesRules.EffectiveHuman.StartingNeeds ?? new StartingNeedsConfig()
+            };
+            var rules = state.Config.EffectiveNeedRules;
+            return new AgentNeedState
+            {
+                Hunger = Math.Clamp(needs.Hunger, 0, rules.MaximumNeedValue),
+                Thirst = Math.Clamp(needs.Thirst, 0, rules.MaximumNeedValue),
+                Energy = Math.Clamp(needs.Energy, 0, rules.MaximumEnergyValue),
+                Fatigue = Math.Clamp(needs.Fatigue, 0, rules.MaximumNeedValue)
+            };
         }
 
         private static WorldPosition? FindFreeAdjacentPosition(SimulationState state, AgentEntity parent)

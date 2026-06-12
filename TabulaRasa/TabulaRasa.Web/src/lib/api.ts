@@ -1,4 +1,5 @@
 import type {
+  BuiltInSimulationScenario,
   SimulationConfig,
   SimulationDraft,
   SimulationDraftSchema,
@@ -8,6 +9,7 @@ import type {
   SimulationSnapshot,
   SimulationStatus,
   SimulationSummary,
+  SimulationTimelinePoint,
   SaveSimulationResponse,
   ScenarioExport,
   RetentionResult
@@ -41,6 +43,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const simulationApi = {
   list: () => request<SimulationSummary[]>("/simulations"),
+  scenarios: () => request<BuiltInSimulationScenario[]>("/simulations/scenarios"),
   runs: (offset = 0, limit = 50) => request<SimulationRunPage>(`/simulations/runs?offset=${offset}&limit=${limit}`),
   checkpoints: (runId: string) => request<SimulationCheckpointSummary[]>(`/simulations/runs/${runId}/checkpoints`),
   loadRun: (runId: string) =>
@@ -67,6 +70,17 @@ export const simulationApi = {
     request<void>(`/simulations/${simulationId}`, { method: "DELETE" }),
   status: (simulationId: string) => request<SimulationStatus>(`/simulations/${simulationId}/status`),
   current: (simulationId: string) => request<SimulationSnapshot>(`/simulations/${simulationId}/current`),
+  timeline: (simulationId: string, from?: number, to?: number, sampleEvery = 1) => {
+    const parameters = new URLSearchParams();
+    if (typeof from === "number") {
+      parameters.set("from", String(from));
+    }
+    if (typeof to === "number") {
+      parameters.set("to", String(to));
+    }
+    parameters.set("sampleEvery", String(sampleEvery));
+    return request<SimulationTimelinePoint[]>(`/simulations/${simulationId}/timeline?${parameters.toString()}`);
+  },
   tick: (simulationId: string, tick: number) => request<SimulationSnapshot>(`/simulations/${simulationId}/ticks/${tick}`),
   step: (simulationId: string) => request<SimulationSnapshot>(`/simulations/${simulationId}/step`, { method: "POST" }),
   save: (simulationId: string) =>

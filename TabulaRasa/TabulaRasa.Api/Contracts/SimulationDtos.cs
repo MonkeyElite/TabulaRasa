@@ -2,6 +2,11 @@ namespace TabulaRasa.Api.Contracts
 {
     public sealed record CreateSimulationRequestDto(string? Name = null, SimulationConfigDto? Config = null);
 
+    public sealed record BuiltInSimulationScenarioDto(
+        string Name,
+        string DisplayName,
+        SimulationConfigDto Config);
+
     public sealed record CloneSimulationRequestDto(string? Name = null, long? SourceTick = null);
 
     public sealed record RunSimulationRequestDto(int? IntervalMilliseconds, SimulationConfigDto? Config = null);
@@ -76,10 +81,49 @@ namespace TabulaRasa.Api.Contracts
         float EnergyDelta,
         float FatigueDelta = 1);
 
+    public sealed record NeedRulesConfigDto(
+        float MaximumNeedValue,
+        float MaximumEnergyValue,
+        float EatRecoveryAmount,
+        float DrinkRecoveryAmount,
+        float RestEnergyRecoveryAmount,
+        float RestFatigueRecoveryAmount,
+        float CriticalNeedThreshold,
+        float HarmNeedThreshold,
+        float ExhaustedEnergyThreshold,
+        float SurvivalDamagePerTick,
+        float HeatWeatherThirstMultiplier,
+        float HotTemperatureThreshold,
+        float HotTemperatureThirstBonus,
+        float ColdTemperatureThreshold,
+        float ColdTemperatureThirstBonus,
+        float MinTemperatureThirstMultiplier,
+        float MaxTemperatureThirstMultiplier);
+
+    public sealed record GoalConfigDto(
+        float HungerThreshold,
+        float UrgentHungerThreshold,
+        int InterruptionPriorityDelta,
+        float InventionMaxHunger,
+        float InventionMaxThirst,
+        float InventionMaxFatigue);
+
     public sealed record PathfindingConfigDto(
         bool AllowDiagonalMovement,
         int MaxVisitedCells,
-        int MaxRepathAttempts = 3);
+        int MaxRepathAttempts = 3,
+        float ArrivalTolerance = 0.05f,
+        float InteractionTolerance = 0.1f,
+        float AgentInteractionRangeBonus = 0.5f);
+
+    public sealed record SpawnResourceConfigDto(
+        int FoodStackQuantity,
+        int PlantStartingYield,
+        int PlantMaxYield,
+        float WaterStartingVolume,
+        float WaterMaxVolume,
+        int DepositQuantity,
+        int DepositMaxQuantity);
 
     public sealed record MemoryConfigDto(
         bool Enabled,
@@ -94,10 +138,108 @@ namespace TabulaRasa.Api.Contracts
         float MutationChancePerTrait,
         float MutationDelta);
 
+    public sealed record StartingNeedsConfigDto(
+        float Hunger,
+        float Thirst,
+        float Energy,
+        float Fatigue);
+
+    public sealed record SpeciesRuleConfigDto(
+        float MaxHealth,
+        int AdultAgeDays,
+        int MaxAgeDays,
+        int ReproductionCooldownTicks,
+        float PerceptionMultiplier,
+        float MovementSpeedMultiplier,
+        float AttackDamage,
+        float HungerDecayMultiplier,
+        float ThirstDecayMultiplier,
+        float FatigueDecayMultiplier,
+        StartingNeedsConfigDto? StartingNeeds = null,
+        IReadOnlyList<string>? EdibleResourceIds = null,
+        IReadOnlyList<string>? PreySpeciesIds = null);
+
+    public sealed record SpeciesRulesConfigDto(
+        SpeciesRuleConfigDto? Human = null,
+        SpeciesRuleConfigDto? Deer = null,
+        SpeciesRuleConfigDto? Wolf = null);
+
+    public sealed record BehaviorWeightConfigDto(
+        float Eat,
+        float Drink,
+        float Rest,
+        float Wander,
+        float Social,
+        float Reproduce,
+        float Flee,
+        float Attack,
+        float Craft,
+        float Experiment,
+        float ExplorationChance,
+        float PersonalityInfluence);
+
+    public sealed record SocialWeightConfigDto(
+        float PerceptionFamiliarity,
+        float CommunicationFamiliarity,
+        float CommunicationTrust,
+        float CommunicationFear,
+        float CommunicationAffinity,
+        float AttackTrust,
+        float AttackFear,
+        float AttackAffinity,
+        float ReproductionFamiliarity,
+        float ReproductionTrust,
+        float ReproductionFear,
+        float ReproductionAffinity);
+
+    public sealed record ReproductionConfigDto(
+        float NeedThreshold,
+        float Range,
+        float CooldownScale,
+        float PopulationPressureInfluence,
+        float ParentHungerCost,
+        float ParentThirstCost,
+        float ParentFatigueCost);
+
+    public sealed record RecoveryConfigDto(
+        int FailedTargetCooldownTicks,
+        int MaxRepeatedActionFailures,
+        int MaxGoalAgeTicks,
+        int IdleRecoveryTicks,
+        int MovementStuckTicks);
+
+    public sealed record BelievabilityConfigDto(
+        BehaviorWeightConfigDto? Behavior = null,
+        SocialWeightConfigDto? Social = null,
+        ReproductionConfigDto? Reproduction = null,
+        RecoveryConfigDto? Recovery = null);
+
+    public sealed record LifecycleConfigDto(
+        float AgeDaysPerTick,
+        float DaysPerYear);
+
     public sealed record EnvironmentConfigDto(
         int DayLengthTicks,
         int WeatherChangeIntervalTicks,
-        float BaseTemperature);
+        float BaseTemperature,
+        float DawnEndRatio = 0.15f,
+        float DayEndRatio = 0.65f,
+        float DuskEndRatio = 0.80f,
+        int ClearWeatherWeight = 55,
+        int RainWeatherWeight = 20,
+        int HeatWeatherWeight = 15,
+        int ColdWeatherWeight = 10,
+        float DayTemperatureDelta = 4,
+        float NightTemperatureDelta = -6,
+        float DawnTemperatureDelta = -2,
+        float DuskTemperatureDelta = 1,
+        float HeatTemperatureDelta = 8,
+        float ColdTemperatureDelta = -8,
+        float RainTemperatureDelta = -2,
+        float MaxPlantCooling = 3,
+        float PlantCoolingFactor = 30,
+        float MaxWaterCooling = 2,
+        float WaterCoolingPerSource = 0.5f);
 
     public sealed record EcologyConfigDto(
         int InitialPlantCount,
@@ -106,7 +248,11 @@ namespace TabulaRasa.Api.Contracts
         int PlantRegrowthTicks,
         int PlantDecayTicksAfterDepleted,
         float WaterRefillPerRainTick,
-        float WaterEvaporationPerHeatTick);
+        float WaterEvaporationPerHeatTick,
+        int CollapsePlantYieldThreshold = 0,
+        float CollapseWaterVolumeThreshold = 0,
+        int RecoveryPlantYieldThreshold = 1,
+        float RecoveryWaterVolumeThreshold = 1);
 
     public sealed record SpeciesPopulationConfigDto(
         int Human,
@@ -123,15 +269,21 @@ namespace TabulaRasa.Api.Contracts
         int EventHistoryLimit,
         int SnapshotHistoryLimit,
         NeedDecayConfigDto NeedDecay,
+        NeedRulesConfigDto? NeedRules,
+        GoalConfigDto? Goals,
         float PerceptionRadius,
         float MovementSpeedPerTick,
         PathfindingConfigDto Pathfinding,
+        SpawnResourceConfigDto? SpawnResources,
         IReadOnlyList<string> EnabledSystems,
         MemoryConfigDto? Memory = null,
+        LifecycleConfigDto? Lifecycle = null,
         EnvironmentConfigDto? Environment = null,
         EcologyConfigDto? Ecology = null,
         SpeciesPopulationConfigDto? SpeciesPopulation = null,
-        TraitConfigDto? Traits = null);
+        SpeciesRulesConfigDto? SpeciesRules = null,
+        TraitConfigDto? Traits = null,
+        BelievabilityConfigDto? Believability = null);
 
     public sealed record SimulationSummaryDto(
         string SimulationId,
@@ -230,7 +382,10 @@ namespace TabulaRasa.Api.Contracts
         string SourceSystem,
         string Message,
         string? EntityId,
-        IReadOnlyDictionary<string, string> Metadata);
+        IReadOnlyDictionary<string, string> Metadata,
+        string Severity = "info",
+        float Importance = 0,
+        IReadOnlyList<string>? Tags = null);
 
     public sealed record SimulationTickDiagnosticsDto(
         long Tick,
@@ -314,7 +469,10 @@ namespace TabulaRasa.Api.Contracts
         AgentSocialSnapshotDto Social,
         AgentKnowledgeSnapshotDto Knowledge,
         AgentDecisionSnapshotDto? Decision,
-        AgentLearningSnapshotDto Learning);
+        AgentLearningSnapshotDto Learning,
+        AgentPersonalityDto? Personality = null,
+        float AgeDays = 0,
+        float AgeYears = 0);
 
     public sealed record AgentNeedsDto(float Hunger, float Thirst, float Energy, float Fatigue = 0);
 
@@ -324,6 +482,12 @@ namespace TabulaRasa.Api.Contracts
         float Metabolism,
         float RiskTolerance,
         float LearningRate);
+
+    public sealed record AgentPersonalityDto(
+        string Label,
+        string DominantTrait,
+        IReadOnlyDictionary<string, float> BehaviorBiases,
+        float ExplorationChance);
 
     public sealed record EvolutionSummaryDto(
         IReadOnlyList<PopulationTraitMetricDto> CurrentTraits,
@@ -684,6 +848,26 @@ namespace TabulaRasa.Api.Contracts
         string? TargetId,
         string? ContextKey,
         float? OutcomeScore);
+
+    public sealed record SimulationTimelinePointDto(
+        long Tick,
+        IReadOnlyList<SpeciesPopulationCountDto> SpeciesPopulation,
+        float AverageHunger,
+        float AverageThirst,
+        float AverageEnergy,
+        float AverageFatigue,
+        int Births,
+        int Deaths,
+        int FoodCount,
+        int PlantCount,
+        int TotalPlantYield,
+        int WaterSourceCount,
+        float TotalWaterVolume,
+        int ResourceDepositCount,
+        int TotalDepositQuantity,
+        int EventCount,
+        int ImportantEventCount,
+        double DurationMilliseconds);
 
     public sealed record SimulationDraftDto(
         long Tick,

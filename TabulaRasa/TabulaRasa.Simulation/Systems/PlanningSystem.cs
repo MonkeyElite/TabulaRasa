@@ -1,6 +1,7 @@
 using TabulaRasa.Abstractions.Agents;
 using TabulaRasa.Abstractions.Execution;
 using TabulaRasa.Agents.Models;
+using TabulaRasa.Simulation.Evolution;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Memory;
@@ -43,6 +44,10 @@ namespace TabulaRasa.Simulation.Systems
                 enrichedPerception = EnrichWithKnowledgeOpportunities(state, agentEntity, enrichedPerception);
                 SocialService.RememberPerceivedAgents(state, agentEntity, perception);
                 state.LatestPerceptionsByAgentId[agentEntity.Id] = enrichedPerception;
+                AgentPersonality personality = AgentPersonalityService.Derive(
+                    agentEntity.Traits,
+                    state.Config.EffectiveBelievability.EffectiveBehavior.ExplorationChance,
+                    state.Config.EffectiveBelievability.EffectiveBehavior.PersonalityInfluence);
                 AgentSnapshot snapshot = new(
                     agentEntity.Id,
                     agentState.NeedState.ToSnapshot(),
@@ -52,7 +57,7 @@ namespace TabulaRasa.Simulation.Systems
                         .ToDictionary(group => group.Key, group => group.Sum(stack => stack.Quantity), StringComparer.OrdinalIgnoreCase),
                     SpeciesRegistry.NormalizeId(agentEntity.SpeciesId),
                     agentEntity.AgeTicks,
-                    agentEntity.AgeTicks >= SpeciesRegistry.Get(agentEntity.SpeciesId).AdultAgeTicks,
+                    agentEntity.AgeTicks >= SpeciesRegistry.Get(agentEntity.SpeciesId, state.Config.EffectiveSpeciesRules).AdultAgeDays,
                     agentEntity.LastReproducedTick,
                     agentEntity.Traits);
 
@@ -60,8 +65,35 @@ namespace TabulaRasa.Simulation.Systems
                     enrichedPerception,
                     snapshot,
                     agentState.Learning,
-                    state.Random));
+                    state.Random,
+                    BuildBehaviorContext(state, agentEntity.Id, personality)));
             }
+        }
+
+        private static AgentBehaviorContext BuildBehaviorContext(
+            SimulationState state,
+            string agentId,
+            AgentPersonality personality)
+        {
+            var behavior = state.Config.EffectiveBelievability.EffectiveBehavior;
+            IReadOnlyDictionary<string, float> biases = personality.BehaviorBiases;
+            state.FailedTargetCooldownsByAgentId.TryGetValue(agentId, out Dictionary<string, long>? cooldowns);
+
+            return new AgentBehaviorContext(
+                behavior.Eat * biases.GetValueOrDefault("eat", 1),
+                behavior.Drink * biases.GetValueOrDefault("drink", 1),
+                behavior.Rest * biases.GetValueOrDefault("rest", 1),
+                behavior.Wander * biases.GetValueOrDefault("wander", 1),
+                behavior.Social * biases.GetValueOrDefault("social", 1),
+                behavior.Reproduce * biases.GetValueOrDefault("reproduce", 1),
+                behavior.Flee * biases.GetValueOrDefault("flee", 1),
+                behavior.Attack * biases.GetValueOrDefault("attack", 1),
+                behavior.Craft * biases.GetValueOrDefault("craft", 1),
+                behavior.Experiment * biases.GetValueOrDefault("experiment", 1),
+                personality.ExplorationChance,
+                behavior.PersonalityInfluence,
+                state.ActiveTick,
+                cooldowns ?? new Dictionary<string, long>());
         }
 
         private static AgentPerception EnrichWithKnowledgeOpportunities(

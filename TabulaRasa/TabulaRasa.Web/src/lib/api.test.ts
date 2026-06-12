@@ -60,6 +60,17 @@ describe("api client", () => {
     );
   });
 
+  it("loads built-in scenario presets", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([]));
+
+    await simulationApi.scenarios();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/simulations/scenarios",
+      expect.objectContaining({ headers: expect.any(Object) })
+    );
+  });
+
   it("forks persisted runs from a tick", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ simulationId: "sim-2" }));
 
@@ -82,6 +93,17 @@ describe("api client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/simulations/sim-1/save",
       expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("loads timeline samples", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([]));
+
+    await simulationApi.timeline("sim-1", 2, 12, 3);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/simulations/sim-1/timeline?from=2&to=12&sampleEvery=3",
+      expect.objectContaining({ headers: expect.any(Object) })
     );
   });
 
@@ -125,17 +147,56 @@ const config = {
   eventHistoryLimit: 2,
   snapshotHistoryLimit: 5,
   needDecay: {
-    hungerDelta: 1,
-    thirstDelta: 1,
-    energyDelta: -1,
-    fatigueDelta: 1
+    hungerDelta: 0.08,
+    thirstDelta: 0.08,
+    energyDelta: -0.02,
+    fatigueDelta: 0.04
+  },
+  needRules: {
+    maximumNeedValue: 10,
+    maximumEnergyValue: 10,
+    eatRecoveryAmount: 5,
+    drinkRecoveryAmount: 5,
+    restEnergyRecoveryAmount: 4,
+    restFatigueRecoveryAmount: 5,
+    criticalNeedThreshold: 8,
+    harmNeedThreshold: 10,
+    exhaustedEnergyThreshold: 0,
+    survivalDamagePerTick: 1,
+    heatWeatherThirstMultiplier: 1.25,
+    hotTemperatureThreshold: 30,
+    hotTemperatureThirstBonus: 0.25,
+    coldTemperatureThreshold: 5,
+    coldTemperatureThirstBonus: -0.15,
+    minTemperatureThirstMultiplier: 0.5,
+    maxTemperatureThirstMultiplier: 2
+  },
+  goals: {
+    hungerThreshold: 4,
+    urgentHungerThreshold: 7.5,
+    interruptionPriorityDelta: 20,
+    inventionMaxHunger: 4,
+    inventionMaxThirst: 4,
+    inventionMaxFatigue: 5
   },
   perceptionRadius: 20,
   movementSpeedPerTick: 0.25,
   pathfinding: {
     allowDiagonalMovement: false,
     maxVisitedCells: 1000,
-    maxRepathAttempts: 3
+    maxRepathAttempts: 3,
+    arrivalTolerance: 0.05,
+    interactionTolerance: 0.1,
+    agentInteractionRangeBonus: 0.5
+  },
+  spawnResources: {
+    foodStackQuantity: 2,
+    plantStartingYield: 4,
+    plantMaxYield: 5,
+    waterStartingVolume: 16,
+    waterMaxVolume: 20,
+    depositQuantity: 5,
+    depositMaxQuantity: 5
   },
   memory: {
     enabled: true,
@@ -153,7 +214,25 @@ const config = {
   environment: {
     dayLengthTicks: 100,
     weatherChangeIntervalTicks: 50,
-    baseTemperature: 20
+    baseTemperature: 20,
+    dawnEndRatio: 0.15,
+    dayEndRatio: 0.65,
+    duskEndRatio: 0.8,
+    clearWeatherWeight: 55,
+    rainWeatherWeight: 20,
+    heatWeatherWeight: 15,
+    coldWeatherWeight: 10,
+    dayTemperatureDelta: 4,
+    nightTemperatureDelta: -6,
+    dawnTemperatureDelta: -2,
+    duskTemperatureDelta: 1,
+    heatTemperatureDelta: 8,
+    coldTemperatureDelta: -8,
+    rainTemperatureDelta: -2,
+    maxPlantCooling: 3,
+    plantCoolingFactor: 30,
+    maxWaterCooling: 2,
+    waterCoolingPerSource: 0.5
   },
   ecology: {
     initialPlantCount: 3,
@@ -162,12 +241,39 @@ const config = {
     plantRegrowthTicks: 5,
     plantDecayTicksAfterDepleted: 20,
     waterRefillPerRainTick: 0.5,
-    waterEvaporationPerHeatTick: 0.25
+    waterEvaporationPerHeatTick: 0.25,
+    collapsePlantYieldThreshold: 0,
+    collapseWaterVolumeThreshold: 0,
+    recoveryPlantYieldThreshold: 1,
+    recoveryWaterVolumeThreshold: 1
   },
   speciesPopulation: {
     human: 1,
     deer: 0,
     wolf: 0
+  },
+  lifecycle: {
+    ageDaysPerTick: 0.01,
+    daysPerYear: 365
+  },
+  speciesRules: {
+    human: {
+      maxHealth: 10,
+      adultAgeDays: 20,
+      maxAgeDays: 2000,
+      reproductionCooldownTicks: 80,
+      perceptionMultiplier: 1,
+      movementSpeedMultiplier: 1,
+      attackDamage: 2,
+      hungerDecayMultiplier: 1,
+      thirstDecayMultiplier: 1,
+      fatigueDecayMultiplier: 1,
+      startingNeeds: { hunger: 1, thirst: 0.5, energy: 10, fatigue: 0 },
+      edibleResourceIds: ["food"],
+      preySpeciesIds: []
+    },
+    deer: null,
+    wolf: null
   },
   enabledSystems: ["need-decay", "planning"]
 };

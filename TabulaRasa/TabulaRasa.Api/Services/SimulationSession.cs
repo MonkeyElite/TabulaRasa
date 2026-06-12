@@ -114,6 +114,43 @@ namespace TabulaRasa.Api.Services
             }
         }
 
+        public IReadOnlyList<SimulationTimelinePointDto> GetTimeline(long? from, long? to, int sampleEvery)
+        {
+            lock (_sync)
+            {
+                long minimumTick = _snapshots.Count == 0 ? _state.Time.Tick : _snapshots.Keys.First();
+                long maximumTick = _snapshots.Count == 0 ? _state.Time.Tick : _snapshots.Keys.Last();
+                long start = Math.Clamp(from ?? minimumTick, minimumTick, maximumTick);
+                long end = Math.Clamp(to ?? maximumTick, minimumTick, maximumTick);
+                int step = Math.Clamp(sampleEvery, 1, 10_000);
+                if (start > end)
+                {
+                    (start, end) = (end, start);
+                }
+
+                List<SimulationTimelinePointDto> points = [];
+                for (long tick = start; tick <= end; tick += step)
+                {
+                    SimulationSnapshotDto? snapshot = _snapshots.GetValueOrDefault(tick) ?? ReconstructSnapshot(tick);
+                    if (snapshot is not null)
+                    {
+                        points.Add(ToTimelinePoint(snapshot));
+                    }
+                }
+
+                if (points.Count == 0 || points[^1].Tick != end)
+                {
+                    SimulationSnapshotDto? finalSnapshot = _snapshots.GetValueOrDefault(end) ?? ReconstructSnapshot(end);
+                    if (finalSnapshot is not null && points.All(point => point.Tick != finalSnapshot.Tick))
+                    {
+                        points.Add(ToTimelinePoint(finalSnapshot));
+                    }
+                }
+
+                return points;
+            }
+        }
+
         public SimulationSnapshotDto Step()
         {
             lock (_sync)
@@ -451,6 +488,39 @@ namespace TabulaRasa.Api.Services
             }
         }
 
+        private static SimulationTimelinePointDto ToTimelinePoint(SimulationSnapshotDto snapshot)
+        {
+            IReadOnlyList<AgentSnapshotDto> aliveAgents = snapshot.Agents.Where(agent => !agent.IsDead).ToList();
+            IReadOnlyList<SimulationEventDto> importantEvents = snapshot.Events
+                .Where(simulationEvent => simulationEvent.Importance >= 0.5f || simulationEvent.Severity is "warning" or "critical")
+                .ToList();
+
+            return new SimulationTimelinePointDto(
+                snapshot.Tick,
+                snapshot.SpeciesPopulation,
+                AverageNeed(aliveAgents, agent => agent.Needs.Hunger),
+                AverageNeed(aliveAgents, agent => agent.Needs.Thirst),
+                AverageNeed(aliveAgents, agent => agent.Needs.Energy),
+                AverageNeed(aliveAgents, agent => agent.Needs.Fatigue),
+                snapshot.Events.Count(simulationEvent => simulationEvent.Type == "agent.born"),
+                snapshot.Events.Count(simulationEvent => simulationEvent.Type == "agent.died"),
+                snapshot.ResourceContainers.Sum(container => container.Inventory.Stacks.Sum(stack => stack.Quantity)),
+                snapshot.EcologyStats?.PlantCount ?? snapshot.Plants?.Count ?? 0,
+                snapshot.EcologyStats?.TotalPlantYield ?? snapshot.Plants?.Sum(plant => plant.Yield) ?? 0,
+                snapshot.EcologyStats?.WaterSourceCount ?? snapshot.WaterSources?.Count ?? 0,
+                snapshot.EcologyStats?.TotalWaterVolume ?? snapshot.WaterSources?.Sum(water => water.CurrentVolume) ?? 0,
+                snapshot.EcologyStats?.ResourceDepositCount ?? snapshot.ResourceDeposits?.Count ?? 0,
+                snapshot.EcologyStats?.TotalDepositQuantity ?? snapshot.ResourceDeposits?.Sum(deposit => deposit.Quantity) ?? 0,
+                snapshot.Events.Count,
+                importantEvents.Count,
+                snapshot.Diagnostics?.DurationMilliseconds ?? 0);
+        }
+
+        private static float AverageNeed(IReadOnlyList<AgentSnapshotDto> agents, Func<AgentSnapshotDto, float> selector)
+        {
+            return agents.Count == 0 ? 0 : agents.Average(selector);
+        }
+
         private void PersistSnapshot(SimulationSnapshotDto snapshot)
         {
             if (!_persistence.IsDurable)
@@ -555,8 +625,8 @@ namespace TabulaRasa.Api.Services
                 IsDead = agent.DeathTick is not null,
                 Traits = ToAgentTraits(agent.Traits),
                 Health = new EntityHealth(
-                    SpeciesRegistry.Get(agent.SpeciesId).MaxHealth,
-                    agent.DeathTick is null ? SpeciesRegistry.Get(agent.SpeciesId).MaxHealth : 0),
+                    SpeciesRegistry.Get(agent.SpeciesId, config.EffectiveSpeciesRules).MaxHealth,
+                    agent.DeathTick is null ? SpeciesRegistry.Get(agent.SpeciesId, config.EffectiveSpeciesRules).MaxHealth : 0),
                 ParentIds = (agent.ParentIds ?? []).ToList(),
                 OffspringIds = (agent.OffspringIds ?? []).ToList()
             }).ToList();

@@ -33,7 +33,10 @@ namespace TabulaRasa.Simulation.Lifecycle
                 {
                     ["isDead"] = "True",
                     ["cause"] = cause
-                });
+                },
+                severity: "critical",
+                importance: 0.95f,
+                tags: ["life", "death", cause]);
         }
     }
 }

@@ -13,6 +13,7 @@ namespace TabulaRasa.Simulation.Movement.Execution
             float speedPerTick,
             float arrivalTolerance,
             int maxRepathAttempts = 3,
+            int maxStuckTicks = 3,
             string? contextKey = null,
             string? selectedGoal = null,
             AgentNeedsSnapshot? needsBefore = null,
@@ -26,6 +27,7 @@ namespace TabulaRasa.Simulation.Movement.Execution
             SpeedPerTick = speedPerTick;
             ArrivalTolerance = arrivalTolerance;
             MaxRepathAttempts = maxRepathAttempts;
+            MaxStuckTicks = Math.Max(1, maxStuckTicks);
             ContextKey = contextKey;
             SelectedGoal = selectedGoal;
             NeedsBefore = needsBefore;

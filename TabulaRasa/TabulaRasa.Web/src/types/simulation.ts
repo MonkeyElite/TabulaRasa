@@ -13,6 +13,12 @@ export type SimulationSummary = {
   updatedAt: string;
 };
 
+export type BuiltInSimulationScenario = {
+  name: string;
+  displayName: string;
+  config: SimulationConfig;
+};
+
 export type SimulationRun = {
   simulationId: string;
   name: string;
@@ -108,13 +114,19 @@ export type SimulationConfig = {
     energyDelta: number;
     fatigueDelta: number;
   };
+  needRules?: NeedRulesConfig;
+  goals?: GoalConfig;
   perceptionRadius: number;
   movementSpeedPerTick: number;
   pathfinding: {
     allowDiagonalMovement: boolean;
     maxVisitedCells: number;
     maxRepathAttempts: number;
+    arrivalTolerance: number;
+    interactionTolerance: number;
+    agentInteractionRangeBonus: number;
   };
+  spawnResources?: SpawnResourceConfig;
   memory: {
     enabled: boolean;
     maxMemoriesPerAgent: number;
@@ -128,6 +140,24 @@ export type SimulationConfig = {
     dayLengthTicks: number;
     weatherChangeIntervalTicks: number;
     baseTemperature: number;
+    dawnEndRatio: number;
+    dayEndRatio: number;
+    duskEndRatio: number;
+    clearWeatherWeight: number;
+    rainWeatherWeight: number;
+    heatWeatherWeight: number;
+    coldWeatherWeight: number;
+    dayTemperatureDelta: number;
+    nightTemperatureDelta: number;
+    dawnTemperatureDelta: number;
+    duskTemperatureDelta: number;
+    heatTemperatureDelta: number;
+    coldTemperatureDelta: number;
+    rainTemperatureDelta: number;
+    maxPlantCooling: number;
+    plantCoolingFactor: number;
+    maxWaterCooling: number;
+    waterCoolingPerSource: number;
   };
   ecology: {
     initialPlantCount: number;
@@ -137,9 +167,89 @@ export type SimulationConfig = {
     plantDecayTicksAfterDepleted: number;
     waterRefillPerRainTick: number;
     waterEvaporationPerHeatTick: number;
+    collapsePlantYieldThreshold: number;
+    collapseWaterVolumeThreshold: number;
+    recoveryPlantYieldThreshold: number;
+    recoveryWaterVolumeThreshold: number;
   };
   speciesPopulation: SpeciesPopulationConfig;
+  speciesRules?: SpeciesRulesConfig;
+  lifecycle?: LifecycleConfig;
   enabledSystems: string[];
+  believability?: BelievabilityConfig;
+};
+
+export type LifecycleConfig = {
+  ageDaysPerTick: number;
+  daysPerYear: number;
+};
+
+export type NeedRulesConfig = {
+  maximumNeedValue: number;
+  maximumEnergyValue: number;
+  eatRecoveryAmount: number;
+  drinkRecoveryAmount: number;
+  restEnergyRecoveryAmount: number;
+  restFatigueRecoveryAmount: number;
+  criticalNeedThreshold: number;
+  harmNeedThreshold: number;
+  exhaustedEnergyThreshold: number;
+  survivalDamagePerTick: number;
+  heatWeatherThirstMultiplier: number;
+  hotTemperatureThreshold: number;
+  hotTemperatureThirstBonus: number;
+  coldTemperatureThreshold: number;
+  coldTemperatureThirstBonus: number;
+  minTemperatureThirstMultiplier: number;
+  maxTemperatureThirstMultiplier: number;
+};
+
+export type GoalConfig = {
+  hungerThreshold: number;
+  urgentHungerThreshold: number;
+  interruptionPriorityDelta: number;
+  inventionMaxHunger: number;
+  inventionMaxThirst: number;
+  inventionMaxFatigue: number;
+};
+
+export type SpawnResourceConfig = {
+  foodStackQuantity: number;
+  plantStartingYield: number;
+  plantMaxYield: number;
+  waterStartingVolume: number;
+  waterMaxVolume: number;
+  depositQuantity: number;
+  depositMaxQuantity: number;
+};
+
+export type StartingNeedsConfig = {
+  hunger: number;
+  thirst: number;
+  energy: number;
+  fatigue: number;
+};
+
+export type SpeciesRuleConfig = {
+  maxHealth: number;
+  adultAgeDays: number;
+  maxAgeDays: number;
+  reproductionCooldownTicks: number;
+  perceptionMultiplier: number;
+  movementSpeedMultiplier: number;
+  attackDamage: number;
+  hungerDecayMultiplier: number;
+  thirstDecayMultiplier: number;
+  fatigueDecayMultiplier: number;
+  startingNeeds?: StartingNeedsConfig | null;
+  edibleResourceIds?: string[] | null;
+  preySpeciesIds?: string[] | null;
+};
+
+export type SpeciesRulesConfig = {
+  human?: SpeciesRuleConfig | null;
+  deer?: SpeciesRuleConfig | null;
+  wolf?: SpeciesRuleConfig | null;
 };
 
 export type SpeciesPopulationConfig = {
@@ -152,6 +262,61 @@ export type TraitConfig = {
   initialVariation: number;
   mutationChancePerTrait: number;
   mutationDelta: number;
+};
+
+export type BelievabilityConfig = {
+  behavior?: BehaviorWeightConfig;
+  social?: SocialWeightConfig;
+  reproduction?: ReproductionConfig;
+  recovery?: RecoveryConfig;
+};
+
+export type BehaviorWeightConfig = {
+  eat: number;
+  drink: number;
+  rest: number;
+  wander: number;
+  social: number;
+  reproduce: number;
+  flee: number;
+  attack: number;
+  craft: number;
+  experiment: number;
+  explorationChance: number;
+  personalityInfluence: number;
+};
+
+export type SocialWeightConfig = {
+  perceptionFamiliarity: number;
+  communicationFamiliarity: number;
+  communicationTrust: number;
+  communicationFear: number;
+  communicationAffinity: number;
+  attackTrust: number;
+  attackFear: number;
+  attackAffinity: number;
+  reproductionFamiliarity: number;
+  reproductionTrust: number;
+  reproductionFear: number;
+  reproductionAffinity: number;
+};
+
+export type ReproductionConfig = {
+  needThreshold: number;
+  range: number;
+  cooldownScale: number;
+  populationPressureInfluence: number;
+  parentHungerCost: number;
+  parentThirstCost: number;
+  parentFatigueCost: number;
+};
+
+export type RecoveryConfig = {
+  failedTargetCooldownTicks: number;
+  maxRepeatedActionFailures: number;
+  maxGoalAgeTicks: number;
+  idleRecoveryTicks: number;
+  movementStuckTicks: number;
 };
 
 export type SimulationTickSummary = {
@@ -331,6 +496,13 @@ export type AgentTraits = {
   learningRate: number;
 };
 
+export type AgentPersonality = {
+  label: string;
+  dominantTrait: string;
+  behaviorBiases: Record<string, number>;
+  explorationChance: number;
+};
+
 export type EvolutionSummary = {
   currentTraits: PopulationTraitMetric[];
   traitHistory: TraitHistoryPoint[];
@@ -357,6 +529,30 @@ export type SimulationEvent = {
   message: string;
   entityId: string | null;
   metadata: Record<string, string>;
+  severity?: "info" | "warning" | "critical" | string;
+  importance?: number;
+  tags?: string[];
+};
+
+export type SimulationTimelinePoint = {
+  tick: number;
+  speciesPopulation: SpeciesPopulationCount[];
+  averageHunger: number;
+  averageThirst: number;
+  averageEnergy: number;
+  averageFatigue: number;
+  births: number;
+  deaths: number;
+  foodCount: number;
+  plantCount: number;
+  totalPlantYield: number;
+  waterSourceCount: number;
+  totalWaterVolume: number;
+  resourceDepositCount: number;
+  totalDepositQuantity: number;
+  eventCount: number;
+  importantEventCount: number;
+  durationMilliseconds: number;
 };
 
 export type SimulationTickDiagnostics = {
@@ -397,6 +593,9 @@ export type AgentSnapshot = {
   inventory: Inventory;
   needs: AgentNeeds;
   traits: AgentTraits;
+  personality?: AgentPersonality | null;
+  ageDays?: number;
+  ageYears?: number;
   movement: MovementSnapshot | null;
   currentGoal: GoalSnapshot | null;
   taskQueue: TaskSnapshot[];

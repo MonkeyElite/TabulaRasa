@@ -131,7 +131,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
         public void LifecycleSystem_MaxAgeKillsAgentAndRecordsCause()
         {
             AgentEntity deer = AdultDeer("deer-1", new WorldPosition(0.5f, 0.5f));
-            deer.AgeTicks = SpeciesRegistry.Get(SpeciesRegistry.DeerId).MaxAgeTicks - 1;
+            deer.AgeTicks = SpeciesRegistry.Get(SpeciesRegistry.DeerId).MaxAgeDays;
             SimulationState state = CreateState(
                 [deer],
                 [new AgentState(deer.Id, new AgentNeedState { Hunger = 1, Thirst = 1, Energy = 10, Fatigue = 0 }, new DefaultAgentMind())]);
@@ -168,7 +168,7 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
                 Id = id,
                 SpeciesId = SpeciesRegistry.DeerId,
                 Position = position,
-                AgeTicks = SpeciesRegistry.Get(SpeciesRegistry.DeerId).AdultAgeTicks,
+                AgeTicks = SpeciesRegistry.Get(SpeciesRegistry.DeerId).AdultAgeDays,
                 Health = new EntityHealth(6)
             };
         }

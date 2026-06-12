@@ -242,10 +242,10 @@ namespace TabulaRasa.UnitTests.Simulation.Systems
 
             new NeedDecaySystem().Execute(state);
 
-            Assert.Equal(2, agentState.NeedState.Hunger);
-            Assert.Equal(3, agentState.NeedState.Thirst);
-            Assert.Equal(9, agentState.NeedState.Energy);
-            Assert.Equal(4, agentState.NeedState.Fatigue);
+            Assert.Equal(1.08f, agentState.NeedState.Hunger, precision: 3);
+            Assert.Equal(2.08f, agentState.NeedState.Thirst, precision: 3);
+            Assert.Equal(9.98f, agentState.NeedState.Energy, precision: 3);
+            Assert.Equal(3.04f, agentState.NeedState.Fatigue, precision: 3);
         }
 
         [Fact]

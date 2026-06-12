@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Api.Services;
+using TabulaRasa.Simulation.Scenarios;
 
 namespace TabulaRasa.Api.Controllers
 {
@@ -92,6 +93,17 @@ namespace TabulaRasa.Api.Controllers
             return _registry.Limits;
         }
 
+        [HttpGet("scenarios")]
+        public ActionResult<IReadOnlyList<BuiltInSimulationScenarioDto>> ListBuiltInScenarios()
+        {
+            return SimulationScenarioCatalog.Names
+                .Select(name => new BuiltInSimulationScenarioDto(
+                    name,
+                    ToDisplayName(name),
+                    SimulationSnapshotMapper.ToConfig(SimulationScenarioCatalog.Create(name))))
+                .ToList();
+        }
+
         [HttpPost]
         public ActionResult<SimulationSummaryDto> Create([FromBody] CreateSimulationRequestDto? request)
         {
@@ -144,6 +156,17 @@ namespace TabulaRasa.Api.Controllers
         {
             SimulationSession? session = _registry.Get(simulationId);
             return session is null ? NotFound() : session.GetCurrentSnapshot();
+        }
+
+        [HttpGet("{simulationId}/timeline")]
+        public ActionResult<IReadOnlyList<SimulationTimelinePointDto>> GetTimeline(
+            string simulationId,
+            [FromQuery] long? from = null,
+            [FromQuery] long? to = null,
+            [FromQuery] int sampleEvery = 1)
+        {
+            SimulationSession? session = _registry.Get(simulationId);
+            return session is null ? NotFound() : session.GetTimeline(from, to, sampleEvery).ToList();
         }
 
         [HttpPost("{simulationId}/save")]
@@ -321,6 +344,14 @@ namespace TabulaRasa.Api.Controllers
             {
                 return Conflict(exception.Message);
             }
+        }
+
+        private static string ToDisplayName(string name)
+        {
+            return string.Join(
+                " ",
+                name.Split('-', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
         }
     }
 }

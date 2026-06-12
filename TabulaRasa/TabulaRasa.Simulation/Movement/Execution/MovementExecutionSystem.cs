@@ -312,7 +312,10 @@ namespace TabulaRasa.Simulation.Movement.Execution
                     ["actionType"] = movement.RequestedAction.ToString(),
                     ["targetId"] = movement.TargetId ?? "",
                     ["reason"] = reason
-                });
+                },
+                severity: "warning",
+                importance: 0.60f,
+                tags: ["movement", "failure", "recovery"]);
             ActionResult result = new(
                 movement.AgentId,
                 movement.RequestedAction,

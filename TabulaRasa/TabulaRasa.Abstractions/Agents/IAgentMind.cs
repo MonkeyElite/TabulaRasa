@@ -6,6 +6,7 @@ namespace TabulaRasa.Abstractions.Agents
             AgentPerception perception,
             AgentSnapshot self,
             AgentLearningProfile learning,
-            Random random);
+            Random random,
+            AgentBehaviorContext? behavior = null);
     }
 }

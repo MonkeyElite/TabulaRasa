@@ -41,6 +41,7 @@ namespace TabulaRasa.Simulation.Composition
             ["movement-execution"] = "Movement Execution System",
             ["task-execution"] = "Task Execution System",
             ["action-execution"] = "Action Execution System",
+            ["recovery"] = "Recovery System",
             ["reporting"] = "Reporting System"
         };
 
@@ -66,6 +67,7 @@ namespace TabulaRasa.Simulation.Composition
             List<PlantEntity> plants = [];
             List<WaterSourceEntity> waterSources = [];
             List<ResourceDepositEntity> resourceDeposits = [];
+            SpawnResourceConfig spawnResources = effectiveConfig.EffectiveSpawnResources;
 
             int nextPositionIndex = 0;
             CreateAgents(SpeciesRegistry.HumanId, speciesPopulation.Human, ref nextPositionIndex);
@@ -89,7 +91,7 @@ namespace TabulaRasa.Simulation.Composition
                 {
                     StackId = $"food-stack-{index + 1}",
                     ResourceId = ResourceDefinition.FoodId,
-                    Quantity = 1
+                    Quantity = spawnResources.FoodStackQuantity
                 });
                 resourceContainers.Add(container);
             }
@@ -108,8 +110,8 @@ namespace TabulaRasa.Simulation.Composition
                 {
                     Id = $"plant-{index + 1}",
                     Position = positions[positionIndex],
-                    MaxYield = 3,
-                    Yield = 2,
+                    MaxYield = spawnResources.PlantMaxYield,
+                    Yield = Math.Min(spawnResources.PlantStartingYield, spawnResources.PlantMaxYield),
                     RegrowthTicks = effectiveConfig.EffectiveEcology.PlantRegrowthTicks,
                     DecayTicksAfterDepleted = effectiveConfig.EffectiveEcology.PlantDecayTicksAfterDepleted
                 });
@@ -129,8 +131,8 @@ namespace TabulaRasa.Simulation.Composition
                 {
                     Id = $"water-source-{index + 1}",
                     Position = positions[positionIndex],
-                    CurrentVolume = 8,
-                    MaxVolume = 10,
+                    CurrentVolume = Math.Min(spawnResources.WaterStartingVolume, spawnResources.WaterMaxVolume),
+                    MaxVolume = spawnResources.WaterMaxVolume,
                     RefillPerRainTick = effectiveConfig.EffectiveEcology.WaterRefillPerRainTick,
                     EvaporationPerHeatTick = effectiveConfig.EffectiveEcology.WaterEvaporationPerHeatTick
                 });
@@ -151,8 +153,8 @@ namespace TabulaRasa.Simulation.Composition
                     Id = $"resource-deposit-{index + 1}",
                     Position = positions[positionIndex],
                     ResourceId = ResourceDefinition.StoneId,
-                    Quantity = 5,
-                    MaxQuantity = 5
+                    Quantity = Math.Min(spawnResources.DepositQuantity, spawnResources.DepositMaxQuantity),
+                    MaxQuantity = spawnResources.DepositMaxQuantity
                 });
                 grid.SetTerrain(positions[positionIndex].ToGridCell(), GridTerrainType.Mud);
             }
@@ -164,7 +166,7 @@ namespace TabulaRasa.Simulation.Composition
 
             void CreateAgents(string speciesId, int count, ref int positionIndex)
             {
-                SpeciesDefinition species = SpeciesRegistry.Get(speciesId);
+                SpeciesDefinition species = SpeciesRegistry.Get(speciesId, effectiveConfig.EffectiveSpeciesRules);
                 for (int index = 0; index < count && positionIndex < positions.Count; index++)
                 {
                     string id = $"{species.Id}-{index + 1}";
@@ -177,7 +179,7 @@ namespace TabulaRasa.Simulation.Composition
                         Traits = AgentTraitService.CreateInitialTraits(random, effectiveConfig.EffectiveTraits)
                     });
 
-                    agentStates.Add(new AgentState(id, CreateStartingNeeds(species.Id), new DefaultAgentMind()));
+                    agentStates.Add(new AgentState(id, CreateStartingNeeds(effectiveConfig, species.Id), new DefaultAgentMind()));
                     positionIndex++;
                 }
             }
@@ -203,6 +205,7 @@ namespace TabulaRasa.Simulation.Composition
                 ["movement-execution"] = () => new MovementExecutionSystem(),
                 ["task-execution"] = () => new TaskExecutionSystem(),
                 ["action-execution"] = () => new ActionExecutionSystem(),
+                ["recovery"] = () => new RecoverySystem(),
                 ["reporting"] = () => new ReportingSystem()
             };
 
@@ -212,13 +215,21 @@ namespace TabulaRasa.Simulation.Composition
                 .ToList();
         }
 
-        private static AgentNeedState CreateStartingNeeds(string speciesId)
+        private static AgentNeedState CreateStartingNeeds(SimulationConfig config, string speciesId)
         {
-            return SpeciesRegistry.NormalizeId(speciesId) switch
+            StartingNeedsConfig needs = SpeciesRegistry.NormalizeId(speciesId) switch
             {
-                SpeciesRegistry.WolfId => new AgentNeedState { Hunger = 4, Thirst = 1, Energy = 10, Fatigue = 0 },
-                SpeciesRegistry.DeerId => new AgentNeedState { Hunger = 2, Thirst = 1, Energy = 10, Fatigue = 0 },
-                _ => new AgentNeedState { Hunger = 1, Thirst = 0, Energy = 10, Fatigue = 0 }
+                SpeciesRegistry.WolfId => config.EffectiveSpeciesRules.EffectiveWolf.StartingNeeds ?? new StartingNeedsConfig(),
+                SpeciesRegistry.DeerId => config.EffectiveSpeciesRules.EffectiveDeer.StartingNeeds ?? new StartingNeedsConfig(),
+                _ => config.EffectiveSpeciesRules.EffectiveHuman.StartingNeeds ?? new StartingNeedsConfig()
+            };
+            var rules = config.EffectiveNeedRules;
+            return new AgentNeedState
+            {
+                Hunger = Math.Clamp(needs.Hunger, 0, rules.MaximumNeedValue),
+                Thirst = Math.Clamp(needs.Thirst, 0, rules.MaximumNeedValue),
+                Energy = Math.Clamp(needs.Energy, 0, rules.MaximumEnergyValue),
+                Fatigue = Math.Clamp(needs.Fatigue, 0, rules.MaximumNeedValue)
             };
         }
 

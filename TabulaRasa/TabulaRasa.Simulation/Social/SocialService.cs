@@ -26,7 +26,7 @@ namespace TabulaRasa.Simulation.Social
                 if (!store.TryAddGroup(new SocialGroupMembership
                 {
                     GroupId = groupId,
-                    DisplayName = $"{SpeciesRegistry.Get(speciesId).DisplayName} species",
+                    DisplayName = $"{SpeciesRegistry.Get(speciesId, state.Config.EffectiveSpeciesRules).DisplayName} species",
                     Kind = "Species",
                     JoinedTick = state.ActiveTick
                 }))
@@ -63,7 +63,7 @@ namespace TabulaRasa.Simulation.Social
                 ApplyRelationshipChange(
                     state,
                     relationship,
-                    familiarity: 0.08f * Math.Clamp(entity.Relevance, 0.25f, 1),
+                    familiarity: state.Config.EffectiveBelievability.EffectiveSocial.PerceptionFamiliarity * Math.Clamp(entity.Relevance, 0.25f, 1),
                     fear: entity.EntityType == PerceivedEntityType.Predator ? 0.04f : 0,
                     reason: "perception");
             }
@@ -75,19 +75,19 @@ namespace TabulaRasa.Simulation.Social
                 state,
                 speakerId,
                 listenerId,
-                familiarity: 0.12f,
-                trust: 0.06f,
-                fear: -0.02f,
-                affinity: 0.05f,
+                familiarity: state.Config.EffectiveBelievability.EffectiveSocial.CommunicationFamiliarity,
+                trust: state.Config.EffectiveBelievability.EffectiveSocial.CommunicationTrust,
+                fear: state.Config.EffectiveBelievability.EffectiveSocial.CommunicationFear,
+                affinity: state.Config.EffectiveBelievability.EffectiveSocial.CommunicationAffinity,
                 reason: "communication");
             RecordMutualInteraction(
                 state,
                 listenerId,
                 speakerId,
-                familiarity: 0.10f,
-                trust: 0.05f,
-                fear: -0.02f,
-                affinity: 0.04f,
+                familiarity: state.Config.EffectiveBelievability.EffectiveSocial.CommunicationFamiliarity * 0.85f,
+                trust: state.Config.EffectiveBelievability.EffectiveSocial.CommunicationTrust * 0.85f,
+                fear: state.Config.EffectiveBelievability.EffectiveSocial.CommunicationFear,
+                affinity: state.Config.EffectiveBelievability.EffectiveSocial.CommunicationAffinity * 0.8f,
                 reason: "communication");
 
             state.EmitEvent(
@@ -127,18 +127,18 @@ namespace TabulaRasa.Simulation.Social
                 targetId,
                 attackerId,
                 familiarity: 0.10f,
-                trust: -0.20f,
-                fear: 0.35f,
-                affinity: -0.20f,
+                trust: state.Config.EffectiveBelievability.EffectiveSocial.AttackTrust,
+                fear: state.Config.EffectiveBelievability.EffectiveSocial.AttackFear,
+                affinity: state.Config.EffectiveBelievability.EffectiveSocial.AttackAffinity,
                 reason: "attack");
             RecordMutualInteraction(
                 state,
                 attackerId,
                 targetId,
                 familiarity: 0.08f,
-                trust: -0.05f,
+                trust: state.Config.EffectiveBelievability.EffectiveSocial.AttackTrust * 0.25f,
                 fear: 0,
-                affinity: -0.05f,
+                affinity: state.Config.EffectiveBelievability.EffectiveSocial.AttackAffinity * 0.25f,
                 reason: "attack");
         }
 
@@ -148,19 +148,19 @@ namespace TabulaRasa.Simulation.Social
                 state,
                 firstAgentId,
                 secondAgentId,
-                familiarity: 0.20f,
-                trust: 0.10f,
-                fear: -0.05f,
-                affinity: 0.25f,
+                familiarity: state.Config.EffectiveBelievability.EffectiveSocial.ReproductionFamiliarity,
+                trust: state.Config.EffectiveBelievability.EffectiveSocial.ReproductionTrust,
+                fear: state.Config.EffectiveBelievability.EffectiveSocial.ReproductionFear,
+                affinity: state.Config.EffectiveBelievability.EffectiveSocial.ReproductionAffinity,
                 reason: "reproduction");
             RecordMutualInteraction(
                 state,
                 secondAgentId,
                 firstAgentId,
-                familiarity: 0.20f,
-                trust: 0.10f,
-                fear: -0.05f,
-                affinity: 0.25f,
+                familiarity: state.Config.EffectiveBelievability.EffectiveSocial.ReproductionFamiliarity,
+                trust: state.Config.EffectiveBelievability.EffectiveSocial.ReproductionTrust,
+                fear: state.Config.EffectiveBelievability.EffectiveSocial.ReproductionFear,
+                affinity: state.Config.EffectiveBelievability.EffectiveSocial.ReproductionAffinity,
                 reason: "reproduction");
         }
 
@@ -417,7 +417,8 @@ namespace TabulaRasa.Simulation.Social
                 return false;
             }
 
-            return speaker.Position.DistanceTo(listener.Position) <= SpatialQueries.DefaultInteractionTolerance + 0.5f;
+            return speaker.Position.DistanceTo(listener.Position)
+                <= state.Config.EffectivePathfinding.InteractionTolerance + state.Config.EffectivePathfinding.AgentInteractionRangeBonus;
         }
 
         private static string Format(float value)

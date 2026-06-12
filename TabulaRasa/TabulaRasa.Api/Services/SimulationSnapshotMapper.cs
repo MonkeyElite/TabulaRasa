@@ -6,6 +6,7 @@ using TabulaRasa.Abstractions.Agents.Actions;
 using TabulaRasa.Agents.Models;
 using TabulaRasa.Api.Contracts;
 using TabulaRasa.Simulation.Configuration;
+using TabulaRasa.Simulation.Evolution;
 using TabulaRasa.Simulation.Goals;
 using TabulaRasa.Simulation.Knowledge;
 using TabulaRasa.Simulation.Memory;
@@ -108,53 +109,36 @@ namespace TabulaRasa.Api.Services
         public static SimulationConfigDto ToConfig(SimulationConfig config)
         {
             return new SimulationConfigDto(
-                config.Seed,
-                config.WorldWidth,
-                config.WorldHeight,
-                config.TickIntervalMilliseconds,
-                config.InitialAgentCount,
-                config.InitialFoodCount,
-                config.EventHistoryLimit,
-                config.SnapshotHistoryLimit,
-                new NeedDecayConfigDto(
-                    config.EffectiveNeedDecay.HungerDelta,
-                    config.EffectiveNeedDecay.ThirstDelta,
-                    config.EffectiveNeedDecay.EnergyDelta,
-                    config.EffectiveNeedDecay.FatigueDelta),
-                config.PerceptionRadius,
-                config.MovementSpeedPerTick,
-                new PathfindingConfigDto(
-                    config.EffectivePathfinding.AllowDiagonalMovement,
-                    config.EffectivePathfinding.MaxVisitedCells,
-                    config.EffectivePathfinding.MaxRepathAttempts),
-                config.EffectiveEnabledSystems.ToList(),
-                new MemoryConfigDto(
-                    config.EffectiveMemory.Enabled,
-                    config.EffectiveMemory.MaxMemoriesPerAgent,
-                    config.EffectiveMemory.RetentionTicks,
-                    config.EffectiveMemory.DecayPerTick,
-                    config.EffectiveMemory.MinimumStrength,
-                    config.EffectiveMemory.RecallThreshold),
-                new EnvironmentConfigDto(
-                    config.EffectiveEnvironment.DayLengthTicks,
-                    config.EffectiveEnvironment.WeatherChangeIntervalTicks,
-                    config.EffectiveEnvironment.BaseTemperature),
-                new EcologyConfigDto(
-                    config.EffectiveEcology.InitialPlantCount,
-                    config.EffectiveEcology.InitialWaterSourceCount,
-                    config.EffectiveEcology.InitialResourceDepositCount,
-                    config.EffectiveEcology.PlantRegrowthTicks,
-                    config.EffectiveEcology.PlantDecayTicksAfterDepleted,
-                    config.EffectiveEcology.WaterRefillPerRainTick,
-                    config.EffectiveEcology.WaterEvaporationPerHeatTick),
-                new SpeciesPopulationConfigDto(
+                Seed: config.Seed,
+                WorldWidth: config.WorldWidth,
+                WorldHeight: config.WorldHeight,
+                TickIntervalMilliseconds: config.TickIntervalMilliseconds,
+                InitialAgentCount: config.InitialAgentCount,
+                InitialFoodCount: config.InitialFoodCount,
+                EventHistoryLimit: config.EventHistoryLimit,
+                SnapshotHistoryLimit: config.SnapshotHistoryLimit,
+                NeedDecay: ToNeedDecayConfig(config.EffectiveNeedDecay),
+                NeedRules: ToNeedRulesConfig(config.EffectiveNeedRules),
+                Goals: ToGoalConfig(config.EffectiveGoals),
+                PerceptionRadius: config.PerceptionRadius,
+                MovementSpeedPerTick: config.MovementSpeedPerTick,
+                Pathfinding: ToPathfindingConfig(config.EffectivePathfinding),
+                SpawnResources: ToSpawnResourceConfig(config.EffectiveSpawnResources),
+                EnabledSystems: config.EffectiveEnabledSystems.ToList(),
+                Memory: ToMemoryConfig(config.EffectiveMemory),
+                Lifecycle: ToLifecycleConfig(config.EffectiveLifecycle),
+                Environment: ToEnvironmentConfig(config.EffectiveEnvironment),
+                Ecology: ToEcologyConfig(config.EffectiveEcology),
+                SpeciesPopulation: new SpeciesPopulationConfigDto(
                     config.EffectiveSpeciesPopulation.Human,
                     config.EffectiveSpeciesPopulation.Deer,
                     config.EffectiveSpeciesPopulation.Wolf),
-                new TraitConfigDto(
+                SpeciesRules: ToSpeciesRulesConfig(config.EffectiveSpeciesRules),
+                Traits: new TraitConfigDto(
                     config.EffectiveTraits.InitialVariation,
                     config.EffectiveTraits.MutationChancePerTrait,
-                    config.EffectiveTraits.MutationDelta));
+                    config.EffectiveTraits.MutationDelta),
+                Believability: ToBelievabilityConfig(config.EffectiveBelievability));
         }
 
         public static SimulationConfig ToConfig(SimulationConfigDto? dto, SimulationConfig fallback)
@@ -173,25 +157,18 @@ namespace TabulaRasa.Api.Services
                     dto.Memory.DecayPerTick,
                     dto.Memory.MinimumStrength,
                     dto.Memory.RecallThreshold);
+            LifecycleConfig lifecycle = dto.Lifecycle is null
+                ? fallback.EffectiveLifecycle
+                : new LifecycleConfig(dto.Lifecycle.AgeDaysPerTick, dto.Lifecycle.DaysPerYear);
             EnvironmentConfig environment = dto.Environment is null
                 ? fallback.EffectiveEnvironment
-                : new EnvironmentConfig(
-                    dto.Environment.DayLengthTicks,
-                    dto.Environment.WeatherChangeIntervalTicks,
-                    dto.Environment.BaseTemperature);
+                : ToEnvironmentConfig(dto.Environment);
             EcologyConfig ecology = dto.Ecology is null
                 ? new EcologyConfig(
                     InitialPlantCount: 0,
                     InitialWaterSourceCount: 0,
                     InitialResourceDepositCount: 0)
-                : new EcologyConfig(
-                    dto.Ecology.InitialPlantCount,
-                    dto.Ecology.InitialWaterSourceCount,
-                    dto.Ecology.InitialResourceDepositCount,
-                    dto.Ecology.PlantRegrowthTicks,
-                    dto.Ecology.PlantDecayTicksAfterDepleted,
-                    dto.Ecology.WaterRefillPerRainTick,
-                    dto.Ecology.WaterEvaporationPerHeatTick);
+                : ToEcologyConfig(dto.Ecology);
             SpeciesPopulationConfig speciesPopulation = dto.SpeciesPopulation is null
                 ? new SpeciesPopulationConfig(dto.InitialAgentCount, 0, 0)
                 : new SpeciesPopulationConfig(
@@ -204,33 +181,428 @@ namespace TabulaRasa.Api.Services
                     dto.Traits.InitialVariation,
                     dto.Traits.MutationChancePerTrait,
                     dto.Traits.MutationDelta);
+            BelievabilityConfig believability = ToBelievabilityConfig(dto.Believability, fallback.EffectiveBelievability);
 
             return new SimulationConfig(
-                    dto.Seed,
-                    dto.WorldWidth,
-                    dto.WorldHeight,
-                    dto.TickIntervalMilliseconds,
-                    dto.InitialAgentCount,
-                    dto.InitialFoodCount,
-                    dto.EventHistoryLimit,
-                    dto.SnapshotHistoryLimit,
-                    new NeedDecayConfig(
-                        dto.NeedDecay.HungerDelta,
-                        dto.NeedDecay.ThirstDelta,
-                        dto.NeedDecay.EnergyDelta,
-                        dto.NeedDecay.FatigueDelta),
-                    dto.PerceptionRadius,
-                    dto.MovementSpeedPerTick,
-                    new PathfindingConfig(
-                        dto.Pathfinding.AllowDiagonalMovement,
-                        dto.Pathfinding.MaxVisitedCells,
-                        dto.Pathfinding.MaxRepathAttempts),
-                    dto.EnabledSystems,
-                    memory,
-                    environment,
-                    ecology,
-                    speciesPopulation,
-                    traits);
+                Seed: dto.Seed,
+                WorldWidth: dto.WorldWidth,
+                WorldHeight: dto.WorldHeight,
+                TickIntervalMilliseconds: dto.TickIntervalMilliseconds,
+                InitialAgentCount: dto.InitialAgentCount,
+                InitialFoodCount: dto.InitialFoodCount,
+                EventHistoryLimit: dto.EventHistoryLimit,
+                SnapshotHistoryLimit: dto.SnapshotHistoryLimit,
+                NeedDecay: ToNeedDecayConfig(dto.NeedDecay),
+                NeedRules: dto.NeedRules is null ? fallback.EffectiveNeedRules : ToNeedRulesConfig(dto.NeedRules),
+                Goals: dto.Goals is null ? fallback.EffectiveGoals : ToGoalConfig(dto.Goals),
+                PerceptionRadius: dto.PerceptionRadius,
+                MovementSpeedPerTick: dto.MovementSpeedPerTick,
+                Pathfinding: dto.Pathfinding is null ? fallback.EffectivePathfinding : ToPathfindingConfig(dto.Pathfinding),
+                SpawnResources: dto.SpawnResources is null ? fallback.EffectiveSpawnResources : ToSpawnResourceConfig(dto.SpawnResources),
+                EnabledSystems: dto.EnabledSystems,
+                Memory: memory,
+                Lifecycle: lifecycle,
+                Environment: environment,
+                Ecology: ecology,
+                SpeciesPopulation: speciesPopulation,
+                SpeciesRules: dto.SpeciesRules is null ? fallback.EffectiveSpeciesRules : ToSpeciesRulesConfig(dto.SpeciesRules, fallback.EffectiveSpeciesRules),
+                Traits: traits,
+                Believability: believability);
+        }
+
+        private static NeedDecayConfigDto ToNeedDecayConfig(NeedDecayConfig config)
+        {
+            return new NeedDecayConfigDto(config.HungerDelta, config.ThirstDelta, config.EnergyDelta, config.FatigueDelta);
+        }
+
+        private static NeedDecayConfig ToNeedDecayConfig(NeedDecayConfigDto dto)
+        {
+            return new NeedDecayConfig(dto.HungerDelta, dto.ThirstDelta, dto.EnergyDelta, dto.FatigueDelta);
+        }
+
+        private static NeedRulesConfigDto ToNeedRulesConfig(NeedRulesConfig config)
+        {
+            return new NeedRulesConfigDto(
+                config.MaximumNeedValue,
+                config.MaximumEnergyValue,
+                config.EatRecoveryAmount,
+                config.DrinkRecoveryAmount,
+                config.RestEnergyRecoveryAmount,
+                config.RestFatigueRecoveryAmount,
+                config.CriticalNeedThreshold,
+                config.HarmNeedThreshold,
+                config.ExhaustedEnergyThreshold,
+                config.SurvivalDamagePerTick,
+                config.HeatWeatherThirstMultiplier,
+                config.HotTemperatureThreshold,
+                config.HotTemperatureThirstBonus,
+                config.ColdTemperatureThreshold,
+                config.ColdTemperatureThirstBonus,
+                config.MinTemperatureThirstMultiplier,
+                config.MaxTemperatureThirstMultiplier);
+        }
+
+        private static NeedRulesConfig ToNeedRulesConfig(NeedRulesConfigDto dto)
+        {
+            return new NeedRulesConfig(
+                dto.MaximumNeedValue,
+                dto.MaximumEnergyValue,
+                dto.EatRecoveryAmount,
+                dto.DrinkRecoveryAmount,
+                dto.RestEnergyRecoveryAmount,
+                dto.RestFatigueRecoveryAmount,
+                dto.CriticalNeedThreshold,
+                dto.HarmNeedThreshold,
+                dto.ExhaustedEnergyThreshold,
+                dto.SurvivalDamagePerTick,
+                dto.HeatWeatherThirstMultiplier,
+                dto.HotTemperatureThreshold,
+                dto.HotTemperatureThirstBonus,
+                dto.ColdTemperatureThreshold,
+                dto.ColdTemperatureThirstBonus,
+                dto.MinTemperatureThirstMultiplier,
+                dto.MaxTemperatureThirstMultiplier);
+        }
+
+        private static GoalConfigDto ToGoalConfig(GoalConfig config)
+        {
+            return new GoalConfigDto(
+                config.HungerThreshold,
+                config.UrgentHungerThreshold,
+                config.InterruptionPriorityDelta,
+                config.InventionMaxHunger,
+                config.InventionMaxThirst,
+                config.InventionMaxFatigue);
+        }
+
+        private static GoalConfig ToGoalConfig(GoalConfigDto dto)
+        {
+            return new GoalConfig(
+                dto.HungerThreshold,
+                dto.UrgentHungerThreshold,
+                dto.InterruptionPriorityDelta,
+                dto.InventionMaxHunger,
+                dto.InventionMaxThirst,
+                dto.InventionMaxFatigue);
+        }
+
+        private static PathfindingConfigDto ToPathfindingConfig(PathfindingConfig config)
+        {
+            return new PathfindingConfigDto(
+                config.AllowDiagonalMovement,
+                config.MaxVisitedCells,
+                config.MaxRepathAttempts,
+                config.ArrivalTolerance,
+                config.InteractionTolerance,
+                config.AgentInteractionRangeBonus);
+        }
+
+        private static PathfindingConfig ToPathfindingConfig(PathfindingConfigDto dto)
+        {
+            return new PathfindingConfig(
+                dto.AllowDiagonalMovement,
+                dto.MaxVisitedCells,
+                dto.MaxRepathAttempts,
+                dto.ArrivalTolerance,
+                dto.InteractionTolerance,
+                dto.AgentInteractionRangeBonus);
+        }
+
+        private static SpawnResourceConfigDto ToSpawnResourceConfig(SpawnResourceConfig config)
+        {
+            return new SpawnResourceConfigDto(
+                config.FoodStackQuantity,
+                config.PlantStartingYield,
+                config.PlantMaxYield,
+                config.WaterStartingVolume,
+                config.WaterMaxVolume,
+                config.DepositQuantity,
+                config.DepositMaxQuantity);
+        }
+
+        private static SpawnResourceConfig ToSpawnResourceConfig(SpawnResourceConfigDto dto)
+        {
+            return new SpawnResourceConfig(
+                dto.FoodStackQuantity,
+                dto.PlantStartingYield,
+                dto.PlantMaxYield,
+                dto.WaterStartingVolume,
+                dto.WaterMaxVolume,
+                dto.DepositQuantity,
+                dto.DepositMaxQuantity);
+        }
+
+        private static MemoryConfigDto ToMemoryConfig(MemoryConfig config)
+        {
+            return new MemoryConfigDto(
+                config.Enabled,
+                config.MaxMemoriesPerAgent,
+                config.RetentionTicks,
+                config.DecayPerTick,
+                config.MinimumStrength,
+                config.RecallThreshold);
+        }
+
+        private static LifecycleConfigDto ToLifecycleConfig(LifecycleConfig config)
+        {
+            return new LifecycleConfigDto(config.AgeDaysPerTick, config.DaysPerYear);
+        }
+
+        private static EnvironmentConfigDto ToEnvironmentConfig(EnvironmentConfig config)
+        {
+            return new EnvironmentConfigDto(
+                config.DayLengthTicks,
+                config.WeatherChangeIntervalTicks,
+                config.BaseTemperature,
+                config.DawnEndRatio,
+                config.DayEndRatio,
+                config.DuskEndRatio,
+                config.ClearWeatherWeight,
+                config.RainWeatherWeight,
+                config.HeatWeatherWeight,
+                config.ColdWeatherWeight,
+                config.DayTemperatureDelta,
+                config.NightTemperatureDelta,
+                config.DawnTemperatureDelta,
+                config.DuskTemperatureDelta,
+                config.HeatTemperatureDelta,
+                config.ColdTemperatureDelta,
+                config.RainTemperatureDelta,
+                config.MaxPlantCooling,
+                config.PlantCoolingFactor,
+                config.MaxWaterCooling,
+                config.WaterCoolingPerSource);
+        }
+
+        private static EnvironmentConfig ToEnvironmentConfig(EnvironmentConfigDto dto)
+        {
+            return new EnvironmentConfig(
+                dto.DayLengthTicks,
+                dto.WeatherChangeIntervalTicks,
+                dto.BaseTemperature,
+                dto.DawnEndRatio,
+                dto.DayEndRatio,
+                dto.DuskEndRatio,
+                dto.ClearWeatherWeight,
+                dto.RainWeatherWeight,
+                dto.HeatWeatherWeight,
+                dto.ColdWeatherWeight,
+                dto.DayTemperatureDelta,
+                dto.NightTemperatureDelta,
+                dto.DawnTemperatureDelta,
+                dto.DuskTemperatureDelta,
+                dto.HeatTemperatureDelta,
+                dto.ColdTemperatureDelta,
+                dto.RainTemperatureDelta,
+                dto.MaxPlantCooling,
+                dto.PlantCoolingFactor,
+                dto.MaxWaterCooling,
+                dto.WaterCoolingPerSource);
+        }
+
+        private static EcologyConfigDto ToEcologyConfig(EcologyConfig config)
+        {
+            return new EcologyConfigDto(
+                config.InitialPlantCount,
+                config.InitialWaterSourceCount,
+                config.InitialResourceDepositCount,
+                config.PlantRegrowthTicks,
+                config.PlantDecayTicksAfterDepleted,
+                config.WaterRefillPerRainTick,
+                config.WaterEvaporationPerHeatTick,
+                config.CollapsePlantYieldThreshold,
+                config.CollapseWaterVolumeThreshold,
+                config.RecoveryPlantYieldThreshold,
+                config.RecoveryWaterVolumeThreshold);
+        }
+
+        private static EcologyConfig ToEcologyConfig(EcologyConfigDto dto)
+        {
+            return new EcologyConfig(
+                dto.InitialPlantCount,
+                dto.InitialWaterSourceCount,
+                dto.InitialResourceDepositCount,
+                dto.PlantRegrowthTicks,
+                dto.PlantDecayTicksAfterDepleted,
+                dto.WaterRefillPerRainTick,
+                dto.WaterEvaporationPerHeatTick,
+                dto.CollapsePlantYieldThreshold,
+                dto.CollapseWaterVolumeThreshold,
+                dto.RecoveryPlantYieldThreshold,
+                dto.RecoveryWaterVolumeThreshold);
+        }
+
+        private static SpeciesRulesConfigDto ToSpeciesRulesConfig(SpeciesRulesConfig config)
+        {
+            return new SpeciesRulesConfigDto(
+                ToSpeciesRuleConfig(config.EffectiveHuman),
+                ToSpeciesRuleConfig(config.EffectiveDeer),
+                ToSpeciesRuleConfig(config.EffectiveWolf));
+        }
+
+        private static SpeciesRuleConfigDto ToSpeciesRuleConfig(SpeciesRuleConfig config)
+        {
+            return new SpeciesRuleConfigDto(
+                config.MaxHealth,
+                config.AdultAgeDays,
+                config.MaxAgeDays,
+                config.ReproductionCooldownTicks,
+                config.PerceptionMultiplier,
+                config.MovementSpeedMultiplier,
+                config.AttackDamage,
+                config.HungerDecayMultiplier,
+                config.ThirstDecayMultiplier,
+                config.FatigueDecayMultiplier,
+                config.StartingNeeds is null
+                    ? null
+                    : new StartingNeedsConfigDto(
+                        config.StartingNeeds.Hunger,
+                        config.StartingNeeds.Thirst,
+                        config.StartingNeeds.Energy,
+                        config.StartingNeeds.Fatigue),
+                config.EdibleResourceIds,
+                config.PreySpeciesIds);
+        }
+
+        private static SpeciesRulesConfig ToSpeciesRulesConfig(SpeciesRulesConfigDto dto, SpeciesRulesConfig fallback)
+        {
+            return new SpeciesRulesConfig(
+                dto.Human is null ? fallback.EffectiveHuman : ToSpeciesRuleConfig(dto.Human),
+                dto.Deer is null ? fallback.EffectiveDeer : ToSpeciesRuleConfig(dto.Deer),
+                dto.Wolf is null ? fallback.EffectiveWolf : ToSpeciesRuleConfig(dto.Wolf));
+        }
+
+        private static SpeciesRuleConfig ToSpeciesRuleConfig(SpeciesRuleConfigDto dto)
+        {
+            return new SpeciesRuleConfig(
+                dto.MaxHealth,
+                dto.AdultAgeDays,
+                dto.MaxAgeDays,
+                dto.ReproductionCooldownTicks,
+                dto.PerceptionMultiplier,
+                dto.MovementSpeedMultiplier,
+                dto.AttackDamage,
+                dto.HungerDecayMultiplier,
+                dto.ThirstDecayMultiplier,
+                dto.FatigueDecayMultiplier,
+                dto.StartingNeeds is null
+                    ? null
+                    : new StartingNeedsConfig(
+                        dto.StartingNeeds.Hunger,
+                        dto.StartingNeeds.Thirst,
+                        dto.StartingNeeds.Energy,
+                        dto.StartingNeeds.Fatigue),
+                dto.EdibleResourceIds,
+                dto.PreySpeciesIds);
+        }
+
+        private static BelievabilityConfigDto ToBelievabilityConfig(BelievabilityConfig config)
+        {
+            BehaviorWeightConfig behavior = config.EffectiveBehavior;
+            SocialWeightConfig social = config.EffectiveSocial;
+            ReproductionConfig reproduction = config.EffectiveReproduction;
+            RecoveryConfig recovery = config.EffectiveRecovery;
+
+            return new BelievabilityConfigDto(
+                new BehaviorWeightConfigDto(
+                    behavior.Eat,
+                    behavior.Drink,
+                    behavior.Rest,
+                    behavior.Wander,
+                    behavior.Social,
+                    behavior.Reproduce,
+                    behavior.Flee,
+                    behavior.Attack,
+                    behavior.Craft,
+                    behavior.Experiment,
+                    behavior.ExplorationChance,
+                    behavior.PersonalityInfluence),
+                new SocialWeightConfigDto(
+                    social.PerceptionFamiliarity,
+                    social.CommunicationFamiliarity,
+                    social.CommunicationTrust,
+                    social.CommunicationFear,
+                    social.CommunicationAffinity,
+                    social.AttackTrust,
+                    social.AttackFear,
+                    social.AttackAffinity,
+                    social.ReproductionFamiliarity,
+                    social.ReproductionTrust,
+                    social.ReproductionFear,
+                    social.ReproductionAffinity),
+                new ReproductionConfigDto(
+                    reproduction.NeedThreshold,
+                    reproduction.Range,
+                    reproduction.CooldownScale,
+                    reproduction.PopulationPressureInfluence,
+                    reproduction.ParentHungerCost,
+                    reproduction.ParentThirstCost,
+                    reproduction.ParentFatigueCost),
+                new RecoveryConfigDto(
+                    recovery.FailedTargetCooldownTicks,
+                    recovery.MaxRepeatedActionFailures,
+                    recovery.MaxGoalAgeTicks,
+                    recovery.IdleRecoveryTicks,
+                    recovery.MovementStuckTicks));
+        }
+
+        private static BelievabilityConfig ToBelievabilityConfig(BelievabilityConfigDto? dto, BelievabilityConfig fallback)
+        {
+            BehaviorWeightConfig fallbackBehavior = fallback.EffectiveBehavior;
+            SocialWeightConfig fallbackSocial = fallback.EffectiveSocial;
+            ReproductionConfig fallbackReproduction = fallback.EffectiveReproduction;
+            RecoveryConfig fallbackRecovery = fallback.EffectiveRecovery;
+
+            BehaviorWeightConfig behavior = dto?.Behavior is null
+                ? fallbackBehavior
+                : new BehaviorWeightConfig(
+                    dto.Behavior.Eat,
+                    dto.Behavior.Drink,
+                    dto.Behavior.Rest,
+                    dto.Behavior.Wander,
+                    dto.Behavior.Social,
+                    dto.Behavior.Reproduce,
+                    dto.Behavior.Flee,
+                    dto.Behavior.Attack,
+                    dto.Behavior.Craft,
+                    dto.Behavior.Experiment,
+                    dto.Behavior.ExplorationChance,
+                    dto.Behavior.PersonalityInfluence);
+            SocialWeightConfig social = dto?.Social is null
+                ? fallbackSocial
+                : new SocialWeightConfig(
+                    dto.Social.PerceptionFamiliarity,
+                    dto.Social.CommunicationFamiliarity,
+                    dto.Social.CommunicationTrust,
+                    dto.Social.CommunicationFear,
+                    dto.Social.CommunicationAffinity,
+                    dto.Social.AttackTrust,
+                    dto.Social.AttackFear,
+                    dto.Social.AttackAffinity,
+                    dto.Social.ReproductionFamiliarity,
+                    dto.Social.ReproductionTrust,
+                    dto.Social.ReproductionFear,
+                    dto.Social.ReproductionAffinity);
+            ReproductionConfig reproduction = dto?.Reproduction is null
+                ? fallbackReproduction
+                : new ReproductionConfig(
+                    dto.Reproduction.NeedThreshold,
+                    dto.Reproduction.Range,
+                    dto.Reproduction.CooldownScale,
+                    dto.Reproduction.PopulationPressureInfluence,
+                    dto.Reproduction.ParentHungerCost,
+                    dto.Reproduction.ParentThirstCost,
+                    dto.Reproduction.ParentFatigueCost);
+            RecoveryConfig recovery = dto?.Recovery is null
+                ? fallbackRecovery
+                : new RecoveryConfig(
+                    dto.Recovery.FailedTargetCooldownTicks,
+                    dto.Recovery.MaxRepeatedActionFailures,
+                    dto.Recovery.MaxGoalAgeTicks,
+                    dto.Recovery.IdleRecoveryTicks,
+                    dto.Recovery.MovementStuckTicks);
+
+            return new BelievabilityConfig(behavior, social, reproduction, recovery);
         }
 
         public static SimulationDraftDto ToDraft(SimulationSnapshotDto snapshot, SimulationConfigDto config)
@@ -316,7 +688,10 @@ namespace TabulaRasa.Api.Services
                 ToSocial(state, agent.Id),
                 ToKnowledge(state.KnowledgeStoresByAgentId.GetValueOrDefault(agent.Id)),
                 ToDecision(agentState?.Learning.LatestDecision),
-                ToLearning(agentState?.Learning));
+                ToLearning(agentState?.Learning),
+                ToPersonality(agent, state),
+                agent.AgeTicks,
+                agent.AgeTicks / Math.Max(1, state.Config.EffectiveLifecycle.DaysPerYear));
         }
 
         private static AgentPerceptionSnapshotDto ToPerception(AgentPerception? perception)
@@ -1128,7 +1503,10 @@ namespace TabulaRasa.Api.Services
                 simulationEvent.SourceSystem,
                 simulationEvent.Message,
                 simulationEvent.EntityId,
-                simulationEvent.Metadata);
+                simulationEvent.Metadata,
+                simulationEvent.Severity,
+                simulationEvent.Importance,
+                simulationEvent.Tags ?? []);
         }
 
         private static SimulationTickDiagnosticsDto? ToDiagnostics(SimulationTickDiagnostics? diagnostics)
@@ -1174,6 +1552,20 @@ namespace TabulaRasa.Api.Services
                 traits.Metabolism,
                 traits.RiskTolerance,
                 traits.LearningRate);
+        }
+
+        private static AgentPersonalityDto ToPersonality(AgentEntity agent, SimulationState state)
+        {
+            AgentPersonality personality = AgentPersonalityService.Derive(
+                agent.Traits,
+                state.Config.EffectiveBelievability.EffectiveBehavior.ExplorationChance,
+                state.Config.EffectiveBelievability.EffectiveBehavior.PersonalityInfluence);
+
+            return new AgentPersonalityDto(
+                personality.Label,
+                personality.DominantTrait,
+                personality.BehaviorBiases,
+                personality.ExplorationChance);
         }
 
         private static AgentTraits ToAgentTraits(AgentTraitsDto? traits)

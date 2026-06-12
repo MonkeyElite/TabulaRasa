@@ -21,7 +21,7 @@ namespace TabulaRasa.Simulation.Systems
             List<PerceivedEntity> nearbyEntities = [];
             List<InteractionOpportunity> opportunities = [];
             GridTerrainProfile agentTerrain = world.Grid.GetTerrainProfile(agent.Position.ToGridCell());
-            SpeciesDefinition viewerSpecies = SpeciesRegistry.Get(agent.SpeciesId);
+            SpeciesDefinition viewerSpecies = SpeciesRegistry.Get(agent.SpeciesId, state.Config.EffectiveSpeciesRules);
             agent.SpeciesId = viewerSpecies.Id;
             float effectiveRadius = perceptionRadius
                 * agentTerrain.PerceptionMultiplier
@@ -54,7 +54,7 @@ namespace TabulaRasa.Simulation.Systems
 
                 nearbyEntities.Add(new PerceivedEntity(
                     entity.Id,
-                    ToPerceivedEntityType(agent, entity),
+                    ToPerceivedEntityType(state, agent, entity),
                     entity.Position,
                     IsInteractable: interactionPoint is not null,
                     Channel: PerceptionChannel.Sight,
@@ -65,7 +65,7 @@ namespace TabulaRasa.Simulation.Systems
                 if (entity is AgentEntity otherAgent
                     && !otherAgent.IsDead)
                 {
-                    SpeciesDefinition otherSpecies = SpeciesRegistry.Get(otherAgent.SpeciesId);
+                    SpeciesDefinition otherSpecies = SpeciesRegistry.Get(otherAgent.SpeciesId, state.Config.EffectiveSpeciesRules);
                     if (viewerSpecies.CanAttackSpecies(otherSpecies.Id))
                     {
                         opportunities.Add(new InteractionOpportunity(
@@ -184,12 +184,12 @@ namespace TabulaRasa.Simulation.Systems
             };
         }
 
-        private static PerceivedEntityType ToPerceivedEntityType(AgentEntity viewer, ISpatialEntity entity)
+        private static PerceivedEntityType ToPerceivedEntityType(SimulationState state, AgentEntity viewer, ISpatialEntity entity)
         {
             return entity switch
             {
-                AgentEntity agent when SpeciesRegistry.Get(viewer.SpeciesId).CanAttackSpecies(SpeciesRegistry.Get(agent.SpeciesId).Id) => PerceivedEntityType.Prey,
-                AgentEntity agent when SpeciesRegistry.Get(agent.SpeciesId).CanAttackSpecies(SpeciesRegistry.Get(viewer.SpeciesId).Id) => PerceivedEntityType.Predator,
+                AgentEntity agent when SpeciesRegistry.Get(viewer.SpeciesId, state.Config.EffectiveSpeciesRules).CanAttackSpecies(SpeciesRegistry.Get(agent.SpeciesId, state.Config.EffectiveSpeciesRules).Id) => PerceivedEntityType.Prey,
+                AgentEntity agent when SpeciesRegistry.Get(agent.SpeciesId, state.Config.EffectiveSpeciesRules).CanAttackSpecies(SpeciesRegistry.Get(viewer.SpeciesId, state.Config.EffectiveSpeciesRules).Id) => PerceivedEntityType.Predator,
                 AgentEntity => PerceivedEntityType.Agent,
                 ResourceContainerEntity container when container.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0 => PerceivedEntityType.Food,
                 ResourceContainerEntity => PerceivedEntityType.ResourceContainer,

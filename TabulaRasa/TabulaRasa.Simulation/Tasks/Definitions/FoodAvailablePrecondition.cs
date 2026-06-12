@@ -16,7 +16,10 @@ namespace TabulaRasa.Simulation.Tasks.Definitions
         {
             bool available = state.World.ResourceContainers.Any(container =>
                 container.Id == _containerId
-                && SpatialQueries.ContainerHasFood(container));
+                && SpatialQueries.ContainerHasFood(container))
+                || state.World.Plants.Any(plant =>
+                    plant.Id == _containerId
+                    && plant.IsHarvestable);
 
             return available
                 ? TaskPreconditionResult.Success

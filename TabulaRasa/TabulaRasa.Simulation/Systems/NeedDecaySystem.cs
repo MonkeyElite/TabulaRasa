@@ -15,11 +15,6 @@ namespace TabulaRasa.Simulation.Systems
 {
     public sealed class NeedDecaySystem : ISystem
     {
-        private const float CriticalNeedThreshold = 8;
-        private const float HarmNeedThreshold = 10;
-        private const float ExhaustedEnergyThreshold = 0;
-        private const float SurvivalDamagePerTick = 1;
-
         public string Name => "Need Decay System";
         public SimulationPhase Phase => SimulationPhase.PreUpdate;
         public int Priority => 0;
@@ -28,6 +23,7 @@ namespace TabulaRasa.Simulation.Systems
         {
             WorldState world = state.World;
             var decay = state.Config.EffectiveNeedDecay;
+            var rules = state.Config.EffectiveNeedRules;
 
             foreach (AgentEntity agentEntity in world.Agents)
             {
@@ -39,55 +35,60 @@ namespace TabulaRasa.Simulation.Systems
                 }
 
                 GridTerrainProfile terrain = world.Grid.GetTerrainProfile(agentEntity.Position.ToGridCell());
-                float temperatureThirstMultiplier = GetTemperatureThirstMultiplier(world.Environment);
-                SpeciesDefinition species = SpeciesRegistry.Get(agentEntity.SpeciesId);
+                float temperatureThirstMultiplier = GetTemperatureThirstMultiplier(world.Environment, rules);
+                SpeciesDefinition species = SpeciesRegistry.Get(agentEntity.SpeciesId, state.Config.EffectiveSpeciesRules);
                 agentEntity.SpeciesId = species.Id;
                 float metabolismMultiplier = AgentTraitService.MetabolismMultiplier(agentEntity.Traits.Metabolism);
 
                 NeedSystem.ApplyNeedDecay(
                     agentState.NeedState,
+                    rules.MaximumNeedValue,
+                    rules.MaximumEnergyValue,
                     decay.HungerDelta * terrain.HungerDeltaMultiplier * species.HungerDecayMultiplier * metabolismMultiplier,
                     decay.ThirstDelta * terrain.ThirstDeltaMultiplier * temperatureThirstMultiplier * species.ThirstDecayMultiplier * metabolismMultiplier,
                     decay.EnergyDelta,
                     decay.FatigueDelta * terrain.FatigueDeltaMultiplier * species.FatigueDecayMultiplier * metabolismMultiplier);
 
-                EmitCriticalNeedEvents(state, agentEntity, agentState.NeedState);
-                ApplySurvivalDamage(state, agentEntity, agentState.NeedState);
+                EmitCriticalNeedEvents(state, agentEntity, agentState.NeedState, rules);
+                ApplySurvivalDamage(state, agentEntity, agentState.NeedState, rules);
             }
         }
 
-        private static float GetTemperatureThirstMultiplier(EnvironmentState environment)
+        private static float GetTemperatureThirstMultiplier(EnvironmentState environment, Configuration.NeedRulesConfig rules)
         {
-            float multiplier = environment.Weather == EnvironmentWeather.Heat ? 1.25f : 1f;
+            float multiplier = environment.Weather == EnvironmentWeather.Heat
+                ? rules.HeatWeatherThirstMultiplier
+                : 1f;
 
-            if (environment.Temperature >= 30)
+            if (environment.Temperature >= rules.HotTemperatureThreshold)
             {
-                multiplier += 0.25f;
+                multiplier += rules.HotTemperatureThirstBonus;
             }
-            else if (environment.Temperature <= 5)
+            else if (environment.Temperature <= rules.ColdTemperatureThreshold)
             {
-                multiplier -= 0.15f;
+                multiplier += rules.ColdTemperatureThirstBonus;
             }
 
-            return Math.Clamp(multiplier, 0.5f, 2f);
+            return Math.Clamp(multiplier, rules.MinTemperatureThirstMultiplier, rules.MaxTemperatureThirstMultiplier);
         }
 
         private void EmitCriticalNeedEvents(
             SimulationState state,
             AgentEntity agentEntity,
-            AgentNeedState needs)
+            AgentNeedState needs,
+            Configuration.NeedRulesConfig rules)
         {
-            if (needs.Hunger >= CriticalNeedThreshold)
+            if (needs.Hunger >= rules.CriticalNeedThreshold)
             {
                 EmitCriticalNeedEvent(state, agentEntity, "hunger", "is starving", needs.Hunger);
             }
 
-            if (needs.Thirst >= CriticalNeedThreshold)
+            if (needs.Thirst >= rules.CriticalNeedThreshold)
             {
                 EmitCriticalNeedEvent(state, agentEntity, "thirst", "is dehydrated", needs.Thirst);
             }
 
-            if (needs.Fatigue >= CriticalNeedThreshold || needs.Energy <= ExhaustedEnergyThreshold)
+            if (needs.Fatigue >= rules.CriticalNeedThreshold || needs.Energy <= rules.ExhaustedEnergyThreshold)
             {
                 EmitCriticalNeedEvent(state, agentEntity, "fatigue", "is exhausted", needs.Fatigue);
             }
@@ -96,23 +97,24 @@ namespace TabulaRasa.Simulation.Systems
         private void ApplySurvivalDamage(
             SimulationState state,
             AgentEntity agentEntity,
-            AgentNeedState needs)
+            AgentNeedState needs,
+            Configuration.NeedRulesConfig rules)
         {
             float damage = 0;
 
-            if (needs.Hunger >= HarmNeedThreshold)
+            if (needs.Hunger >= rules.HarmNeedThreshold)
             {
-                damage += SurvivalDamagePerTick;
+                damage += rules.SurvivalDamagePerTick;
             }
 
-            if (needs.Thirst >= HarmNeedThreshold)
+            if (needs.Thirst >= rules.HarmNeedThreshold)
             {
-                damage += SurvivalDamagePerTick;
+                damage += rules.SurvivalDamagePerTick;
             }
 
-            if (needs.Fatigue >= HarmNeedThreshold || needs.Energy <= ExhaustedEnergyThreshold)
+            if (needs.Fatigue >= rules.HarmNeedThreshold || needs.Energy <= rules.ExhaustedEnergyThreshold)
             {
-                damage += SurvivalDamagePerTick;
+                damage += rules.SurvivalDamagePerTick;
             }
 
             if (damage <= 0)
@@ -130,7 +132,10 @@ namespace TabulaRasa.Simulation.Systems
                 {
                     ["damage"] = damage.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
                     ["health"] = agentEntity.Health.Current.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
-                });
+                },
+                severity: "warning",
+                importance: 0.74f,
+                tags: ["survival", "need"]);
 
             if (agentEntity.Health.IsDepleted)
             {
@@ -154,7 +159,10 @@ namespace TabulaRasa.Simulation.Systems
                 {
                     ["need"] = needName,
                     ["value"] = value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
-                });
+                },
+                severity: "warning",
+                importance: 0.62f,
+                tags: ["need", needName]);
         }
     }
 }

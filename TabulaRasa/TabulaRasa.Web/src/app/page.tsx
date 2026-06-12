@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Copy,
   Database,
@@ -21,12 +22,13 @@ import {
   Upload,
   X
 } from "lucide-react";
-import { DiscoveryTimelineMarkers, EventLogPanel, GenealogyPanel, KnowledgePanel, RuntimePanel, SocialGraphPanel } from "@/components/DebugPanels";
+import { DiscoveryTimelineMarkers, EventLogPanel, GenealogyPanel, KnowledgePanel, RuntimePanel, SocialGraphPanel, WatchPanel } from "@/components/DebugPanels";
 import { Inspector } from "@/components/Inspector";
 import { WorldCanvas } from "@/components/WorldCanvas";
 import { simulationApi } from "@/lib/api";
 import { setTerrainCell, toggleBlockedCell, updateAgentDraft, updateResourceContainerDraft } from "@/lib/draft";
 import type {
+  BuiltInSimulationScenario,
   GridCell,
   HoverInfo,
   Selection,
@@ -37,7 +39,8 @@ import type {
   SimulationRunPage,
   SimulationSnapshot,
   SimulationStatus,
-  SimulationSummary
+  SimulationSummary,
+  SimulationTimelinePoint
 } from "@/types/simulation";
 
 const systemOptions = [
@@ -57,6 +60,7 @@ const systemOptions = [
   ["movement-execution", "Movement"],
   ["task-execution", "Tasks"],
   ["action-execution", "Execution"],
+  ["recovery", "Recovery"],
   ["reporting", "Reporting"]
 ] as const;
 
@@ -70,17 +74,56 @@ const defaultConfig: SimulationConfig = {
   eventHistoryLimit: 100,
   snapshotHistoryLimit: 100,
   needDecay: {
-    hungerDelta: 1,
-    thirstDelta: 1,
-    energyDelta: -1,
-    fatigueDelta: 1
+    hungerDelta: 0.08,
+    thirstDelta: 0.08,
+    energyDelta: -0.02,
+    fatigueDelta: 0.04
+  },
+  needRules: {
+    maximumNeedValue: 10,
+    maximumEnergyValue: 10,
+    eatRecoveryAmount: 5,
+    drinkRecoveryAmount: 5,
+    restEnergyRecoveryAmount: 4,
+    restFatigueRecoveryAmount: 5,
+    criticalNeedThreshold: 8,
+    harmNeedThreshold: 10,
+    exhaustedEnergyThreshold: 0,
+    survivalDamagePerTick: 1,
+    heatWeatherThirstMultiplier: 1.25,
+    hotTemperatureThreshold: 30,
+    hotTemperatureThirstBonus: 0.25,
+    coldTemperatureThreshold: 5,
+    coldTemperatureThirstBonus: -0.15,
+    minTemperatureThirstMultiplier: 0.5,
+    maxTemperatureThirstMultiplier: 2
+  },
+  goals: {
+    hungerThreshold: 4,
+    urgentHungerThreshold: 7.5,
+    interruptionPriorityDelta: 20,
+    inventionMaxHunger: 4,
+    inventionMaxThirst: 4,
+    inventionMaxFatigue: 5
   },
   perceptionRadius: 20,
   movementSpeedPerTick: 0.25,
   pathfinding: {
     allowDiagonalMovement: false,
     maxVisitedCells: 1000,
-    maxRepathAttempts: 3
+    maxRepathAttempts: 3,
+    arrivalTolerance: 0.05,
+    interactionTolerance: 0.1,
+    agentInteractionRangeBonus: 0.5
+  },
+  spawnResources: {
+    foodStackQuantity: 2,
+    plantStartingYield: 4,
+    plantMaxYield: 5,
+    waterStartingVolume: 16,
+    waterMaxVolume: 20,
+    depositQuantity: 5,
+    depositMaxQuantity: 5
   },
   memory: {
     enabled: true,
@@ -98,7 +141,25 @@ const defaultConfig: SimulationConfig = {
   environment: {
     dayLengthTicks: 100,
     weatherChangeIntervalTicks: 50,
-    baseTemperature: 20
+    baseTemperature: 20,
+    dawnEndRatio: 0.15,
+    dayEndRatio: 0.65,
+    duskEndRatio: 0.8,
+    clearWeatherWeight: 55,
+    rainWeatherWeight: 20,
+    heatWeatherWeight: 15,
+    coldWeatherWeight: 10,
+    dayTemperatureDelta: 4,
+    nightTemperatureDelta: -6,
+    dawnTemperatureDelta: -2,
+    duskTemperatureDelta: 1,
+    heatTemperatureDelta: 8,
+    coldTemperatureDelta: -8,
+    rainTemperatureDelta: -2,
+    maxPlantCooling: 3,
+    plantCoolingFactor: 30,
+    maxWaterCooling: 2,
+    waterCoolingPerSource: 0.5
   },
   ecology: {
     initialPlantCount: 3,
@@ -107,12 +168,113 @@ const defaultConfig: SimulationConfig = {
     plantRegrowthTicks: 5,
     plantDecayTicksAfterDepleted: 20,
     waterRefillPerRainTick: 0.5,
-    waterEvaporationPerHeatTick: 0.25
+    waterEvaporationPerHeatTick: 0.25,
+    collapsePlantYieldThreshold: 0,
+    collapseWaterVolumeThreshold: 0,
+    recoveryPlantYieldThreshold: 1,
+    recoveryWaterVolumeThreshold: 1
   },
   speciesPopulation: {
     human: 1,
     deer: 0,
     wolf: 0
+  },
+  lifecycle: {
+    ageDaysPerTick: 0.01,
+    daysPerYear: 365
+  },
+  speciesRules: {
+    human: {
+      maxHealth: 10,
+      adultAgeDays: 20,
+      maxAgeDays: 2000,
+      reproductionCooldownTicks: 80,
+      perceptionMultiplier: 1,
+      movementSpeedMultiplier: 1,
+      attackDamage: 2,
+      hungerDecayMultiplier: 1,
+      thirstDecayMultiplier: 1,
+      fatigueDecayMultiplier: 1,
+      startingNeeds: { hunger: 1, thirst: 0.5, energy: 10, fatigue: 0 },
+      edibleResourceIds: ["food"],
+      preySpeciesIds: []
+    },
+    deer: {
+      maxHealth: 6,
+      adultAgeDays: 15,
+      maxAgeDays: 1200,
+      reproductionCooldownTicks: 60,
+      perceptionMultiplier: 1.15,
+      movementSpeedMultiplier: 1.25,
+      attackDamage: 0,
+      hungerDecayMultiplier: 1.1,
+      thirstDecayMultiplier: 1,
+      fatigueDecayMultiplier: 0.9,
+      startingNeeds: { hunger: 1.5, thirst: 0.75, energy: 10, fatigue: 0 },
+      edibleResourceIds: ["food"],
+      preySpeciesIds: []
+    },
+    wolf: {
+      maxHealth: 8,
+      adultAgeDays: 18,
+      maxAgeDays: 1400,
+      reproductionCooldownTicks: 90,
+      perceptionMultiplier: 1.25,
+      movementSpeedMultiplier: 1.15,
+      attackDamage: 4,
+      hungerDecayMultiplier: 1.2,
+      thirstDecayMultiplier: 1.05,
+      fatigueDecayMultiplier: 1,
+      startingNeeds: { hunger: 2.5, thirst: 0.75, energy: 10, fatigue: 0 },
+      edibleResourceIds: [],
+      preySpeciesIds: ["deer"]
+    }
+  },
+  believability: {
+    behavior: {
+      eat: 1.2,
+      drink: 1.15,
+      rest: 0.9,
+      wander: 0.75,
+      social: 0.85,
+      reproduce: 0.65,
+      flee: 1.25,
+      attack: 0.85,
+      craft: 0.9,
+      experiment: 0.75,
+      explorationChance: 0.08,
+      personalityInfluence: 0.3
+    },
+    social: {
+      perceptionFamiliarity: 0.08,
+      communicationFamiliarity: 0.12,
+      communicationTrust: 0.06,
+      communicationFear: -0.02,
+      communicationAffinity: 0.05,
+      attackTrust: -0.2,
+      attackFear: 0.35,
+      attackAffinity: -0.2,
+      reproductionFamiliarity: 0.2,
+      reproductionTrust: 0.1,
+      reproductionFear: -0.05,
+      reproductionAffinity: 0.25
+    },
+    reproduction: {
+      needThreshold: 3.5,
+      range: 1.25,
+      cooldownScale: 1.35,
+      populationPressureInfluence: 0.75,
+      parentHungerCost: 1.25,
+      parentThirstCost: 0.75,
+      parentFatigueCost: 1
+    },
+    recovery: {
+      failedTargetCooldownTicks: 20,
+      maxRepeatedActionFailures: 3,
+      maxGoalAgeTicks: 100,
+      idleRecoveryTicks: 8,
+      movementStuckTicks: 3
+    }
   },
   enabledSystems: systemOptions.map(([id]) => id)
 };
@@ -122,10 +284,14 @@ const terrainBrushes = ["Plain", "Road", "Forest", "Mud", "Water"] as const;
 export default function Home() {
   const [simulations, setSimulations] = useState<SimulationSummary[]>([]);
   const [runPage, setRunPage] = useState<SimulationRunPage | null>(null);
+  const [scenarioPresets, setScenarioPresets] = useState<BuiltInSimulationScenario[]>([]);
   const [activeSimulationId, setActiveSimulationId] = useState<string | null>(null);
   const [limits, setLimits] = useState<SimulationResourceLimits | null>(null);
   const [status, setStatus] = useState<SimulationStatus | null>(null);
   const [snapshot, setSnapshot] = useState<SimulationSnapshot | null>(null);
+  const [timeline, setTimeline] = useState<SimulationTimelinePoint[]>([]);
+  const [comparisonSimulationId, setComparisonSimulationId] = useState<string>("");
+  const [comparisonTimeline, setComparisonTimeline] = useState<SimulationTimelinePoint[]>([]);
   const [draft, setDraft] = useState<SimulationDraft | null>(null);
   const [schema, setSchema] = useState<SimulationDraftSchema | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
@@ -135,7 +301,7 @@ export default function Home() {
   const [configDraft, setConfigDraft] = useState<SimulationConfig | null>(null);
   const [eventScope, setEventScope] = useState<"recent" | "current">("recent");
   const [eventType, setEventType] = useState("all");
-  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events" | "social" | "genealogy" | "knowledge">("inspect");
+  const [rightRailTab, setRightRailTab] = useState<"inspect" | "runtime" | "settings" | "events" | "social" | "genealogy" | "knowledge" | "watch">("inspect");
   const [editing, setEditing] = useState(false);
   const [hover, setHover] = useState<HoverInfo>(null);
   const [showNavigationOverlay, setShowNavigationOverlay] = useState(false);
@@ -148,6 +314,7 @@ export default function Home() {
   const [terrainBrush, setTerrainBrush] = useState<(typeof terrainBrushes)[number] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [selectedScenarioName, setSelectedScenarioName] = useState("custom");
   const [createName, setCreateName] = useState("Simulation");
   const [createConfig, setCreateConfig] = useState<SimulationConfig>(defaultConfig);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -160,14 +327,16 @@ export default function Home() {
   const canTune = status?.status === "Paused";
 
   const loadSimulations = useCallback(async () => {
-    const [nextSimulations, nextLimits, nextRuns] = await Promise.all([
+    const [nextSimulations, nextLimits, nextRuns, nextScenarios] = await Promise.all([
       simulationApi.list(),
       simulationApi.resourceLimits(),
-      simulationApi.runs()
+      simulationApi.runs(),
+      simulationApi.scenarios()
     ]);
     setSimulations(nextSimulations);
     setLimits(nextLimits);
     setRunPage(nextRuns);
+    setScenarioPresets(nextScenarios);
     setActiveSimulationId((current) => {
       if (current && nextSimulations.some((simulation) => simulation.simulationId === current)) {
         return current;
@@ -193,17 +362,30 @@ export default function Home() {
       return;
     }
 
-    const [nextStatus, current] = await Promise.all([
+    const [nextStatus, current, nextTimeline] = await Promise.all([
       simulationApi.status(simulationId),
-      simulationApi.current(simulationId)
+      simulationApi.current(simulationId),
+      simulationApi.timeline(simulationId, undefined, undefined, 1)
     ]);
     setStatus(nextStatus);
     setConfigDraft(nextStatus.config);
     setSnapshot(current);
+    setTimeline(nextTimeline);
     setViewedTick(current.tick);
     setSliderTick(current.tick);
     await loadSimulations();
   }, [activeSimulationId, loadSimulations]);
+
+  useEffect(() => {
+    if (!comparisonSimulationId) {
+      setComparisonTimeline([]);
+      return;
+    }
+
+    simulationApi.timeline(comparisonSimulationId, undefined, undefined, 1)
+      .then(setComparisonTimeline)
+      .catch((reason: unknown) => setError(toMessage(reason)));
+  }, [comparisonSimulationId]);
 
   useEffect(() => {
     loadSimulations().catch((reason: unknown) => setError(toMessage(reason)));
@@ -273,9 +455,28 @@ export default function Home() {
     return Array.from(new Set(events.map((event) => event.type))).sort();
   }, [snapshot]);
 
-  async function handleCreate() {
+  function handleScenarioChange(name: string) {
+    setSelectedScenarioName(name);
+    if (name === "custom") {
+      return;
+    }
+
+    const preset = scenarioPresets.find((scenario) => scenario.name === name);
+    if (!preset) {
+      return;
+    }
+
+    setCreateName(preset.displayName);
+    setCreateConfig(preset.config);
+  }
+
+  async function handleCreate(startAfterCreate = false) {
     setError(null);
     const created = await simulationApi.create({ name: createName, config: createConfig });
+    if (startAfterCreate) {
+      await simulationApi.run(created.simulationId, speed);
+    }
+
     setCreating(false);
     await loadSimulations();
     setActiveSimulationId(created.simulationId);
@@ -707,6 +908,7 @@ export default function Home() {
           <div className="rail-tabs">
             <button className={rightRailTab === "inspect" ? "selected" : ""} onClick={() => setRightRailTab("inspect")}>Inspect</button>
             <button className={rightRailTab === "runtime" ? "selected" : ""} onClick={() => setRightRailTab("runtime")}>Runtime</button>
+            <button className={rightRailTab === "watch" ? "selected" : ""} onClick={() => setRightRailTab("watch")}>Watch</button>
             <button className={rightRailTab === "social" ? "selected" : ""} onClick={() => setRightRailTab("social")}>Social</button>
             <button className={rightRailTab === "genealogy" ? "selected" : ""} onClick={() => setRightRailTab("genealogy")}>Family</button>
             <button className={rightRailTab === "knowledge" ? "selected" : ""} onClick={() => setRightRailTab("knowledge")}>Knowledge</button>
@@ -731,8 +933,21 @@ export default function Home() {
               <RuntimePanel
                 status={status}
                 snapshot={snapshot}
+                timeline={timeline}
+                comparisonTimeline={comparisonTimeline}
+                comparisonSimulationId={comparisonSimulationId}
+                simulations={simulations}
                 configDraft={null}
                 onConfigDraftChange={() => undefined}
+                onComparisonSimulationChange={setComparisonSimulationId}
+              />
+            )}
+            {rightRailTab === "watch" && (
+              <WatchPanel
+                snapshot={snapshot}
+                timeline={timeline}
+                selection={selection}
+                onSelectAgent={(id) => setSelection({ type: "agent", id })}
               />
             )}
             {rightRailTab === "settings" && (
@@ -828,15 +1043,30 @@ export default function Home() {
                 <X size={17} />
               </button>
             </div>
-            <label className="field wide">
-              <span>Name</span>
-              <input value={createName} onChange={(event) => setCreateName(event.target.value)} />
-            </label>
+            <div className="modal-fields">
+              <label className="field wide">
+                <span>Name</span>
+                <input value={createName} onChange={(event) => setCreateName(event.target.value)} />
+              </label>
+              <label className="field wide">
+                <span>Scenario</span>
+                <select value={selectedScenarioName} onChange={(event) => handleScenarioChange(event.target.value)}>
+                  <option value="custom">Custom</option>
+                  {scenarioPresets.map((scenario) => (
+                    <option key={scenario.name} value={scenario.name}>{scenario.displayName}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <ConfigFields config={createConfig} disabled={false} includeRebuildFields onChange={setCreateConfig} />
             <div className="row modal-actions">
-              <button onClick={handleCreate}>
+              <button onClick={() => handleCreate().catch((reason: unknown) => setError(toMessage(reason)))}>
                 <Plus size={16} />
                 Create
+              </button>
+              <button onClick={() => handleCreate(true).catch((reason: unknown) => setError(toMessage(reason)))}>
+                <Play size={16} />
+                Create & Run
               </button>
               <button onClick={() => setCreating(false)}>Cancel</button>
             </div>
@@ -887,243 +1117,160 @@ function ConfigFields({
   includeRebuildFields: boolean;
   onChange: (config: SimulationConfig) => void;
 }) {
+  const lifecycle = config.lifecycle ?? defaultConfig.lifecycle!;
+  const needRules = config.needRules ?? defaultConfig.needRules!;
+  const goals = config.goals ?? defaultConfig.goals!;
+  const pathfinding = {
+    ...defaultConfig.pathfinding,
+    ...config.pathfinding
+  };
+  const spawnResources = config.spawnResources ?? defaultConfig.spawnResources!;
+  const speciesRules = config.speciesRules ?? defaultConfig.speciesRules!;
+  const human = speciesRules.human ?? defaultConfig.speciesRules!.human!;
+  const deer = speciesRules.deer ?? defaultConfig.speciesRules!.deer!;
+  const wolf = speciesRules.wolf ?? defaultConfig.speciesRules!.wolf!;
+  const believability = config.believability ?? defaultConfig.believability!;
+  const behavior = believability.behavior ?? defaultConfig.believability!.behavior!;
+  const social = believability.social ?? defaultConfig.believability!.social!;
+  const reproduction = believability.reproduction ?? defaultConfig.believability!.reproduction!;
+  const recovery = believability.recovery ?? defaultConfig.believability!.recovery!;
+  const rebuildDisabled = disabled || !includeRebuildFields;
+  const updateSpecies = (species: "human" | "deer" | "wolf", next: typeof human) => {
+    onChange({ ...config, speciesRules: { ...speciesRules, [species]: next } });
+  };
+  const updateSpeciesNeeds = (species: "human" | "deer" | "wolf", current: typeof human, key: "hunger" | "thirst" | "energy" | "fatigue", value: number) => {
+    const startingNeeds = current.startingNeeds ?? defaultConfig.speciesRules![species]!.startingNeeds!;
+    updateSpecies(species, { ...current, startingNeeds: { ...startingNeeds, [key]: value } });
+  };
+
   return (
-    <div className="field-grid config-grid">
-      <NumberConfigField
-        label="Seed"
-        value={config.seed}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(seed) => onChange({ ...config, seed })}
-      />
-      <NumberConfigField
-        label="Width"
-        value={config.worldWidth}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(worldWidth) => onChange({ ...config, worldWidth })}
-      />
-      <NumberConfigField
-        label="Height"
-        value={config.worldHeight}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(worldHeight) => onChange({ ...config, worldHeight })}
-      />
-      <NumberConfigField
-        label="Agents"
-        value={config.initialAgentCount}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(initialAgentCount) => onChange({
-          ...config,
-          initialAgentCount,
-          speciesPopulation: { ...config.speciesPopulation, human: initialAgentCount }
-        })}
-      />
-      <NumberConfigField
-        label="Humans"
-        value={config.speciesPopulation.human}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(human) => onChange({
-          ...config,
-          initialAgentCount: human,
-          speciesPopulation: { ...config.speciesPopulation, human }
-        })}
-      />
-      <NumberConfigField
-        label="Deer"
-        value={config.speciesPopulation.deer}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(deer) => onChange({ ...config, speciesPopulation: { ...config.speciesPopulation, deer } })}
-      />
-      <NumberConfigField
-        label="Wolves"
-        value={config.speciesPopulation.wolf}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(wolf) => onChange({ ...config, speciesPopulation: { ...config.speciesPopulation, wolf } })}
-      />
-      <NumberConfigField
-        label="Food"
-        value={config.initialFoodCount}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(initialFoodCount) => onChange({ ...config, initialFoodCount })}
-      />
-      <NumberConfigField
-        label="Interval"
-        value={config.tickIntervalMilliseconds}
-        disabled={disabled}
-        onChange={(tickIntervalMilliseconds) => onChange({ ...config, tickIntervalMilliseconds })}
-      />
-      <NumberConfigField
-        label="Events"
-        value={config.eventHistoryLimit}
-        disabled={disabled}
-        onChange={(eventHistoryLimit) => onChange({ ...config, eventHistoryLimit })}
-      />
-      <NumberConfigField
-        label="Snapshots"
-        value={config.snapshotHistoryLimit}
-        disabled={disabled}
-        onChange={(snapshotHistoryLimit) => onChange({ ...config, snapshotHistoryLimit })}
-      />
-      <NumberConfigField
-        label="Hunger"
-        value={config.needDecay.hungerDelta}
-        disabled={disabled}
-        onChange={(hungerDelta) => onChange({ ...config, needDecay: { ...config.needDecay, hungerDelta } })}
-      />
-      <NumberConfigField
-        label="Thirst"
-        value={config.needDecay.thirstDelta}
-        disabled={disabled}
-        onChange={(thirstDelta) => onChange({ ...config, needDecay: { ...config.needDecay, thirstDelta } })}
-      />
-      <NumberConfigField
-        label="Energy"
-        value={config.needDecay.energyDelta}
-        disabled={disabled}
-        onChange={(energyDelta) => onChange({ ...config, needDecay: { ...config.needDecay, energyDelta } })}
-      />
-      <NumberConfigField
-        label="Fatigue"
-        value={config.needDecay.fatigueDelta}
-        disabled={disabled}
-        onChange={(fatigueDelta) => onChange({ ...config, needDecay: { ...config.needDecay, fatigueDelta } })}
-      />
-      <NumberConfigField
-        label="Radius"
-        value={config.perceptionRadius}
-        disabled={disabled}
-        onChange={(perceptionRadius) => onChange({ ...config, perceptionRadius })}
-      />
-      <NumberConfigField
-        label="Move"
-        value={config.movementSpeedPerTick}
-        disabled={disabled}
-        step={0.05}
-        onChange={(movementSpeedPerTick) => onChange({ ...config, movementSpeedPerTick })}
-      />
-      <NumberConfigField
-        label="Visited"
-        value={config.pathfinding.maxVisitedCells}
-        disabled={disabled}
-        onChange={(maxVisitedCells) => onChange({ ...config, pathfinding: { ...config.pathfinding, maxVisitedCells } })}
-      />
-      <NumberConfigField
-        label="Repaths"
-        value={config.pathfinding.maxRepathAttempts}
-        disabled={disabled}
-        onChange={(maxRepathAttempts) => onChange({ ...config, pathfinding: { ...config.pathfinding, maxRepathAttempts } })}
-      />
-      <NumberConfigField
-        label="Memory max"
-        value={config.memory.maxMemoriesPerAgent}
-        disabled={disabled}
-        onChange={(maxMemoriesPerAgent) => onChange({ ...config, memory: { ...config.memory, maxMemoriesPerAgent } })}
-      />
-      <NumberConfigField
-        label="Memory ttl"
-        value={config.memory.retentionTicks}
-        disabled={disabled}
-        onChange={(retentionTicks) => onChange({ ...config, memory: { ...config.memory, retentionTicks } })}
-      />
-      <NumberConfigField
-        label="Memory decay"
-        value={config.memory.decayPerTick}
-        disabled={disabled}
-        step={0.01}
-        onChange={(decayPerTick) => onChange({ ...config, memory: { ...config.memory, decayPerTick } })}
-      />
-      <NumberConfigField
-        label="Trait spread"
-        value={config.traits.initialVariation}
-        disabled={disabled || !includeRebuildFields}
-        step={0.01}
-        onChange={(initialVariation) => onChange({ ...config, traits: { ...config.traits, initialVariation } })}
-      />
-      <NumberConfigField
-        label="Mutate rate"
-        value={config.traits.mutationChancePerTrait}
-        disabled={disabled}
-        step={0.01}
-        onChange={(mutationChancePerTrait) => onChange({ ...config, traits: { ...config.traits, mutationChancePerTrait } })}
-      />
-      <NumberConfigField
-        label="Mutate delta"
-        value={config.traits.mutationDelta}
-        disabled={disabled}
-        step={0.01}
-        onChange={(mutationDelta) => onChange({ ...config, traits: { ...config.traits, mutationDelta } })}
-      />
-      <NumberConfigField
-        label="Day ticks"
-        value={config.environment.dayLengthTicks}
-        disabled={disabled}
-        onChange={(dayLengthTicks) => onChange({ ...config, environment: { ...config.environment, dayLengthTicks } })}
-      />
-      <NumberConfigField
-        label="Weather"
-        value={config.environment.weatherChangeIntervalTicks}
-        disabled={disabled}
-        onChange={(weatherChangeIntervalTicks) => onChange({ ...config, environment: { ...config.environment, weatherChangeIntervalTicks } })}
-      />
-      <NumberConfigField
-        label="Base temp"
-        value={config.environment.baseTemperature}
-        disabled={disabled}
-        onChange={(baseTemperature) => onChange({ ...config, environment: { ...config.environment, baseTemperature } })}
-      />
-      <NumberConfigField
-        label="Plants"
-        value={config.ecology.initialPlantCount}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(initialPlantCount) => onChange({ ...config, ecology: { ...config.ecology, initialPlantCount } })}
-      />
-      <NumberConfigField
-        label="Water src"
-        value={config.ecology.initialWaterSourceCount}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(initialWaterSourceCount) => onChange({ ...config, ecology: { ...config.ecology, initialWaterSourceCount } })}
-      />
-      <NumberConfigField
-        label="Deposits"
-        value={config.ecology.initialResourceDepositCount}
-        disabled={disabled || !includeRebuildFields}
-        onChange={(initialResourceDepositCount) => onChange({ ...config, ecology: { ...config.ecology, initialResourceDepositCount } })}
-      />
-      <NumberConfigField
-        label="Forget below"
-        value={config.memory.minimumStrength}
-        disabled={disabled}
-        step={0.05}
-        onChange={(minimumStrength) => onChange({ ...config, memory: { ...config.memory, minimumStrength } })}
-      />
-      <NumberConfigField
-        label="Recall at"
-        value={config.memory.recallThreshold}
-        disabled={disabled}
-        step={0.05}
-        onChange={(recallThreshold) => onChange({ ...config, memory: { ...config.memory, recallThreshold } })}
-      />
-      <label className="field checkbox-field">
-        <span>Diagonal</span>
-        <input
-          type="checkbox"
-          checked={config.pathfinding.allowDiagonalMovement}
-          disabled={disabled}
-          onChange={(event) => onChange({
-            ...config,
-            pathfinding: { ...config.pathfinding, allowDiagonalMovement: event.target.checked }
-          })}
-        />
-      </label>
-      <label className="field checkbox-field">
-        <span>Memory</span>
-        <input
-          type="checkbox"
-          checked={config.memory.enabled}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...config, memory: { ...config.memory, enabled: event.target.checked } })}
-        />
-      </label>
-      <div className="system-toggles wide">
+    <div className="config-sections">
+      <ConfigSection title="Simulation">
+        <NumberConfigField label="Seed" value={config.seed} disabled={rebuildDisabled} onChange={(seed) => onChange({ ...config, seed })} />
+        <NumberConfigField label="World width" value={config.worldWidth} disabled={rebuildDisabled} onChange={(worldWidth) => onChange({ ...config, worldWidth })} />
+        <NumberConfigField label="World height" value={config.worldHeight} disabled={rebuildDisabled} onChange={(worldHeight) => onChange({ ...config, worldHeight })} />
+        <NumberConfigField label="Tick interval ms" value={config.tickIntervalMilliseconds} disabled={disabled} onChange={(tickIntervalMilliseconds) => onChange({ ...config, tickIntervalMilliseconds })} />
+        <NumberConfigField label="Event history" value={config.eventHistoryLimit} disabled={disabled} onChange={(eventHistoryLimit) => onChange({ ...config, eventHistoryLimit })} />
+        <NumberConfigField label="Snapshot history" value={config.snapshotHistoryLimit} disabled={disabled} onChange={(snapshotHistoryLimit) => onChange({ ...config, snapshotHistoryLimit })} />
+      </ConfigSection>
+
+      <ConfigSection title="Time & Lifecycle">
+        <NumberConfigField label="Day length ticks" value={config.environment.dayLengthTicks} disabled={disabled} onChange={(dayLengthTicks) => onChange({ ...config, environment: { ...config.environment, dayLengthTicks } })} />
+        <NumberConfigField label="Age days / tick" value={lifecycle.ageDaysPerTick} disabled={disabled} step={0.001} onChange={(ageDaysPerTick) => onChange({ ...config, lifecycle: { ...lifecycle, ageDaysPerTick } })} />
+        <NumberConfigField label="Days / year" value={lifecycle.daysPerYear} disabled={disabled} onChange={(daysPerYear) => onChange({ ...config, lifecycle: { ...lifecycle, daysPerYear } })} />
+      </ConfigSection>
+
+      <ConfigSection title="Species">
+        <NumberConfigField label="Humans" value={config.speciesPopulation.human} disabled={rebuildDisabled} onChange={(humanCount) => onChange({ ...config, initialAgentCount: humanCount, speciesPopulation: { ...config.speciesPopulation, human: humanCount } })} />
+        <NumberConfigField label="Deer" value={config.speciesPopulation.deer} disabled={rebuildDisabled} onChange={(deerCount) => onChange({ ...config, speciesPopulation: { ...config.speciesPopulation, deer: deerCount } })} />
+        <NumberConfigField label="Wolves" value={config.speciesPopulation.wolf} disabled={rebuildDisabled} onChange={(wolfCount) => onChange({ ...config, speciesPopulation: { ...config.speciesPopulation, wolf: wolfCount } })} />
+        <NumberConfigField label="Human health" value={human.maxHealth} disabled={disabled} step={0.5} onChange={(maxHealth) => updateSpecies("human", { ...human, maxHealth })} />
+        <NumberConfigField label="Human adult days" value={human.adultAgeDays} disabled={disabled} onChange={(adultAgeDays) => updateSpecies("human", { ...human, adultAgeDays })} />
+        <NumberConfigField label="Human max days" value={human.maxAgeDays} disabled={disabled} onChange={(maxAgeDays) => updateSpecies("human", { ...human, maxAgeDays })} />
+        <NumberConfigField label="Deer speed x" value={deer.movementSpeedMultiplier} disabled={disabled} step={0.05} onChange={(movementSpeedMultiplier) => updateSpecies("deer", { ...deer, movementSpeedMultiplier })} />
+        <NumberConfigField label="Deer hunger x" value={deer.hungerDecayMultiplier} disabled={disabled} step={0.05} onChange={(hungerDecayMultiplier) => updateSpecies("deer", { ...deer, hungerDecayMultiplier })} />
+        <NumberConfigField label="Wolf damage" value={wolf.attackDamage} disabled={disabled} step={0.5} onChange={(attackDamage) => updateSpecies("wolf", { ...wolf, attackDamage })} />
+        <NumberConfigField label="Wolf prey hunger" value={wolf.startingNeeds?.hunger ?? 0} disabled={disabled} step={0.1} onChange={(value) => updateSpeciesNeeds("wolf", wolf, "hunger", value)} />
+      </ConfigSection>
+
+      <ConfigSection title="Needs">
+        <NumberConfigField label="Hunger decay" value={config.needDecay.hungerDelta} disabled={disabled} step={0.01} onChange={(hungerDelta) => onChange({ ...config, needDecay: { ...config.needDecay, hungerDelta } })} />
+        <NumberConfigField label="Thirst decay" value={config.needDecay.thirstDelta} disabled={disabled} step={0.01} onChange={(thirstDelta) => onChange({ ...config, needDecay: { ...config.needDecay, thirstDelta } })} />
+        <NumberConfigField label="Energy decay" value={config.needDecay.energyDelta} disabled={disabled} step={0.01} onChange={(energyDelta) => onChange({ ...config, needDecay: { ...config.needDecay, energyDelta } })} />
+        <NumberConfigField label="Fatigue decay" value={config.needDecay.fatigueDelta} disabled={disabled} step={0.01} onChange={(fatigueDelta) => onChange({ ...config, needDecay: { ...config.needDecay, fatigueDelta } })} />
+        <NumberConfigField label="Critical at" value={needRules.criticalNeedThreshold} disabled={disabled} step={0.1} onChange={(criticalNeedThreshold) => onChange({ ...config, needRules: { ...needRules, criticalNeedThreshold } })} />
+        <NumberConfigField label="Damage at" value={needRules.harmNeedThreshold} disabled={disabled} step={0.1} onChange={(harmNeedThreshold) => onChange({ ...config, needRules: { ...needRules, harmNeedThreshold } })} />
+        <NumberConfigField label="Damage / tick" value={needRules.survivalDamagePerTick} disabled={disabled} step={0.1} onChange={(survivalDamagePerTick) => onChange({ ...config, needRules: { ...needRules, survivalDamagePerTick } })} />
+        <NumberConfigField label="Eat recovery" value={needRules.eatRecoveryAmount} disabled={disabled} step={0.1} onChange={(eatRecoveryAmount) => onChange({ ...config, needRules: { ...needRules, eatRecoveryAmount } })} />
+        <NumberConfigField label="Drink recovery" value={needRules.drinkRecoveryAmount} disabled={disabled} step={0.1} onChange={(drinkRecoveryAmount) => onChange({ ...config, needRules: { ...needRules, drinkRecoveryAmount } })} />
+        <NumberConfigField label="Rest energy" value={needRules.restEnergyRecoveryAmount} disabled={disabled} step={0.1} onChange={(restEnergyRecoveryAmount) => onChange({ ...config, needRules: { ...needRules, restEnergyRecoveryAmount } })} />
+        <NumberConfigField label="Rest fatigue" value={needRules.restFatigueRecoveryAmount} disabled={disabled} step={0.1} onChange={(restFatigueRecoveryAmount) => onChange({ ...config, needRules: { ...needRules, restFatigueRecoveryAmount } })} />
+      </ConfigSection>
+
+      <ConfigSection title="Movement & Pathfinding">
+        <NumberConfigField label="Perception radius" value={config.perceptionRadius} disabled={disabled} step={0.5} onChange={(perceptionRadius) => onChange({ ...config, perceptionRadius })} />
+        <NumberConfigField label="Move / tick" value={config.movementSpeedPerTick} disabled={disabled} step={0.05} onChange={(movementSpeedPerTick) => onChange({ ...config, movementSpeedPerTick })} />
+        <NumberConfigField label="Visited cells" value={pathfinding.maxVisitedCells} disabled={disabled} onChange={(maxVisitedCells) => onChange({ ...config, pathfinding: { ...pathfinding, maxVisitedCells } })} />
+        <NumberConfigField label="Repaths" value={pathfinding.maxRepathAttempts} disabled={disabled} onChange={(maxRepathAttempts) => onChange({ ...config, pathfinding: { ...pathfinding, maxRepathAttempts } })} />
+        <NumberConfigField label="Arrival tol" value={pathfinding.arrivalTolerance} disabled={disabled} step={0.01} onChange={(arrivalTolerance) => onChange({ ...config, pathfinding: { ...pathfinding, arrivalTolerance } })} />
+        <NumberConfigField label="Interact tol" value={pathfinding.interactionTolerance} disabled={disabled} step={0.01} onChange={(interactionTolerance) => onChange({ ...config, pathfinding: { ...pathfinding, interactionTolerance } })} />
+        <NumberConfigField label="Agent reach" value={pathfinding.agentInteractionRangeBonus} disabled={disabled} step={0.05} onChange={(agentInteractionRangeBonus) => onChange({ ...config, pathfinding: { ...pathfinding, agentInteractionRangeBonus } })} />
+        <label className="field checkbox-field"><span>Diagonal</span><input type="checkbox" checked={pathfinding.allowDiagonalMovement} disabled={disabled} onChange={(event) => onChange({ ...config, pathfinding: { ...pathfinding, allowDiagonalMovement: event.target.checked } })} /></label>
+      </ConfigSection>
+
+      <ConfigSection title="Environment">
+        <NumberConfigField label="Weather interval" value={config.environment.weatherChangeIntervalTicks} disabled={disabled} onChange={(weatherChangeIntervalTicks) => onChange({ ...config, environment: { ...config.environment, weatherChangeIntervalTicks } })} />
+        <NumberConfigField label="Base temp" value={config.environment.baseTemperature} disabled={disabled} step={0.5} onChange={(baseTemperature) => onChange({ ...config, environment: { ...config.environment, baseTemperature } })} />
+        <NumberConfigField label="Clear weight" value={config.environment.clearWeatherWeight} disabled={disabled} onChange={(clearWeatherWeight) => onChange({ ...config, environment: { ...config.environment, clearWeatherWeight } })} />
+        <NumberConfigField label="Rain weight" value={config.environment.rainWeatherWeight} disabled={disabled} onChange={(rainWeatherWeight) => onChange({ ...config, environment: { ...config.environment, rainWeatherWeight } })} />
+        <NumberConfigField label="Heat weight" value={config.environment.heatWeatherWeight} disabled={disabled} onChange={(heatWeatherWeight) => onChange({ ...config, environment: { ...config.environment, heatWeatherWeight } })} />
+        <NumberConfigField label="Cold weight" value={config.environment.coldWeatherWeight} disabled={disabled} onChange={(coldWeatherWeight) => onChange({ ...config, environment: { ...config.environment, coldWeatherWeight } })} />
+      </ConfigSection>
+
+      <ConfigSection title="Ecology & Resources">
+        <NumberConfigField label="Food containers" value={config.initialFoodCount} disabled={rebuildDisabled} onChange={(initialFoodCount) => onChange({ ...config, initialFoodCount })} />
+        <NumberConfigField label="Food stack qty" value={spawnResources.foodStackQuantity} disabled={rebuildDisabled} onChange={(foodStackQuantity) => onChange({ ...config, spawnResources: { ...spawnResources, foodStackQuantity } })} />
+        <NumberConfigField label="Plants" value={config.ecology.initialPlantCount} disabled={rebuildDisabled} onChange={(initialPlantCount) => onChange({ ...config, ecology: { ...config.ecology, initialPlantCount } })} />
+        <NumberConfigField label="Plant start yield" value={spawnResources.plantStartingYield} disabled={rebuildDisabled} onChange={(plantStartingYield) => onChange({ ...config, spawnResources: { ...spawnResources, plantStartingYield } })} />
+        <NumberConfigField label="Plant max yield" value={spawnResources.plantMaxYield} disabled={rebuildDisabled} onChange={(plantMaxYield) => onChange({ ...config, spawnResources: { ...spawnResources, plantMaxYield } })} />
+        <NumberConfigField label="Regrowth ticks" value={config.ecology.plantRegrowthTicks} disabled={disabled} onChange={(plantRegrowthTicks) => onChange({ ...config, ecology: { ...config.ecology, plantRegrowthTicks } })} />
+        <NumberConfigField label="Water sources" value={config.ecology.initialWaterSourceCount} disabled={rebuildDisabled} onChange={(initialWaterSourceCount) => onChange({ ...config, ecology: { ...config.ecology, initialWaterSourceCount } })} />
+        <NumberConfigField label="Water start" value={spawnResources.waterStartingVolume} disabled={rebuildDisabled} step={0.5} onChange={(waterStartingVolume) => onChange({ ...config, spawnResources: { ...spawnResources, waterStartingVolume } })} />
+        <NumberConfigField label="Water max" value={spawnResources.waterMaxVolume} disabled={rebuildDisabled} step={0.5} onChange={(waterMaxVolume) => onChange({ ...config, spawnResources: { ...spawnResources, waterMaxVolume } })} />
+        <NumberConfigField label="Rain refill" value={config.ecology.waterRefillPerRainTick} disabled={disabled} step={0.05} onChange={(waterRefillPerRainTick) => onChange({ ...config, ecology: { ...config.ecology, waterRefillPerRainTick } })} />
+        <NumberConfigField label="Heat evap" value={config.ecology.waterEvaporationPerHeatTick} disabled={disabled} step={0.05} onChange={(waterEvaporationPerHeatTick) => onChange({ ...config, ecology: { ...config.ecology, waterEvaporationPerHeatTick } })} />
+        <NumberConfigField label="Deposits" value={config.ecology.initialResourceDepositCount} disabled={rebuildDisabled} onChange={(initialResourceDepositCount) => onChange({ ...config, ecology: { ...config.ecology, initialResourceDepositCount } })} />
+      </ConfigSection>
+
+      <ConfigSection title="Memory & Learning">
+        <NumberConfigField label="Memory max" value={config.memory.maxMemoriesPerAgent} disabled={disabled} onChange={(maxMemoriesPerAgent) => onChange({ ...config, memory: { ...config.memory, maxMemoriesPerAgent } })} />
+        <NumberConfigField label="Memory ttl" value={config.memory.retentionTicks} disabled={disabled} onChange={(retentionTicks) => onChange({ ...config, memory: { ...config.memory, retentionTicks } })} />
+        <NumberConfigField label="Memory decay" value={config.memory.decayPerTick} disabled={disabled} step={0.01} onChange={(decayPerTick) => onChange({ ...config, memory: { ...config.memory, decayPerTick } })} />
+        <NumberConfigField label="Forget below" value={config.memory.minimumStrength} disabled={disabled} step={0.05} onChange={(minimumStrength) => onChange({ ...config, memory: { ...config.memory, minimumStrength } })} />
+        <NumberConfigField label="Recall at" value={config.memory.recallThreshold} disabled={disabled} step={0.05} onChange={(recallThreshold) => onChange({ ...config, memory: { ...config.memory, recallThreshold } })} />
+        <NumberConfigField label="Trait spread" value={config.traits.initialVariation} disabled={rebuildDisabled} step={0.01} onChange={(initialVariation) => onChange({ ...config, traits: { ...config.traits, initialVariation } })} />
+        <NumberConfigField label="Mutate rate" value={config.traits.mutationChancePerTrait} disabled={disabled} step={0.01} onChange={(mutationChancePerTrait) => onChange({ ...config, traits: { ...config.traits, mutationChancePerTrait } })} />
+        <NumberConfigField label="Mutate delta" value={config.traits.mutationDelta} disabled={disabled} step={0.01} onChange={(mutationDelta) => onChange({ ...config, traits: { ...config.traits, mutationDelta } })} />
+        <label className="field checkbox-field"><span>Memory</span><input type="checkbox" checked={config.memory.enabled} disabled={disabled} onChange={(event) => onChange({ ...config, memory: { ...config.memory, enabled: event.target.checked } })} /></label>
+      </ConfigSection>
+
+      <ConfigSection title="Behavior & Social">
+        {(["eat", "drink", "rest", "wander", "social", "flee", "attack", "craft", "experiment"] as const).map((key) => (
+          <NumberConfigField key={key} label={key} value={behavior[key]} disabled={disabled} step={0.05} onChange={(value) => onChange({ ...config, believability: { ...believability, behavior: { ...behavior, [key]: value } } })} />
+        ))}
+        <NumberConfigField label="Explore" value={behavior.explorationChance} disabled={disabled} step={0.01} onChange={(explorationChance) => onChange({ ...config, believability: { ...believability, behavior: { ...behavior, explorationChance } } })} />
+        <NumberConfigField label="Personality" value={behavior.personalityInfluence} disabled={disabled} step={0.01} onChange={(personalityInfluence) => onChange({ ...config, believability: { ...believability, behavior: { ...behavior, personalityInfluence } } })} />
+        <NumberConfigField label="Comm trust" value={social.communicationTrust} disabled={disabled} step={0.01} onChange={(communicationTrust) => onChange({ ...config, believability: { ...believability, social: { ...social, communicationTrust } } })} />
+        <NumberConfigField label="Attack fear" value={social.attackFear} disabled={disabled} step={0.01} onChange={(attackFear) => onChange({ ...config, believability: { ...believability, social: { ...social, attackFear } } })} />
+      </ConfigSection>
+
+      <ConfigSection title="Reproduction">
+        <NumberConfigField label="Behavior weight" value={behavior.reproduce} disabled={disabled} step={0.05} onChange={(reproduce) => onChange({ ...config, believability: { ...believability, behavior: { ...behavior, reproduce } } })} />
+        <NumberConfigField label="Need threshold" value={reproduction.needThreshold} disabled={disabled} step={0.1} onChange={(needThreshold) => onChange({ ...config, believability: { ...believability, reproduction: { ...reproduction, needThreshold } } })} />
+        <NumberConfigField label="Range" value={reproduction.range} disabled={disabled} step={0.05} onChange={(range) => onChange({ ...config, believability: { ...believability, reproduction: { ...reproduction, range } } })} />
+        <NumberConfigField label="Cooldown scale" value={reproduction.cooldownScale} disabled={disabled} step={0.05} onChange={(cooldownScale) => onChange({ ...config, believability: { ...believability, reproduction: { ...reproduction, cooldownScale } } })} />
+        <NumberConfigField label="Pressure" value={reproduction.populationPressureInfluence} disabled={disabled} step={0.05} onChange={(populationPressureInfluence) => onChange({ ...config, believability: { ...believability, reproduction: { ...reproduction, populationPressureInfluence } } })} />
+        <NumberConfigField label="Parent hunger" value={reproduction.parentHungerCost} disabled={disabled} step={0.1} onChange={(parentHungerCost) => onChange({ ...config, believability: { ...believability, reproduction: { ...reproduction, parentHungerCost } } })} />
+        <NumberConfigField label="Parent thirst" value={reproduction.parentThirstCost} disabled={disabled} step={0.1} onChange={(parentThirstCost) => onChange({ ...config, believability: { ...believability, reproduction: { ...reproduction, parentThirstCost } } })} />
+        <NumberConfigField label="Parent fatigue" value={reproduction.parentFatigueCost} disabled={disabled} step={0.1} onChange={(parentFatigueCost) => onChange({ ...config, believability: { ...believability, reproduction: { ...reproduction, parentFatigueCost } } })} />
+      </ConfigSection>
+
+      <ConfigSection title="Recovery">
+        <NumberConfigField label="Target cooldown" value={recovery.failedTargetCooldownTicks} disabled={disabled} onChange={(failedTargetCooldownTicks) => onChange({ ...config, believability: { ...believability, recovery: { ...recovery, failedTargetCooldownTicks } } })} />
+        <NumberConfigField label="Max failures" value={recovery.maxRepeatedActionFailures} disabled={disabled} onChange={(maxRepeatedActionFailures) => onChange({ ...config, believability: { ...believability, recovery: { ...recovery, maxRepeatedActionFailures } } })} />
+        <NumberConfigField label="Goal age" value={recovery.maxGoalAgeTicks} disabled={disabled} onChange={(maxGoalAgeTicks) => onChange({ ...config, believability: { ...believability, recovery: { ...recovery, maxGoalAgeTicks } } })} />
+        <NumberConfigField label="Idle ticks" value={recovery.idleRecoveryTicks} disabled={disabled} onChange={(idleRecoveryTicks) => onChange({ ...config, believability: { ...believability, recovery: { ...recovery, idleRecoveryTicks } } })} />
+        <NumberConfigField label="Stuck ticks" value={recovery.movementStuckTicks} disabled={disabled} onChange={(movementStuckTicks) => onChange({ ...config, believability: { ...believability, recovery: { ...recovery, movementStuckTicks } } })} />
+      </ConfigSection>
+
+      <ConfigSection title="Goals">
+        <NumberConfigField label="Hunger goal" value={goals.hungerThreshold} disabled={disabled} step={0.1} onChange={(hungerThreshold) => onChange({ ...config, goals: { ...goals, hungerThreshold } })} />
+        <NumberConfigField label="Urgent hunger" value={goals.urgentHungerThreshold} disabled={disabled} step={0.1} onChange={(urgentHungerThreshold) => onChange({ ...config, goals: { ...goals, urgentHungerThreshold } })} />
+        <NumberConfigField label="Interrupt delta" value={goals.interruptionPriorityDelta} disabled={disabled} onChange={(interruptionPriorityDelta) => onChange({ ...config, goals: { ...goals, interruptionPriorityDelta } })} />
+      </ConfigSection>
+
+      <ConfigSection title="Systems">
+        <div className="system-toggles wide">
         {systemOptions.map(([id, label]) => (
           <label key={id}>
             <input
@@ -1140,8 +1287,18 @@ function ConfigFields({
             <span>{label}</span>
           </label>
         ))}
-      </div>
+        </div>
+      </ConfigSection>
     </div>
+  );
+}
+
+function ConfigSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="config-section">
+      <h3>{title}</h3>
+      <div className="field-grid config-grid">{children}</div>
+    </section>
   );
 }
 

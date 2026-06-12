@@ -215,7 +215,7 @@ namespace TabulaRasa.UnitTests.Simulation.Evolution
                 Id = id,
                 SpeciesId = SpeciesRegistry.DeerId,
                 Position = position,
-                AgeTicks = SpeciesRegistry.Get(SpeciesRegistry.DeerId).AdultAgeTicks,
+                AgeTicks = SpeciesRegistry.Get(SpeciesRegistry.DeerId).AdultAgeDays,
                 Health = new EntityHealth(6)
             };
         }

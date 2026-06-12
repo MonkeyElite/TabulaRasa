@@ -1,16 +1,26 @@
 import React from "react";
-import type { AgentSnapshot, DiscoveryMarkerSnapshot, PopulationTraitMetric, RecipeDefinitionSnapshot, SimulationEvent, SimulationSnapshot, SimulationStatus } from "@/types/simulation";
+import type { AgentSnapshot, DiscoveryMarkerSnapshot, PopulationTraitMetric, RecipeDefinitionSnapshot, Selection, SimulationEvent, SimulationSnapshot, SimulationStatus, SimulationSummary, SimulationTimelinePoint } from "@/types/simulation";
 
 export function RuntimePanel({
   status,
   snapshot,
+  timeline = [],
+  comparisonTimeline = [],
+  comparisonSimulationId = "",
+  simulations = [],
   configDraft,
-  onConfigDraftChange
+  onConfigDraftChange,
+  onComparisonSimulationChange = () => undefined
 }: {
   status: SimulationStatus | null;
   snapshot: SimulationSnapshot | null;
+  timeline?: SimulationTimelinePoint[];
+  comparisonTimeline?: SimulationTimelinePoint[];
+  comparisonSimulationId?: string;
+  simulations?: SimulationSummary[];
   configDraft: SimulationStatus["config"] | null;
   onConfigDraftChange: (config: SimulationStatus["config"]) => void;
+  onComparisonSimulationChange?: (simulationId: string) => void;
 }) {
   const systems = snapshot?.diagnostics?.systems ?? [];
   const slowestSystems = [...systems]
@@ -99,6 +109,27 @@ export function RuntimePanel({
           {snapshot.evolution.currentTraits.map((metric) => (
             <TraitMetricRow key={metric.trait} metric={metric} />
           ))}
+        </div>
+      )}
+      {timeline.length > 0 && (
+        <div className="timeline-chart-panel">
+          <div className="subsection-title">Run timeline</div>
+          <MetricSparkline label="Alive" points={timeline} value={(point) => aliveTotal(point)} compare={comparisonTimeline} />
+          <MetricSparkline label="Food" points={timeline} value={(point) => point.foodCount + point.totalPlantYield} compare={comparisonTimeline} />
+          <MetricSparkline label="Water" points={timeline} value={(point) => point.totalWaterVolume} compare={comparisonTimeline} />
+          <MetricSparkline label="Needs" points={timeline} value={(point) => point.averageHunger + point.averageThirst + point.averageFatigue} compare={comparisonTimeline} />
+          <MetricSparkline label="Events" points={timeline} value={(point) => point.importantEventCount} compare={comparisonTimeline} />
+          <MetricSparkline label="Tick ms" points={timeline} value={(point) => point.durationMilliseconds} compare={comparisonTimeline} />
+          <div className="row compact-controls">
+            <select value={comparisonSimulationId} onChange={(event) => onComparisonSimulationChange(event.target.value)}>
+              <option value="">Compare none</option>
+              {simulations.map((simulation) => (
+                <option key={simulation.simulationId} value={simulation.simulationId}>
+                  {simulation.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
       {configDraft && (
@@ -194,7 +225,7 @@ export function EventLogPanel({
       </div>
       <div className="event-list">
         {events.map((event) => (
-          <div key={`${event.tick}:${event.sequence}:${event.type}`} className="event-row">
+          <div key={`${event.tick}:${event.sequence}:${event.type}`} className={`event-row ${eventTone(event)}`}>
             <span>{event.tick}</span>
             <span>{event.type}</span>
             <span>{event.sourceSystem}</span>
@@ -294,6 +325,95 @@ export function GenealogyPanel({
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+export function WatchPanel({
+  snapshot,
+  timeline,
+  selection,
+  onSelectAgent
+}: {
+  snapshot: SimulationSnapshot | null;
+  timeline: SimulationTimelinePoint[];
+  selection: Selection;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const selectedAgent = selection?.type === "agent"
+    ? snapshot?.agents.find((agent) => agent.id === selection.id) ?? null
+    : null;
+  const selectedSpecies = selectedAgent?.speciesId ?? snapshot?.speciesPopulation.find((species) => species.alive > 0)?.speciesId ?? "human";
+  const species = snapshot?.speciesPopulation.find((item) => item.speciesId === selectedSpecies) ?? null;
+  const importantEvents = (snapshot?.recentEvents ?? [])
+    .filter((event) => (event.importance ?? 0) >= 0.5 || event.severity === "warning" || event.severity === "critical")
+    .slice(-8)
+    .reverse();
+
+  return (
+    <section className="debug-panel watch-panel">
+      <div className="debug-header">
+        <h2>Watch</h2>
+        <span className="pill">{selectedAgent?.id ?? species?.displayName ?? "no target"}</span>
+      </div>
+      <div className="entity-list compact-watch-list">
+        {(snapshot?.agents ?? []).slice(0, 12).map((agent) => (
+          <button
+            key={agent.id}
+            className={`entity-row ${selectedAgent?.id === agent.id ? "selected" : ""}`}
+            onClick={() => onSelectAgent(agent.id)}
+          >
+            <span className={`entity-dot ${agent.isDead ? "corpse" : "agent"}`} />
+            <span>
+              <strong>{agent.id}</strong>
+              <small>{agent.speciesId} / {agent.personality?.label ?? "Balanced"}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+      {selectedAgent ? (
+        <>
+          <div className="debug-summary">
+            <span className="metric">Personality <strong>{selectedAgent.personality?.label ?? "Balanced"}</strong></span>
+            <span className="metric">Goal <strong>{selectedAgent.currentGoal?.needKey ?? "none"}</strong></span>
+            <span className="metric">Action <strong>{selectedAgent.decision?.selectedAction ?? selectedAgent.movement?.requestedAction ?? "idle"}</strong></span>
+            <span className="metric">Health <strong>{formatNumber(selectedAgent.health?.current ?? 0)}</strong></span>
+          </div>
+          <div className="watch-vitals">
+            <NeedMiniBar label="H" value={selectedAgent.needs.hunger} invert />
+            <NeedMiniBar label="T" value={selectedAgent.needs.thirst} invert />
+            <NeedMiniBar label="E" value={selectedAgent.needs.energy} />
+            <NeedMiniBar label="F" value={selectedAgent.needs.fatigue} invert />
+          </div>
+        </>
+      ) : (
+        <span className="metric">Select an agent to watch individual behavior.</span>
+      )}
+      {species && (
+        <div className="species-population-chart">
+          <div className="subsection-title">{species.displayName}</div>
+          <MetricSparkline
+            label="Species alive"
+            points={timeline}
+            value={(point) => point.speciesPopulation.find((item) => item.speciesId === species.speciesId)?.alive ?? 0}
+          />
+          <span className="metric">Alive <strong>{species.alive}/{species.total}</strong></span>
+        </div>
+      )}
+      <div className="system-list">
+        <div className="subsection-title">Important events</div>
+        {importantEvents.map((event) => (
+          <div className={`system-row ${eventTone(event)}`} key={`${event.tick}:${event.sequence}`}>
+            <span>
+              <strong>{event.type}</strong>
+              <small>{event.message}</small>
+            </span>
+            <span>{event.tick}</span>
+            <span>{formatNumber(event.importance ?? 0)}</span>
+          </div>
+        ))}
+        {importantEvents.length === 0 && <span className="metric">No important events yet.</span>}
+      </div>
     </section>
   );
 }
@@ -520,6 +640,84 @@ function RecipeCatalogRow({ recipe, known }: { recipe: RecipeDefinitionSnapshot;
       <small>{recipe.unlocks.map((unlock) => unlock.displayName).join(", ") || "no unlocks"}</small>
     </div>
   );
+}
+
+function MetricSparkline({
+  label,
+  points,
+  value,
+  compare = []
+}: {
+  label: string;
+  points: SimulationTimelinePoint[];
+  value: (point: SimulationTimelinePoint) => number;
+  compare?: SimulationTimelinePoint[];
+}) {
+  const values = points.map(value);
+  const compareValues = compare.map(value);
+  const allValues = [...values, ...compareValues];
+  const min = allValues.length === 0 ? 0 : Math.min(...allValues);
+  const max = allValues.length === 0 ? 1 : Math.max(...allValues);
+  const path = sparklinePath(values, min, max);
+  const comparePath = sparklinePath(compareValues, min, max);
+  const latest = values.at(-1) ?? 0;
+
+  return (
+    <div className="sparkline-row">
+      <span>{label}</span>
+      <svg viewBox="0 0 120 34" role="img" aria-label={`${label} timeline`}>
+        {comparePath && <path d={comparePath} className="compare" />}
+        {path && <path d={path} />}
+      </svg>
+      <strong>{formatNumber(latest)}</strong>
+    </div>
+  );
+}
+
+function sparklinePath(values: number[], min: number, max: number) {
+  if (values.length === 0) {
+    return "";
+  }
+
+  const width = 120;
+  const height = 34;
+  const range = Math.max(0.0001, max - min);
+  return values.map((value, index) => {
+    const x = values.length <= 1 ? 0 : (index / (values.length - 1)) * width;
+    const y = height - ((value - min) / range) * (height - 4) - 2;
+    return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+}
+
+function NeedMiniBar({ label, value, invert }: { label: string; value: number; invert?: boolean }) {
+  const clamped = clamp01(value / 10);
+  const tone = invert
+    ? value >= 8 ? "bad" : value >= 5 ? "warn" : "good"
+    : value <= 2 ? "bad" : value <= 5 ? "warn" : "good";
+
+  return (
+    <span className={`need-mini ${tone}`}>
+      <b>{label}</b>
+      <i><span style={{ width: `${clamped * 100}%` }} /></i>
+      <strong>{formatNumber(value)}</strong>
+    </span>
+  );
+}
+
+function eventTone(event: SimulationEvent) {
+  if (event.severity === "critical" || (event.importance ?? 0) >= 0.85) {
+    return "critical";
+  }
+
+  if (event.severity === "warning" || (event.importance ?? 0) >= 0.5) {
+    return "important";
+  }
+
+  return "";
+}
+
+function aliveTotal(point: SimulationTimelinePoint) {
+  return point.speciesPopulation.reduce((sum, species) => sum + species.alive, 0);
 }
 
 function TraitMetricRow({ metric }: { metric: PopulationTraitMetric }) {

@@ -7,5 +7,8 @@ namespace TabulaRasa.Simulation.Observability
         string SourceSystem,
         string Message,
         string? EntityId,
-        IReadOnlyDictionary<string, string> Metadata);
+        IReadOnlyDictionary<string, string> Metadata,
+        string Severity = "info",
+        float Importance = 0,
+        IReadOnlyList<string>? Tags = null);
 }

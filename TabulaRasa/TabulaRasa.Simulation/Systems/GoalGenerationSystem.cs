@@ -4,6 +4,7 @@ using TabulaRasa.Agents.Models;
 using TabulaRasa.Simulation.Goals;
 using TabulaRasa.Simulation.Interfaces;
 using TabulaRasa.Simulation.Knowledge;
+using TabulaRasa.Simulation.Species;
 using TabulaRasa.Simulation.State;
 using TabulaRasa.Simulation.Tasks.Definitions;
 using TabulaRasa.Simulation.Tasks.Jobs;
@@ -17,10 +18,6 @@ namespace TabulaRasa.Simulation.Systems
 {
     public sealed class GoalGenerationSystem : ISystem
     {
-        private const float HungerThreshold = 5f;
-        private const float UrgentHungerThreshold = 8f;
-        private const int InterruptionPriorityDelta = 20;
-
         public string Name => "Goal Generation System";
         public SimulationPhase Phase => SimulationPhase.Evaluation;
         public int Priority => 1;
@@ -42,14 +39,15 @@ namespace TabulaRasa.Simulation.Systems
                     continue;
                 }
 
+                var goalConfig = state.Config.EffectiveGoals;
                 AgentGoal? activeGoal = state.Goals.LastOrDefault(goal => goal.AgentId == agentEntity.Id && goal.IsActive);
-                if (agentState.NeedState.Hunger >= HungerThreshold)
+                if (agentState.NeedState.Hunger >= goalConfig.HungerThreshold)
                 {
                     int priority = BuildHungerPriority(agentState.NeedState.Hunger);
                     if (activeGoal is not null)
                     {
                         state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
-                        if (priority <= activeGoal.Priority + InterruptionPriorityDelta)
+                        if (priority <= activeGoal.Priority + goalConfig.InterruptionPriorityDelta)
                         {
                             continue;
                         }
@@ -60,7 +58,7 @@ namespace TabulaRasa.Simulation.Systems
                     if (IsAgentBusy(state, agentEntity.Id))
                     {
                         state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
-                        if (agentState.NeedState.Hunger < UrgentHungerThreshold)
+                        if (agentState.NeedState.Hunger < goalConfig.UrgentHungerThreshold)
                         {
                             continue;
                         }
@@ -78,7 +76,7 @@ namespace TabulaRasa.Simulation.Systems
                     continue;
                 }
 
-                TryCreateInventionGoal(state, agentEntity, agentState);
+                TryCreateInventionGoal(state, agentEntity, agentState, goalConfig);
             }
         }
 
@@ -118,7 +116,7 @@ namespace TabulaRasa.Simulation.Systems
             AgentState agentState,
             int priority)
         {
-            FoodTarget? target = SelectFoodTarget(state, agentEntity);
+            HungerTarget? target = SelectHungerTarget(state, agentEntity);
             string goalId = $"goal:{agentEntity.Id}:hunger:{state.ActiveTick}:{state.Goals.Count + 1}";
             AgentGoal goal = new(
                 goalId,
@@ -134,7 +132,9 @@ namespace TabulaRasa.Simulation.Systems
                 ? CreateSearchJob(goal, agentState)
                 : target.FromInventory
                     ? CreateEatFromInventoryJob(goal, agentState)
-                    : CreateFoodJob(goal, target, agentState);
+                    : target.ActionType == AgentActionType.Attack
+                        ? CreatePreyJob(goal, target, agentState)
+                        : CreateFoodJob(goal, target, agentState);
 
             goal.LinkJob(job.Id, state.ActiveTick);
             state.Goals.Add(goal);
@@ -153,11 +153,12 @@ namespace TabulaRasa.Simulation.Systems
         private static void TryCreateInventionGoal(
             SimulationState state,
             AgentEntity agentEntity,
-            AgentState agentState)
+            AgentState agentState,
+            Configuration.GoalConfig goalConfig)
         {
-            if (agentState.NeedState.Hunger > 4
-                || agentState.NeedState.Thirst > 4
-                || agentState.NeedState.Fatigue > 5)
+            if (agentState.NeedState.Hunger > goalConfig.InventionMaxHunger
+                || agentState.NeedState.Thirst > goalConfig.InventionMaxThirst
+                || agentState.NeedState.Fatigue > goalConfig.InventionMaxFatigue)
             {
                 return;
             }
@@ -211,26 +212,56 @@ namespace TabulaRasa.Simulation.Systems
             state.PendingIntents.RemoveAll(intent => intent.AgentId == agentEntity.Id);
         }
 
-        private static FoodTarget? SelectFoodTarget(SimulationState state, AgentEntity agentEntity)
+        private static HungerTarget? SelectHungerTarget(SimulationState state, AgentEntity agentEntity)
         {
             if (agentEntity.Inventory.GetQuantity(ResourceDefinition.FoodId) > 0)
             {
-                return new FoodTarget(null, "Food", true, 1);
+                return new HungerTarget(AgentActionType.Eat, null, "Food", true, 1);
             }
 
             AgentPerception perception = state.LatestPerceptionsByAgentId.GetValueOrDefault(agentEntity.Id)
                 ?? AgentPerception.Empty;
+            SpeciesDefinition species = SpeciesRegistry.Get(agentEntity.SpeciesId, state.Config.EffectiveSpeciesRules);
 
-            return perception.Opportunities
+            HungerTarget? edibleTarget = perception.Opportunities
                 .Where(opportunity => opportunity.ActionType == AgentActionType.Eat)
                 .Where(opportunity => opportunity.TargetId is not null)
-                .Where(opportunity => state.World.ResourceContainers.Any(container =>
-                    container.Id == opportunity.TargetId
-                    && SpatialQueries.ContainerHasFood(container)))
+                .Where(opportunity => IsEdibleFoodTarget(state, species, opportunity.TargetId!))
                 .OrderByDescending(opportunity => opportunity.Relevance)
                 .ThenBy(opportunity => opportunity.TargetId, StringComparer.Ordinal)
-                .Select(opportunity => new FoodTarget(opportunity.TargetId, "Food", false, opportunity.Relevance))
+                .Select(opportunity => new HungerTarget(AgentActionType.Eat, opportunity.TargetId, ResourceDefinition.FoodId, false, opportunity.Relevance))
                 .FirstOrDefault();
+            if (edibleTarget is not null)
+            {
+                return edibleTarget;
+            }
+
+            return perception.Opportunities
+                .Where(opportunity => opportunity.ActionType == AgentActionType.Attack)
+                .Where(opportunity => opportunity.TargetId is not null)
+                .Where(opportunity => state.World.Agents.Any(agent =>
+                    agent.Id == opportunity.TargetId
+                    && !agent.IsDead
+                    && species.CanAttackSpecies(SpeciesRegistry.Get(agent.SpeciesId, state.Config.EffectiveSpeciesRules).Id)))
+                .OrderByDescending(opportunity => opportunity.Relevance)
+                .ThenBy(opportunity => opportunity.TargetId, StringComparer.Ordinal)
+                .Select(opportunity => new HungerTarget(AgentActionType.Attack, opportunity.TargetId, "Prey", false, opportunity.Relevance))
+                .FirstOrDefault();
+        }
+
+        private static bool IsEdibleFoodTarget(SimulationState state, SpeciesDefinition species, string targetId)
+        {
+            if (state.World.ResourceContainers.Any(container =>
+                container.Id == targetId
+                && SpatialQueries.ContainerHasFood(container)))
+            {
+                return species.Id == SpeciesRegistry.HumanId;
+            }
+
+            return state.World.Plants.Any(plant =>
+                plant.Id == targetId
+                && plant.IsHarvestable
+                && species.CanEatResource(plant.ResourceId));
         }
 
         private static JobInstance CreateSearchJob(AgentGoal goal, AgentState agentState)
@@ -270,7 +301,7 @@ namespace TabulaRasa.Simulation.Systems
                 goal.Id);
         }
 
-        private static JobInstance CreateFoodJob(AgentGoal goal, FoodTarget target, AgentState agentState)
+        private static JobInstance CreateFoodJob(AgentGoal goal, HungerTarget target, AgentState agentState)
         {
             string targetId = target.Id ?? "";
             IReadOnlyList<ITaskPrecondition> foodPreconditions =
@@ -325,6 +356,62 @@ namespace TabulaRasa.Simulation.Systems
                 goal.Priority);
 
             return new JobInstance($"job:{goal.Id}:food", definition, goal.AgentId, goal.Id);
+        }
+
+        private static JobInstance CreatePreyJob(AgentGoal goal, HungerTarget target, AgentState agentState)
+        {
+            string targetId = target.Id ?? "";
+            IReadOnlyList<ITaskPrecondition> preyPreconditions =
+            [
+                new EntityExistsPrecondition(targetId)
+            ];
+
+            TaskDefinition stalk = new(
+                "stalk-prey",
+                "Stalk Prey",
+                requiredProgressTicks: 1,
+                executionKind: TaskExecutionKind.Progress,
+                targetId: targetId,
+                targetType: "Prey",
+                selectedGoal: "Hunger",
+                contextKey: "Hunger|Prey|Task",
+                preconditions: preyPreconditions);
+            TaskDefinition move = new(
+                "move-to-prey",
+                "Move To Prey",
+                requiredProgressTicks: 1,
+                atomicAction: AgentActionType.Attack,
+                executionKind: TaskExecutionKind.Movement,
+                targetId: targetId,
+                targetType: "Prey",
+                selectedGoal: "Hunger",
+                contextKey: "Hunger|Prey|Task",
+                preconditions: preyPreconditions,
+                requirements: [new TaskRequirement(ReservationTargetType.Entity, targetId)]);
+            TaskDefinition attack = new(
+                "attack-prey",
+                "Attack Prey",
+                requiredProgressTicks: 1,
+                atomicAction: AgentActionType.Attack,
+                executionKind: TaskExecutionKind.Action,
+                targetId: targetId,
+                targetType: "Prey",
+                selectedGoal: "Hunger",
+                contextKey: "Hunger|Prey|Task",
+                preconditions: preyPreconditions,
+                requirements: [new TaskRequirement(ReservationTargetType.Entity, targetId)]);
+
+            JobDefinition definition = new(
+                "hunger-stalk-and-attack-prey",
+                "Stalk And Attack Prey",
+                [
+                    new JobStepDefinition("stalk-prey", stalk),
+                    new JobStepDefinition("move-to-prey", move, ["stalk-prey"]),
+                    new JobStepDefinition("attack-prey", attack, ["move-to-prey"])
+                ],
+                goal.Priority);
+
+            return new JobInstance($"job:{goal.Id}:prey", definition, goal.AgentId, goal.Id);
         }
 
         private static bool IsAgentBusy(SimulationState state, string agentId)
@@ -419,6 +506,6 @@ namespace TabulaRasa.Simulation.Systems
                 });
         }
 
-        private sealed record FoodTarget(string? Id, string TargetType, bool FromInventory, float Relevance);
+        private sealed record HungerTarget(AgentActionType ActionType, string? Id, string TargetType, bool FromInventory, float Relevance);
     }
 }
